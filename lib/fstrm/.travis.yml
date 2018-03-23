@@ -1,0 +1,32 @@
+language: c
+
+os:
+  - linux
+  - osx
+
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+
+before_install:
+  # Linux
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get update -qq; fi
+
+install:
+  # Linux
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get -qq install libevent-dev valgrind lcov; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo pip install cpp-coveralls; fi
+
+script:
+  - ./autogen.sh
+  - ./configure
+  - make
+  - make distcheck VERBOSE=1
+
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then make clean; ./configure --enable-valgrind-tests && make distcheck VERBOSE=1 DISTCHECK_CONFIGURE_FLAGS="--enable-valgrind-tests"; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then make clean; ./configure --enable-code-coverage CFLAGS="" && make && make check; fi
+
+after_success:
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then cpp-coveralls --build-root . --exclude libmy/ --exclude src/ --exclude t/ --exclude /usr/include; fi

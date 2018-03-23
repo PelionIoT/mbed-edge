@@ -1,0 +1,6 @@
+test_control
+test_file_hello
+test_fstrm_io_file
+test_fstrm_io_unix
+test_queue
+test_writer_hello

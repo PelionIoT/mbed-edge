@@ -1,0 +1,147 @@
+#----------------------------------------------------------------------------
+# The confidential and proprietary information contained in this file may
+# only be used by a person authorised under and to the extent permitted
+# by a subsisting licensing agreement from ARM Limited or its affiliates.
+#
+# (C) COPYRIGHT 2017 ARM Limited or its affiliates.
+# ALL RIGHTS RESERVED
+#
+# This entire notice must be reproduced on all copies of this file
+# and copies of this file may only be made by a person if such person is
+# permitted to do so under the terms of a subsisting license agreement
+# from ARM Limited or its affiliates.
+#----------------------------------------------------------------------------
+
+################################################################################
+# Set environmental values
+################################################################################
+
+# set header 0 addresses and variables
+set FLAGS_0          0x00B80000
+set HEADER_0_START   0x84000000
+set HEADER_0_TIME_0  0x84000008
+set HEADER_0_TIME_1  0x84000009
+set HEADER_0_TIME_2  0x8400000A
+set HEADER_0_TIME_3  0x8400000B
+set HEADER_0_TIME_4  0x8400000C
+set HEADER_0_TIME_5  0x8400000D
+set HEADER_0_TIME_6  0x8400000E
+set HEADER_0_TIME_7  0x8400000F
+set HEADER_0_CRC32_0 0x8400006F
+set HEADER_0_CRC32_1 0x8400006E
+set HEADER_0_CRC32_2 0x8400006D
+set HEADER_0_CRC32_3 0x8400006C
+set HEADER_0_VALID   0
+
+# set header 1 addresses and variables
+set FLAGS_1          0x00BC0000
+set HEADER_1_START   0x84000100
+set HEADER_1_TIME_0  0x84000108
+set HEADER_1_TIME_1  0x84000109
+set HEADER_1_TIME_2  0x8400010A
+set HEADER_1_TIME_3  0x8400010B
+set HEADER_1_TIME_4  0x8400010C
+set HEADER_1_TIME_5  0x8400010D
+set HEADER_1_TIME_6  0x8400010E
+set HEADER_1_TIME_7  0x8400010F
+set HEADER_1_CRC32_0 0x8400016F
+set HEADER_1_CRC32_1 0x8400016E
+set HEADER_1_CRC32_2 0x8400016D
+set HEADER_1_CRC32_3 0x8400016C
+set HEADER_1_VALID   0
+
+# CRC calculation
+set CRC_ADDRESS_0 0x84100000
+set CRC_ADDRESS_1 0x84100001
+set CRC_ADDRESS_2 0x84100002
+set CRC_ADDRESS_3 0x84100003
+
+# header dimensions
+set HEADER_SIZE 0x70
+set HEADER_PAYLOAD_SIZE 0x6C
+
+################################################################################
+# Copy headers into memory
+################################################################################
+
+# read header 0 into memory
+nand read $HEADER_0_START $FLAGS_0 $HEADER_SIZE
+
+# read header 1 into memory
+nand read $HEADER_1_START $FLAGS_1 $HEADER_SIZE
+
+################################################################################
+# Validate header CRC
+################################################################################
+
+# calculate header 0 CRC
+crc32 $HEADER_0_START $HEADER_PAYLOAD_SIZE $CRC_ADDRESS_0
+
+# HEADER_0_VALID to one if CRC checks out
+if cmp.b $HEADER_0_CRC32_0 $CRC_ADDRESS_0 1 &&
+   cmp.b $HEADER_0_CRC32_1 $CRC_ADDRESS_1 1 &&
+   cmp.b $HEADER_0_CRC32_2 $CRC_ADDRESS_2 1 &&
+   cmp.b $HEADER_0_CRC32_3 $CRC_ADDRESS_3 1; then
+    set HEADER_0_VALID 1;
+fi
+
+# calculate header 1 CRC
+crc32 $HEADER_1_START $HEADER_PAYLOAD_SIZE $CRC_ADDRESS_0
+
+# HEADER_1_VALID to one if CRC checks out
+if cmp.b $HEADER_1_CRC32_0 $CRC_ADDRESS_0 1 &&
+   cmp.b $HEADER_1_CRC32_1 $CRC_ADDRESS_1 1 &&
+   cmp.b $HEADER_1_CRC32_2 $CRC_ADDRESS_2 1 &&
+   cmp.b $HEADER_1_CRC32_3 $CRC_ADDRESS_3 1; then
+    set HEADER_1_VALID 1;
+fi
+
+################################################################################
+# Deduce which partition to boot from
+################################################################################
+
+#
+# Note: without itest enabled in U-Boot it is not possible to compare
+# numbers directly from memory and determine which one is largest.
+# This prevents using the timestamp to choose between slots.
+#
+# First boot -> no valid headers -> choose default slot 0
+# 1st update -> valid header in slot 1 -> choose slot 1
+# 2nd update -> valid header in slot 0 and 1 -> choose slot 0
+# 3rd update -> valid header in slot 1 -> choose slot 1
+#
+if test $HEADER_0_VALID -eq 1 && test $HEADER_1_VALID -eq 1; then
+    echo "[BOOT] Both headers are valid, use default slot 0";
+    set CHOSEN_ONE 0;
+elif test $HEADER_0_VALID -eq 1; then
+    echo "[BOOT] Header 0 is valid, choose slot 0";
+    set CHOSEN_ONE 0;
+elif test $HEADER_1_VALID -eq 1; then
+    echo "[BOOT] Header 1 is valid, choose slot 1";
+    set CHOSEN_ONE 1;
+else
+    echo "[BOOT] No valid header found, use default slot 0";
+    set CHOSEN_ONE 0;
+fi
+
+################################################################################
+# Load kernel and boot
+################################################################################
+
+set KERNEL_ADDRESS 0x84000000
+set mtdids nand0=nand0
+
+if test $CHOSEN_ONE -eq 0; then
+    # load kernel from slot 0
+    set mtdparts mtdparts=nand0:0x3000000@0x00C00000(rootfs)
+    set bootargs ubi.mtd=rootfs root=mtd:ubi_rootfs rootfstype=squashfs rootwait mbed.slot=rootfs mbed.boot=U-Boot2012.07R1.0.5 mbed.layout=0
+    ubi part rootfs;
+else
+    # load kernel from slot 1
+    set mtdparts mtdparts=nand0:0x3000000@0x04400000(rootfs_1)
+    set bootargs ubi.mtd=rootfs_1 root=mtd:ubi_rootfs rootfstype=squashfs rootwait mbed.slot=rootfs_1 mbed.boot=U-Boot2012.07R1.0.5 mbed.layout=0
+    ubi part rootfs_1;
+fi
+
+ubi read $KERNEL_ADDRESS kernel;
+bootm $KERNEL_ADDRESS;

@@ -1,0 +1,51 @@
+/dts-v1/;
+
+/ {
+        description = "ARM Initial Image";
+        images {
+                script {
+                        description = "arm_initial_install_script.scr";
+                        data = /incbin/("./arm_initial_install_script.scr");
+                        type = "script";
+                        arch = "arm";
+                        compression = "none";
+                        hash@1 { algo = "crc32"; };
+                };
+
+                ubootscript {
+                        description = "arm_uboot_script.img";
+                        data = /incbin/("./arm_uboot_script.img");
+                        type = "script";
+                        arch = "arm";
+                        compression = "none";
+                        hash@1 { algo = "crc32"; };
+                };
+
+                header {
+                        description = "arm_initial_header.img";
+                        data = /incbin/("./arm_initial_header.img");
+                        type = "script";
+                        arch = "arm";
+                        compression = "none";
+                        hash@1 { algo = "crc32"; };
+                };
+		
+                ubi-rootfs {
+                        description = "openwrt-ipq806x-ipq40xx-ubi-root.img";
+                        data = /incbin/("./openwrt-ipq806x-ipq40xx-ubi-root.img");
+                        type = "firmware";
+                        arch = "arm";
+                        compression = "none";
+                        hash@1 { algo = "crc32"; };
+                };
+
+                ubi-kcm {
+                        description = "ubi-kcm.img";
+                        data = /incbin/("./ubi-kcm.img");
+                        type = "firmware";
+                        arch = "arm";
+                        compression = "none";
+                        hash@1 { algo = "crc32"; };
+                };
+        };
+};

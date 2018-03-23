@@ -1,0 +1,70 @@
+/*
+ * ----------------------------------------------------------------------------
+ * Copyright 2018 ARM Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ----------------------------------------------------------------------------
+ */
+
+#ifndef CLIENT_H_
+#define CLIENT_H_
+
+#include "pt-client/pt_api.h"
+
+/**
+ * \brief Initializes the connection structure between Mbed Cloud Edge and the connected
+ * protocol translator.
+ * \param ctx The program context.
+ * \param protocol_translator The protocol translator context.
+ * \param bev The libevent bufferevent.
+ * \param pt_cbs The protocol translator user supplied callback functions.
+ * \return The connection structure containing the connection-related data.
+ */
+struct connection* connection_init(struct context *ctx,
+                                   protocol_translator_t *protocol_translator,
+                                   struct bufferevent *bev,
+                                   const protocol_translator_callbacks_t *pt_cbs,
+                                   void *userdata);
+void connection_free(struct connection *connection);
+
+/**
+ * \brief Set the message id generation function.
+ * \param generate_msg_id is The function pointer or NULL. If NULL is given a default implementation is selected.
+ */
+void pt_client_set_msg_id_generator(generate_msg_id generate_msg_id);
+
+/**
+ * \brief function which is called by libevent when there is more available data to be read.
+ * \param bev is the bufferevent object
+ * \param ctx is the connection reference
+ * */
+void read_cb(struct bufferevent *bev, void *ctx);
+
+/**
+ * \brief function which is called by libevent for new events
+ * \param bev is the bufferevent object
+ * \param events describes this event, e.g. BEVEVENT_ERROR
+ * */
+void event_cb(struct bufferevent *bev, short events, void *arg);
+
+/**
+ * \brief This function cleans used memory, e.g. unhandled requests.
+ * It needs to be called before just before exiting the client application.
+ *
+ * */
+void pt_client_final_cleanup();
+
+
+#endif /* CLIENT_H_ */

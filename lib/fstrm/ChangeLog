@@ -1,0 +1,45 @@
+fstrm (0.3.2)
+
+  * Accomodate systems without pthread_condattr_setclock (Issue #34)
+
+ -- Chris Mikkelson <cmikk@fsi.io>  Tue, 21 Mar 2017 19:15:11 -0500
+
+fstrm (0.3.1)
+
+  * Add support for '-' as a filename for stdin/stdout (PR #28)
+
+  * destroy condition variable and mutexes in fstrm_iothr_destroy() (PR #25)
+
+ -- Chris Mikkelson <cmikk@fsi.io>  Thu, 26 Jan 2017 16:05:06 -0600
+
+fstrm (0.3.0)
+
+  * Output file rotation (Issue #22).
+
+  * Build on OS X (Issue #21).
+
+  * Change state properly in fstrm_writer_close() (Issue #18).
+
+  * force output flush on sighup (Issue #12).
+ 
+ -- Ben April <bapril@fsi.io>  Fri, 24 Jun 2016 22:29:56 -0500
+
+fstrm (0.2.0)
+
+  * Fix fstrm_writer_open() to allow multiple opens (Issue #1).
+
+  * New utility 'fstrm_capture', which requires libevent >= 2 (Issue #4).
+
+  * Fix incorrect pthread_cond_timedwait() usage (Issue #5).
+
+  * Backwards incompatible library API and protocol changes.
+
+  * Doxygen documentation.
+
+ -- Robert Edmonds <edmonds@fsi.io>  Thu, 06 Nov 2014 19:19:44 -0500
+
+fstrm (0.1.0)
+
+  * Initial release.
+
+ -- Robert Edmonds <edmonds@fsi.io>  Tue, 11 Feb 2014 20:00:25 -0500

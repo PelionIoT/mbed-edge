@@ -1,0 +1,37 @@
+#----------------------------------------------------------------------------
+# The confidential and proprietary information contained in this file may
+# only be used by a person authorised under and to the extent permitted
+# by a subsisting licensing agreement from ARM Limited or its affiliates.
+#
+# (C) COPYRIGHT 2017 ARM Limited or its affiliates.
+# ALL RIGHTS RESERVED
+#
+# This entire notice must be reproduced on all copies of this file
+# and copies of this file may only be made by a person if such person is
+# permitted to do so under the terms of a subsisting license agreement
+# from ARM Limited or its affiliates.
+#----------------------------------------------------------------------------
+
+# ARM Flashing NAND
+echo "ARM Flashing NAND"
+
+# Install root filesystem
+echo "Install root filesystem"
+imxtract 84000000 ubi-rootfs
+nand erase 0x00C00000 0x03000000 || echo "Failed erasing" && exit 1
+nand write $fileaddr 0x00C00000 $filesize || echo "Failed writing" && exit 1
+
+# Set initial header
+echo "Set initial header"
+imxtract 84000000 header
+nand erase 0x00B80000 0x20000 || echo "Failed erasing" && exit 1
+
+# use 0x48 offset to skip FIT header
+# header is 0x70, 0x70+0x48=0xB8
+mw.b 0x84A00000 0 0x200
+cp.b $fileaddr 0x84A00000 0xB8
+nand write 0x84A00048 0x00B80000 0x20000 || echo "Failed writing" && exit 1
+
+# reboot
+echo "Reboot"
+reset

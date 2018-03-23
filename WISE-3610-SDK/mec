@@ -1,0 +1,24 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+MCCED_BIN=/usr/sbin/edge-core
+MOUNT_KCM=/usr/sbin/mount_kcm.sh
+
+boot() {
+	# run script to mount KCM partition
+	$MOUNT_KCM
+
+	# pipe output to logger: /var/log/messages
+	(start-stop-daemon -S -x $MCCED_BIN -- -p 22225 -o 8081 | logger -t mbed) &
+}
+
+start()
+{
+    (start-stop-daemon -S -x $MCCED_BIN -- -p 22225 -o 8081 | logger -t mbed) &
+}
+
+stop()
+{
+	start-stop-daemon -K -x $MCCED_BIN
+}

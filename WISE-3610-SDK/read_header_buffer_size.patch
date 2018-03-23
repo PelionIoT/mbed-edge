@@ -1,0 +1,11 @@
+--- mbed-edge-module-sources/update-client-hub/modules/pal-linux/source/arm_uc_pal_linux_implementation_internal.c_a	2018-02-19 16:04:59.369899225 +0200
++++ mbed-edge-module-sources/update-client-hub/modules/pal-linux/source/arm_uc_pal_linux_implementation_internal.c	2018-02-19 16:04:15.113809162 +0200
+@@ -352,7 +352,7 @@ arm_uc_error_t arm_uc_pal_linux_internal
+ 
+             arm_uc_buffer_t buffer = {
+                 .size_max = sizeof(read_buffer),
+-                .size     = 0,
++                .size     = sizeof(read_buffer),
+                 .ptr      = read_buffer
+             };
+ 
