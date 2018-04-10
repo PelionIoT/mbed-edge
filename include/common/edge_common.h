@@ -68,18 +68,19 @@ typedef void (*pt_connection_ready_cb)(struct connection *connection, void *user
 typedef void (*pt_connection_shutdown_cb)(struct connection **connection, void *userdata);
 
 /**
- * \brief Function pointer type definition for handling received message from mbed Edge Core.
+ * \brief Function pointer type definition for handling received message from Mbed Edge Core.
  *
- * The callbacks are run on the same thread as the event loop of the protocol translator client.
+ * The callbacks are run on the same thread as the event loop of the protocol translator client.\n
  * If the related functionality of the callback does some long processing the processing
- * must be moved to worker thread. If the processing is run directly in the callback it
- * will block the event loop and therefore it will block the whole protocol translator.
+ * must be moved to worker thread.\n
+ * If the processing is run directly in the callback it will block the event loop and therefore it
+ * will block the whole protocol translator.
  *
  * \param connection The connection which this write originates.
- * \param device_id The device id to write the data.
- * \param object_id The object id to write the data.
- * \param instance_id The instance id to write the data.
- * \param resource_id The resource id to write the data.
+ * \param device_id The device ID to write the data.
+ * \param object_id The object ID to write the data.
+ * \param instance_id The instance ID to write the data.
+ * \param resource_id The resource ID to write the data.
  * \param operation The operation of the write.
  * \param value The pointer to byte data to write.
  * \param value_size The length of the data.
@@ -210,13 +211,15 @@ void edge_common_init_event_cb(void (*event_cb)(struct bufferevent *bev, short e
 /**
  * \brief The function definition for setting the underlying socket options.
  * \param fd The socket file descriptor.
- * \return 0 if the setting of socket options succeeded, 1 if failed.
+ * \return 0 if the setting of socket options succeeded.\n
+ *         1 if the setting of socket options failed.
  */
 int edge_common_set_socket_options(evutil_socket_t fd);
 
 /**
  * \brief The function definition for configuring libevent.
- * \return 0 if the configuring succeeded, 1 if failed.
+ * \return 0 if the configuring succeeded.\n
+ *         1 if confuring failed.
  */
 int edge_common_configure_libevent();
 
@@ -229,76 +232,84 @@ void edge_common_connection_destroy(struct connection **connection);
 /**
  * \brief Match the expected content type to content type set in the connection.
  * The expected content type is "jsonrpc".
- * \return True if content type is ok, otherwise false.
+ * \return True if content type is ok.\n
+ *         False if content is not ok.
  */
 bool edge_common_match_ct(struct connection *connection);
 
 /**
  * \brief Writes the current control frame to connection.
  * \param connection The connection to which to write the control frame.
- * \return True on success, false on failure.
+ * \return True if control frame write succeeded.\n
+ *         False if control frame write failed.
  */
 bool edge_common_write_control_frame(struct connection *connection);
 
 /**
  * \brief Process the received control frame from the connection.
+ *
  * \param connection The connection from which the control frame is read.
- * \praram connection_destroyed It is set to true if the connection was destroyed.
- * \param True on success, false on failure.
+ * \param connection_destroyed
+ *        This value is set to true if the connection was destroyed during the control frame processing.\n
+ *        False if the connection wasn't destroyed.
  */
 bool edge_common_process_control_frame(struct connection *connection, bool *connection_destroyed);
 
 /**
- * \brief Specific implementation for processing a data frame. I.e. the PT Client and Edge Core have
- * different implementation for this.
+ * \brief Specific implementation for processing a data frame.
+ *        The PT client and Edge Core have different implementation for this.
+ *
  * \param connection The connection which is receiving the data frame.
- * \param connection_destroyed This value is set to
- *        true  - if the connection was destroyed during the data frame processing
- *        false - if the connection wasn't destroyed.
+ * \param connection_destroyed
+ *        This value is set to true if the connection was destroyed during the specific data frame processing.\n
+ *        False if the connection wasn't destroyed.
  */
 void edge_common_process_data_frame_specific(struct connection *connection, bool *connection_destroyed);
 
 /**
- * \brief Common implementation for processing a data frame. I.e. this function is shared by the PT Client and Edge
- * Core.
+ * \brief Common implementation for processing a data frame.
+ *        This function is shared by the PT Client and Edge Core.
+ *
  * \param connection The connection which is receiving the data frame.
- * \param connection_destroyed This value is set to
- *        true  - if the connection was destroyed during the data frame processing
- *        false - if the connection wasn't destroyed.
+ * \param connection_destroyed
+ *        This value is set to true if the connection was destroyed during the data frame processing.\n
+ *        False if the connection wasn't destroyed.
  */
 void edge_common_process_data_frame(struct connection *connection, bool *connection_destroyed);
 
 /**
  * \brief Libevent read callback definition.
+ *
  * \param bev The buffer event that triggered the read callback.
- * \param ctx The user-supplied context when the read callback was assigned to the connection.
- * In Mbed Edge and the protocol translator, this is the current connection structure.
+ * \param ctx The user-supplied context when the read callback was assigned to the connection.\n
+ *            In Mbed Edge and the protocol translator, this is the current connection structure.
  */
 void edge_common_read_cb(struct bufferevent *bev, void *ctx);
 
 /**
-
  * \brief Core service and protocol translator data frame write function.
- * This will allocate the data frame and set needed values there and then
- * forward the data to underlying transport mechanism.
- * \param connection is the connection to write the data for.
- * \param data is the byte buffer to write to connection.
- * \len_data is the length of the data to write.
+ *        This will allocate the data frame and set needed values there and then
+ *        forward the data to underlying transport mechanism.
+ *
+ * \param connection The connection to write the data for.
+ * \param data The byte buffer to write to connection.
+ * \param len_data The length of the data to write.
  */
 bool edge_common_write_data_frame(struct connection *connection, char *data, size_t len_data);
 
 /**
  * \brief Constructs and sends the message. If successfully sent, adds the message entry
  * to RPC message entry list which is used to match the requests to response messages.
- * \param connection is the connection to write the data for.
+ *
+ * \param connection The connection to write the data for.
  * \param message The json message to deserialize.
  * \param success_handler The internal success handler to be called for successful responses.
  * \param failure_handler The internal failure handler to be called for failure responses.
  * \param free_func The internal free function to be called after success or failure callback has been called
  * \param customer_callback_context The user-supplied customer callback context data pointer that is passed to the callback handlers.
- * \return 0 if the message was successfully sent.
- *        -1 if message couldn't be allocated.
- *        -2 if message couldn't be sent.
+ * \return 0 if the message was successfully sent.\n
+ *        -1 if the message couldn't be allocated.\n
+ *        -2 if the message couldn't be sent.
  */
 int32_t edge_common_construct_and_send_message(struct connection *connection,
                                                json_t *message,
@@ -310,13 +321,15 @@ int32_t edge_common_construct_and_send_message(struct connection *connection,
 /**
  * \brief Writes a STOP control frame using given connection. The recipient should by respond sending the FINISH
  * control frame.
- * Note! This is used by both the server and the client when they want to initiate graceful disconnecting of the
- * connection.
- * \param connection is the connection which is used to write the STOP control frame.
- * \return true if the frame was succesfully sent.
- *         false if there was a problem sending the frame.
+ *
+ * \note This is used by both the server and the client when they want to initiate a graceful disconnect.
+ *
+ * \param connection The connection which is used to write the STOP control frame.
+ * \return True if the frame was succesfully sent.\n
+ *         False if the frame sending failed.
  */
 bool edge_common_write_stop_frame(struct connection *connection);
+
 /**
  * \brief The function to initialize the mutex for mbed-trace.
  */
@@ -334,6 +347,7 @@ void trace_mutex_release();
 
 /**
  * \brief The function to create timestamp prefixes for mbed-trace.
+ *
  * \param size The length of the message body.
  * \return A pointer to timestamp prefix string.
  */
@@ -341,11 +355,12 @@ char *trace_prefix(size_t size);
 
 /**
  * \brief Sends the given data using the given connection.
+ *
  * \param connection is the connection to use.
  * \param data is pointer to the data that needs to be sent
  * \param size is the size of the data in bytes.
- * \return true  - The data was sent successfully
- *         false - Sending failed.
+ * \return True if the data was sent successfully.\n
+ *         False if the sending failed.
  */
 bool send_frame(struct connection *connection, const void *data, size_t size);
 

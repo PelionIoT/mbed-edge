@@ -91,13 +91,12 @@
  * ~~~
  *
  * The API functions define the success and failure callback handlers that are called from an internal event
- * loop. Therefore, make sure that the operations in the callbacks do not block the event loop.
- * All API functions must have the `connection` as first argument. This is the connection to write the requests.
- * Callbacks will have `userdata` argument, which is the application set user data set
- * in the protocol translator API calls.
- * Blocking the event loop blocks the protocol translator and it cannot continue until
- * the control is given back to event loop from customer callbacks. If there is a long running operation
- * for the responses in the callback handlers, you should move that into a thread.
+ * loop. Therefore, make sure that the operations in the callbacks do not block the event loop. All API functions 
+ * must have the `connection` as first argument. This is the connection to write the requests. Callbacks will have 
+ * an `userdata` argument, which is the application user data set in the protocol translator API calls.
+ * Blocking the event loop blocks the protocol translator and it cannot continue until the control is given back to 
+ * the event loop from customer callbacks. If there is a long running operation for the responses in the callback handlers, 
+ * you should move that into a thread.
  *
  * An example of registering the protocol translator with the customer callbacks:
  * ~~~
@@ -158,27 +157,24 @@ typedef struct pt_device pt_device_t;
  * \brief Callback function prototype for the device resource specific action on #OPERATION_WRITE or #OPERATION_EXECUTE.
  *
  * Note the value size for integers and floats which are received from Mbed Edge Core.
- * This differs from the case when protocol translator writes the value to Mbed Edge Core
- * where it is allowed to write different size binary values. When the write is coming from.
+ * This differs from the case when the protocol translator writes the value to Mbed Edge Core
+ * where it is allowed to write different size binary values. When the write is coming from
  * Mbed Cloud to Mbed Edge Core the value representation is `text-format`. Mbed Cloud Client
  * does not store the original binary value and the original value size is lost. The interpretation
  * of the value must be implemented in the callback function.
  *
  * \param resource The resource that the action was triggered on.
- * \param value A pointer to the value buffer.
+ * \param value A pointer to the value buffer.\n
  *        The ownership of the value buffer is within the `pt_resource_t`.
- *        For different LwM2M data types there are byte-order restrictions:
- *        String: UTF-8.
- *        Integer: A binary signed integer in network byte-order (64 bits).
- *        Float: IEEE 754-2008 floating point value in network byte-order (64 bits).
- *        Boolean: An 8 bit unsigned integer with value 0 or 1.
- *        Opaque: The sequence of binary data.
- *        Time: Same representation as integer.
- *        Objlnk: Two 16 bit unsigned integers one beside the other.
- *                The first one is the Object ID and the second is the Object Instance ID.
- *
- *        Refer to: OMA Lightweight Machine to Machine Technical Specification
- *        for data type specifications.
+ *        For different LwM2M data types there are byte-order restrictions as follows:\n
+ *        \li \b String: UTF-8.
+ *        \li \b Integer: A binary signed integer in network byte-order (64 bits).
+ *        \li \b Float: IEEE 754-2008 floating point value in network byte-order (64 bits).
+ *        \li \b Boolean: An 8 bit unsigned integer with value 0 or 1.
+ *        \li \b Opaque: The sequence of binary data.
+ *        \li \b Time: Same representation as integer.
+ *        \li \b Objlnk: Two 16 bit unsigned integers one beside the other. The first one is the Object ID and the second is the Object Instance ID.\n
+ *        Refer to: OMA Lightweight Machine to Machine Technical Specification for data type specifications.
  * \param size The size of the value to write.
  * \param userdata The user-supplied context.
  */
@@ -286,8 +282,9 @@ void pt_init_service_api();
  * fails.
  * \param userdata The user-supplied context given as an argument to success and failure handler
  * functions.
- * \return The status of the protocol translator registration operation, 'PT_STATUS_SUCCESS' on successful registration.
- * See `pt_status_t` for possible error codes.
+ * \return The status of the protocol translator registration operation.\n
+ *         'PT_STATUS_SUCCESS' on successful registration.\n
+ *         See `pt_status_t` for possible error codes.
  */
 pt_status_t pt_register_protocol_translator(struct connection *connection,
                                             pt_response_handler success_handler,
@@ -304,8 +301,9 @@ pt_status_t pt_register_protocol_translator(struct connection *connection,
  * \param failure_handler A function pointer that gets called when the device registration fails.
  * \param userdata The user-supplied context given as an argument to success and failure handler
  * functions.
- * \return The status of the device registration operation, 'PT_STATUS_SUCCESS' on successful registration. See `pt_status_t`
- * for possible error codes.
+ * \return The status of the device registration operation.\n
+ *         'PT_STATUS_SUCCESS' on successful registration.\n
+ *         See `pt_status_t` for possible error codes.
  */
 pt_status_t pt_register_device(struct connection *connection,
                                pt_device_t *device,
@@ -322,8 +320,9 @@ pt_status_t pt_register_device(struct connection *connection,
  * \param failure_handler A function pointer that gets called when the device unregistration fails.
  * \param userdata The user-supplied context given as an argument to success and failure handler
  * functions.
- * \return The status of the device unregistration operation, 'PT_STATUS_SUCCESS' on successful unregistration. See
- * `pt_status_t` for possible error codes.
+ * \return The status of the device unregistration operation.\n
+ *         'PT_STATUS_SUCCESS' on successful unregistration.\n
+ *         See `pt_status_t` for possible error codes.
  */
 pt_status_t pt_unregister_device(struct connection *connection,
                                  pt_device_t *device,
@@ -342,8 +341,8 @@ pt_status_t pt_unregister_device(struct connection *connection,
  * \param queuemode The queue mode before the time is elapsed.
  * \param status A pointer to user provided variable for the operation status
  * output. If a device was created, the status will be set to `PT_STATUS_SUCCESS`.
- * \return The allocated structure. The caller will have the ownership of the
- * reserved memory.
+ * \return The allocated structure.\n
+ *         The caller will have the ownership of the reserved memory.
  */
 pt_device_t *pt_create_device(char* device_id, const uint32_t lifetime, const queuemode_t queuemode, pt_status_t *status);
 
@@ -361,9 +360,10 @@ void pt_device_free(pt_device_t *device);
  *
  * \param device The device to which the object list is added.
  * \param id The object ID of the added object.
- * \param status A pointer to user provided variable for the operation status output. If a device was created, the
- * status is set to `PT_STATUS_SUCCESS`.
- * \return The added empty object. The ownership of the returned object is within the `pt_device_t`.
+ * \param status A pointer to user provided variable for the operation status output.\n
+ *        If a device was created, the status is set to `PT_STATUS_SUCCESS`.
+ * \return The added empty object.\n
+ *         The ownership of the returned object is within the `pt_device_t`.
  */
 pt_object_t *pt_device_add_object(pt_device_t *device, uint16_t id, pt_status_t *error);
 
@@ -372,7 +372,8 @@ pt_object_t *pt_device_add_object(pt_device_t *device, uint16_t id, pt_status_t 
  *
  * \param device The device object.
  * \param id The object ID to find from the device.
- * \return The found object pointer or NULL. The ownership of the object is within the `pt_device_t`
+ * \return The found object pointer or NULL.\n
+ *         The ownership of the object is within the `pt_device_t`
  */
 pt_object_t *pt_device_find_object(pt_device_t *device, uint16_t id);
 
@@ -383,7 +384,8 @@ pt_object_t *pt_device_find_object(pt_device_t *device, uint16_t id);
  * \param id The object instance ID of the added object instance.
  * \param status A pointer to user provided variable for the operation status output. If a device was created, the status
  * is set to `PT_STATUS_SUCCESS`.
- * \return The added empty object instance. The ownership of the returned object instance is within the `pt_object_t`.
+ * \return The added empty object instance.\n
+ *         The ownership of the returned object instance is within the `pt_object_t`.
  */
 pt_object_instance_t * pt_object_add_object_instance(pt_object_t *object, uint16_t id, pt_status_t *error);
 
@@ -392,7 +394,8 @@ pt_object_instance_t * pt_object_add_object_instance(pt_object_t *object, uint16
  *
  * \param object The object.
  * \param id The object instance ID to find from the object.
- * \return The found object instance pointer or NULL. The ownership of the object instance is within the `pt_object_t`.
+ * \return The found object instance pointer or NULL.\n
+ *         The ownership of the object instance is within the `pt_object_t`.
  */
 pt_object_instance_t *pt_object_find_object_instance(pt_object_t *object, uint16_t id);
 
@@ -409,23 +412,21 @@ pt_object_instance_t *pt_object_find_object_instance(pt_object_t *object, uint16
  * \param type The resource type.
  * \param value A pointer to the value buffer.
  *        The ownership of the value buffer is within the `pt_resource_t`.
- *        For different LwM2M data types there are byte-order restrictions:
- *        String: UTF-8.
- *        Integer: A binary signed integer in network byte-order (8, 16, 32 or 64 bits).
- *        Float: IEEE 754-2008 floating point value in network byte-order (32 or 64 bits).
- *        Boolean: An 8 bit unsigned integer with value 0 or 1.
- *        Opaque: The sequence of binary data.
- *        Time: Same representation as integer.
- *        Objlnk: Two 16 bit unsigned integers one beside the other.
- *                The first one is the Object ID and the second is the Object Instance ID.
- *
- *        Refer to: OMA Lightweight Machine to Machine Technical Specification
- *        for data type specifications.
+ *        For different LwM2M data types there are byte-order restrictions as follows:\n
+ *        \li \b String: UTF-8.
+ *        \li \b Integer: A binary signed integer in network byte-order (8, 16, 32 or 64 bits).
+ *        \li \b Float: IEEE 754-2008 floating point value in network byte-order (32 or 64 bits).
+ *        \li \b Boolean: An 8 bit unsigned integer with value 0 or 1.
+ *        \li \b Opaque: The sequence of binary data.
+ *        \li \b Time: Same representation as integer.
+ *        \li \b Objlnk: Two 16 bit unsigned integers one beside the other. The first one is the Object ID and the second is the Object Instance ID.\n
+ *        Refer to: OMA Lightweight Machine to Machine Technical Specification for data type specifications.
  * \param value_size The size of the value buffer.
  * \param status A pointer to user provided variable for the operation status output. If a device was created, the status
  * is set to `PT_STATUS_SUCCESS`
  *
- * \return The added empty resource. The ownership of the returned resource is within the `pt_object_instance_t`.
+ * \return The added empty resource.\n
+ *         The ownership of the returned resource is within the `pt_object_instance_t`.
  */
 pt_resource_opaque_t *pt_object_instance_add_resource(pt_object_instance_t *object_instance,
                                                       uint16_t id,
@@ -443,38 +444,36 @@ pt_resource_opaque_t *pt_object_instance_add_resource(pt_object_instance_t *obje
  * \param object_instance The object instance to which to add the resource.
  * \param id The resource ID of the added resource.
  * \param type The resource type.
- * \param operations The operations this resource will allow.
-   For example, GET/#OPERATION_READ and PUT/#OPERATION_WRITE. The value is a bit field of allowed operations.
- * If #OPERATION_WRITE is set to flags, the parameter for \p callback must be populated.
- * If #OPERATION_EXECUTE is set to flags, the parameter for \p callback must be populated.
+ * \param operations The operations this resource will allow.\n
+   For example, GET/#OPERATION_READ and PUT/#OPERATION_WRITE. The value is a bit field of allowed operations.\n
+ * \li If #OPERATION_WRITE is set to flags, the parameter for \p callback must be populated.
+ * \li If #OPERATION_EXECUTE is set to flags, the parameter for \p callback must be populated.\n
  * Now, you can have a combination of #OPERATION_EXECUTE and #OPERATION_WRITE for the resource.
  *
- * Note the difference when writing a value from the protocol translator to Mbed Edge Core opposed
+ * \note Note the difference when writing a value from the protocol translator to Mbed Edge Core opposed
  * to receiving a write from Mbed Edge Core. It is allowed to write different sized binary
- * integers and float toward the Mbed Edge Core. On the other hand, when receiving a write from
+ * integers and float towards Mbed Edge Core. On the other hand, when receiving a write from
  * Mbed Edge Core, the integer or float value is always 64 bit.
  *
  * \param value The pointer to value buffer.
  *        The ownership of the value buffer is within the `pt_resource_t`.
- *        For different LwM2M data types there are byte-order restrictions:
- *        String: UTF-8
- *        Integer: A binary signed integer in network byte-order (8, 16, 32 or 64 bits).
- *        Float: IEEE 754-2008 floating point value in network byte-order (32 or 64 bits).
- *        Boolean: An 8 bit unsigned integer with value 0 or 1.
- *        Opaque: The sequence of binary data.
- *        Time: Same representation as integer.
- *        Objlnk: Two 16 bit unsigned integers one beside the other.
- *                The first one is the Object ID and the second is the Object Instance ID.
- *
- *        Refer to: OMA Lightweight Machine to Machine Technical Specification
- *        for data type specifications.
+ *        For different LwM2M data types there are byte-order restrictions as follows:\n
+ *        \li \b String: UTF-8
+ *        \li \b Integer: A binary signed integer in network byte-order (8, 16, 32 or 64 bits).
+ *        \li \b Float: IEEE 754-2008 floating point value in network byte-order (32 or 64 bits).
+ *        \li \b Boolean: An 8 bit unsigned integer with value 0 or 1.
+ *        \li \b Opaque: The sequence of binary data.
+ *        \li \b Time: Same representation as integer.
+ *        \li \b Objlnk: Two 16 bit unsigned integers one beside the other. The first one is the Object ID and the second is the Object Instance ID.\n
+ *        Refer to: OMA Lightweight Machine to Machine Technical Specification for data type specifications.
  * \param value_size The size of the value buffer.
  * \param status A pointer to the user provided variable for the operation status output. If a device was created, the status
  * is set to `PT_STATUS_SUCCESS`
  * \param callback The callbacks for this resource. The callbacks can be given when
  * the resource has #OPERATION_WRITE and/or #OPERATION_EXECUTE set to allowed operations.
  *
- * \return The added empty resource. The ownership of the returned resource is within the `pt_object_instance_t`
+ * \return The added empty resource.\n
+ *         The ownership of the returned resource is within the `pt_object_instance_t`
  */
 pt_resource_opaque_t *pt_object_instance_add_resource_with_callback(pt_object_instance_t *object_instance, uint16_t id,
                                                       Lwm2mResourceType type, uint8_t operations,
@@ -486,7 +485,8 @@ pt_resource_opaque_t *pt_object_instance_add_resource_with_callback(pt_object_in
  *
  * \param instance The object instance.
  * \param id The resource ID to find from the object instance.
- * \return The found resource pointer or NULL. The ownership of the resource is within the `pt_object_instance_t`.
+ * \return The found resource pointer or NULL.\n
+ *         The ownership of the resource is within the `pt_object_instance_t`.
  */
 pt_resource_opaque_t *pt_object_instance_find_resource(pt_object_instance_t *instance, uint16_t id);
 
@@ -500,8 +500,9 @@ pt_resource_opaque_t *pt_object_instance_find_resource(pt_object_instance_t *ins
  * \param failure_handler A function pointer to be called when the writing fails.
  * \param userdata The user-supplied context given as an argument to the success and failure handler
  * functions.
- * \return The status of the write value operation, 'PT_STATUS_SUCCESS' on successful write. See
- * pt_status_t for possible error codes.
+ * \return The status of the write value operation.\n
+ *         'PT_STATUS_SUCCESS' on successful write.\n
+ *         See `pt_status_t` for possible error codes.
  */
 pt_status_t pt_write_value(struct connection *connection,
                            pt_device_t *device,
@@ -516,7 +517,8 @@ pt_status_t pt_write_value(struct connection *connection,
  * \param json_params The params object from JSON request.
  * \param result The output parameter to return the result of the function.
  * \param userdata The internal RPC supplied context.
- * \return For the successful handling of the write request, 0 is returned. For failures, 1 is returned.
+ * \return 0 is returned for the successful handling of the write request.\n
+ *         1 is returned for failure.
  */
 int pt_receive_write_value(json_t *json_params, json_t **result, void *userdata);
 
@@ -535,11 +537,10 @@ void pt_client_initialize_trace_api();
  * \param name The protocol translator name, must be unique in the Mbed Edge instance. The protocol translator API cleans the reserved memory for the name when closing down.
  * \param pt_cbs A struct containing the callbacks to the customer side implementation.
  * \param userdata The user data
- * \param connection Reference to running connection.
- *        Must be passed to protocol translator API functions.
+ * \param connection Reference to running connection. Must be passed to protocol translator API functions.
  *
- * \return 1 if there is an error in configuring or starting the event loop. The function returns when the
- * event loop is shut down and the return value is 0.
+ * \return 1 if there is an error in configuring or starting the event loop.\n
+ *         The function returns when the event loop is shut down and the return value is 0.
  */
 int pt_client_start(const char *hostname, const int port, const char *name, const protocol_translator_callbacks_t *pt_cbs, void *userdata, struct connection **connection);
 

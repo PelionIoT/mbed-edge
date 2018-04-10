@@ -29,20 +29,21 @@
  */
 
 /** \file edge_server_customer_code.h
- * \brief Mbed Edge Server Customer code
+ * \brief Mbed Edge server customer code
  *
- * This file contains hooks for customer implementation.
- * E.g. when factory reset is called from Mbed Cloud, edgeserver_execute_rfs_customer_code will be called.
- * The customers may implement their own implementation for reset factory settings.
- * This function should always return in a reasonable amount of time, ideally within a few seconds.
- * If the settings are reset successfully the Edge Server will gracefully shutdown to be restarted.
+ * This file contains hooks for a customer implementation. For example, when factory reset is called from Mbed Cloud,
+ * `edgeserver_execute_rfs_customer_code` is called.\n
+ * The customers may implement their own implementation for reset factory settings.\n
+ * This function should always return within a reasonable time, ideally within a few seconds.\n
+ * If the settings are reset successfully the Edge server will gracefully shutdown to be restarted.
  */
 
 /**
- * \brief Called when reset factory settings is requested from Mbed cloud.
- * \param request_ctx: contains information about this request.
- * \return true if reset factory settings was successful
- *         false otherwise.
+ * \brief Called when reset factory settings is requested from Mbed Cloud.
+ *
+ * \param request_ctx Information about this request.
+ * \return True if reset factory settings was successful.\n
+ *         False if reset failed.
  */
 bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_ctx);
 

@@ -63,9 +63,9 @@ int apr_base64_encode_len(int len);
 /**
  * Encode an EBCDIC string using base64encoding.
  * @param coded_dst The destination string for the encoded string.
- * @param plain_src The original string in plain text
- * @param len_plain_src The length of the plain text string
- * @return the length of the encoded string
+ * @param plain_src The original string in plain text.
+ * @param len_plain_src The length of the plain text string.
+ * @return The length of the encoded string.
  */
 int apr_base64_encode_binary(char * coded_dst, const unsigned char *plain_src, int len_plain_src);
 

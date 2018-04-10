@@ -1,6 +1,20 @@
 # Changelog for Mbed Edge
 
-## Release 0.4.3 (2018-03-23)
+## Release R0.4.4 (2018-04-04)
+
+ * WISE-3610 compilation warnings fixes.
+ * Doxygen documentation formatting fixes.
+ * Contribution instructions and pull request template added for GitHub community.
+
+### Bugfixes
+
+ * Corrected registration update messages. They were always populated with the
+   translated endpoints. This caused a full registration in the Mbed Cloud for
+   the translated endpoints. The full registration deletes all subscriptions to
+   the endpoints resources. The functionality is now registration update which
+   refreshes only the translated device lifetime.
+
+## Release R0.4.3 (2018-03-23)
 
  * [Mbed Edge Yocto meta layer](https://github.com/ARMmbed/meta-mbed-edge) released.
  * [Mbed RaspberryPi3 Yocto meta layer](https://github.com/ARMmbed/meta-mbed-raspberrypi) released.

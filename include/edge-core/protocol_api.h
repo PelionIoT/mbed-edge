@@ -32,13 +32,13 @@
 /** \file protocol_api.h
  * \brief Mbed Edge RPC API
  *
- * Definition of Mbed Edge RPC API.
+ * Definition of the Mbed Edge RPC API.
  *
  * RPC API provides functions to:
- * * register and unregister the protocol translator.
- * * register and unregister endpoint devices.
- * * update the endpoint device state.
- * * write the endpoint device value changes.
+ * - register and unregister the protocol translator.
+ * - register and unregister endpoint devices.
+ * - update the endpoint device state.
+ * - write the endpoint device value changes.
  */
 
 /**
@@ -48,42 +48,46 @@ void init_protocol();
 
 /**
  * \brief Register the protocol translator to Mbed Edge.
+ *
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
- * \return 0 - Protocol translator registration succeeded
- *         1 - Some error occurred. Details are in the result parameter.
- *
+ * \return 0 if the protocol translator registration succeeded.\n
+ *         1 if an error occurred. Details are in the result parameter.
  */
 int protocol_translator_register(json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Register an endpoint device to Mbed Edge.
+ *
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
- * \return 0 - Device registration succeeded.
- *         1 - Some error occurred. Details are in the result parameter.
+ * \return 0 if the device registration succeeded.\n
+ *         1 if an error occurred. Details are in the result parameter.
  */
 int device_register(json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Unregister an endpoint device from Mbed Edge.
+ *
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
- * \return 0 - Device unregistration succeeded.
- *         1 - Some error occurred. Details are in the result parameter.
+ * \return 0 if the device unregistration succeeded.\n
+ *         1 if an error occurred.\n
+ *         Details are in the result parameter of the function call.
  */
 int device_unregister(json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Write endpoint device values.
+ *
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
- * \return 0 - Write value succeeded.
- *         1 - Some error occurred. Details are in the result parameter.
+ * \return 0 if the write value succeeded.\n
+ *         1 if an error occurred. Details are in the result parameter.
  */
 int write_value(json_t *json_params, json_t **result, void *userdata);
 
@@ -94,12 +98,11 @@ typedef struct edgeclient_request_context edgeclient_request_context_t;
 
 
 /**
- * \brief Writes the updated values to protocol translator
+ * \brief Writes the updated values to the protocol translator.
  *
- * \param ctx The user supplied write context.
- * \param userdata The user supplied data.
- *
- * \return 0 if values were written successfully
+ * \param ctx The user-supplied write context.
+ * \param userdata The user-supplied data.
+ * \return 0 if values were written successfully.\n
  *         1 if the values couldn't be written.
  */
 int write_to_pt(edgeclient_request_context_t *ctx, void *userdata);

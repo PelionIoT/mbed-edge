@@ -39,15 +39,15 @@ endfunction()
 
 # set target-defined definitions
 set(MBED_EDGE_BUILD_BUILD_YEAR "2018") # UTC year
-set(MBED_EDGE_BUILD_BUILD_MONTH "3") # UTC month 1-12
-set(MBED_EDGE_BUILD_BUILD_DAY "23") # UTC day 1-31
-set(MBED_EDGE_BUILD_BUILD_HOUR "13") # UTC hour 0-24
-set(MBED_EDGE_BUILD_BUILD_MINUTE "52") # UTC minute 0-59
-set(MBED_EDGE_BUILD_BUILD_SECOND "24") # UTC second 0-61
-set(MBED_EDGE_BUILD_BUILD_UUID "ffea6233-096f-49dd-b8dc-31fbca2f9b4b") # unique random UUID for each build
-set(MBED_EDGE_BUILD_BUILD_VCS_ID "cc8e355cd233549a8d4b568e28d33a2c468ea27e") # git or mercurial hash
+set(MBED_EDGE_BUILD_BUILD_MONTH "4") # UTC month 1-12
+set(MBED_EDGE_BUILD_BUILD_DAY "4") # UTC day 1-31
+set(MBED_EDGE_BUILD_BUILD_HOUR "7") # UTC hour 0-24
+set(MBED_EDGE_BUILD_BUILD_MINUTE "41") # UTC minute 0-59
+set(MBED_EDGE_BUILD_BUILD_SECOND "13") # UTC second 0-61
+set(MBED_EDGE_BUILD_BUILD_UUID "951e74fa-7bed-4ba9-b957-714a83b96c05") # unique random UUID for each build
+set(MBED_EDGE_BUILD_BUILD_VCS_ID "057985fadacda0717ed2049141f304e9abab3bfe") # git or mercurial hash
 set(MBED_EDGE_BUILD_BUILD_VCS_CLEAN "1") # evaluates true if the version control system was clean, otherwise false
-set(MBED_EDGE_BUILD_BUILD_VCS_DESCRIPTION "R0.4.3") # git describe or mercurial equivalent
+set(MBED_EDGE_BUILD_BUILD_VCS_DESCRIPTION "R0.4.4-RC1") # git describe or mercurial equivalent
 set(TARGET MCC_LINUX_X86)
 set(TARGET_LIKE_MCC_LINUX_X86 TRUE)
 set(MBED_EDGE_BUILD_BUILD_INFO_HEADER "${CMAKE_SOURCE_DIR}/../../build/mcc-linux-x86/mbed_edge_build_info")
@@ -258,10 +258,10 @@ set(MBED_EDGE_BUILD_MBED_CLIENT_ESFS_VERSION_STRING "0.0.0")
 set(MBED_EDGE_BUILD_MBED_CLIENT_ESFS_VERSION_MAJOR 0)
 set(MBED_EDGE_BUILD_MBED_CLIENT_ESFS_VERSION_MINOR 0)
 set(MBED_EDGE_BUILD_MBED_CLIENT_ESFS_VERSION_PATCH 0)
-set(MBED_EDGE_BUILD_MBED_EDGE_INTERNAL_VERSION_STRING "0.4.3-RC2")
+set(MBED_EDGE_BUILD_MBED_EDGE_INTERNAL_VERSION_STRING "0.4.4")
 set(MBED_EDGE_BUILD_MBED_EDGE_INTERNAL_VERSION_MAJOR 0)
 set(MBED_EDGE_BUILD_MBED_EDGE_INTERNAL_VERSION_MINOR 4)
-set(MBED_EDGE_BUILD_MBED_EDGE_INTERNAL_VERSION_PATCH 3)
+set(MBED_EDGE_BUILD_MBED_EDGE_INTERNAL_VERSION_PATCH 4)
 
 # provide the name of the current module so that it's available to custom CMake
 # even if custom CMake does weird things with project()

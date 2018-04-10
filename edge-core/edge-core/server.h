@@ -53,7 +53,7 @@ typedef enum {
 } edge_state;
 
 /**
- * \brief The ID for the protocol translator object stored in the Cloud Client.
+ * \brief The ID for the protocol translator object stored in Cloud Client.
  */
 #define PROTOCOL_TRANSLATOR_OBJECT_ID 26241
 /**

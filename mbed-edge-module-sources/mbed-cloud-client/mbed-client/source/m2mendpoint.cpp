@@ -41,7 +41,7 @@ M2MEndpoint::M2MEndpoint(const String &object_name, char *path)
 {
     M2MBase::set_base_type(M2MBase::ObjectDirectory);
     _ctx = NULL;
-    get_nsdl_resource()->always_publish = true;
+    get_nsdl_resource()->always_publish = false;
 #ifdef RESOURCE_ATTRIBUTES_LIST
     sn_nsdl_attribute_item_s item;
     item.attribute_name = ATTR_ENDPOINT_NAME;

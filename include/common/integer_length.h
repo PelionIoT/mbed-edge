@@ -36,16 +36,19 @@
  * \brief Return the length of the integer in characters.
  * This function calculates the needed space of characters to represent
  * the integer argument.
- * \param value
+ *
+ * \param value The value to calculate the length as a characters.
+ * \return The length as characters.
  */
 uint16_t edge_int_length(uint32_t value);
 
 /**
  * \brief Convert the string to uin16_t.
+ *
  * \param str String to convert. String must be NUL-terminated.
  * \param result The pointer where to store the result.
- * \return 0 if conversion succeeded.
-           1 if an error if string could not be converted.
+ * \return 0 if conversion succeeded.\n
+           1 if an error occured when converting str to uint16_t.
  */
 int edge_str_to_uint16_t(const char *str, uint16_t *result);
 

@@ -23,23 +23,28 @@
 
 /**
  * \defgroup EDGE_DEFAULT_MESSAGE_ID_GENERATOR_LIB Default message id generator library
+ * \file default_message_id_generator.h
  * @{
  */
 
 /**
- * \brief Function prototype of the id generation function.
- * The function must provide unique and non-clashing ids for the session.
- * \return The unique message id
+ * \brief A prototype of the ID generation function.
+ *
+ * The function must provide unique and non-clashing IDs for the session.
+ *
+ * \return A unique message ID.
  */
 typedef char* (*generate_msg_id)();
 
-/** \file default_message_id_generator.h
+/**
  * \brief Default message generation function.
+ *
  * This function implements a default message generator function. The prototype definition
- * of the function is ::generate_msg_id.
- * \return Numeric ascending message ids are generated and returned
- * as character array. The character array is NULL-terminated.
- * If allocation fails NULL is returned.
+ * of the function is `::generate_msg_id`.
+ *
+ * \return Numeric ascending message IDs are generated and returned as a character array.\n
+ *         The character array is NULL terminated.\n
+ *         If the allocation fails, NULL is returned.
  */
 char *edge_default_generate_msg_id();
 

@@ -2,13 +2,13 @@
 #define __MBED_EDGE_BUILD_BUILD_INFO_H__
 //  build info, #include MBED_EDGE_BUILD_BUILD_INFO_HEADER to access
 #define MBED_EDGE_BUILD_BUILD_YEAR 2018 // UTC year
-#define MBED_EDGE_BUILD_BUILD_MONTH 3 // UTC month 1-12
-#define MBED_EDGE_BUILD_BUILD_DAY 23 // UTC day 1-31
-#define MBED_EDGE_BUILD_BUILD_HOUR 13 // UTC hour 0-24
-#define MBED_EDGE_BUILD_BUILD_MINUTE 52 // UTC minute 0-59
-#define MBED_EDGE_BUILD_BUILD_SECOND 24 // UTC second 0-61
-#define MBED_EDGE_BUILD_BUILD_UUID ffea6233-096f-49dd-b8dc-31fbca2f9b4b // unique random UUID for each build
-#define MBED_EDGE_BUILD_BUILD_VCS_ID cc8e355cd233549a8d4b568e28d33a2c468ea27e // git or mercurial hash
+#define MBED_EDGE_BUILD_BUILD_MONTH 4 // UTC month 1-12
+#define MBED_EDGE_BUILD_BUILD_DAY 4 // UTC day 1-31
+#define MBED_EDGE_BUILD_BUILD_HOUR 7 // UTC hour 0-24
+#define MBED_EDGE_BUILD_BUILD_MINUTE 41 // UTC minute 0-59
+#define MBED_EDGE_BUILD_BUILD_SECOND 13 // UTC second 0-61
+#define MBED_EDGE_BUILD_BUILD_UUID 951e74fa-7bed-4ba9-b957-714a83b96c05 // unique random UUID for each build
+#define MBED_EDGE_BUILD_BUILD_VCS_ID 057985fadacda0717ed2049141f304e9abab3bfe // git or mercurial hash
 #define MBED_EDGE_BUILD_BUILD_VCS_CLEAN 1 // evaluates true if the version control system was clean, otherwise false
-#define MBED_EDGE_BUILD_BUILD_VCS_DESCRIPTION R0.4.3 // git describe or mercurial equivalent
+#define MBED_EDGE_BUILD_BUILD_VCS_DESCRIPTION R0.4.4-RC1 // git describe or mercurial equivalent
 #endif // ndef __MBED_EDGE_BUILD_BUILD_INFO_H__

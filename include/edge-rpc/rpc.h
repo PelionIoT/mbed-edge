@@ -40,7 +40,7 @@
  * responses to the requests they belong to.
  *
  * The RPC protocol is JSONRPC 2.0 and the data is UTF-8 encoded.
- * Data must not be NUL-terminated.
+ * Data must not be NULL terminated.
  */
 
 /**
@@ -55,13 +55,15 @@ struct json_message_t {
 };
 
 /**
- * \brief Allocate base request
- * \return The pointer to json_t message
+ * \brief Allocate the base request.
+ *
+ * \return The pointer to `json_t` message
  */
 json_t* allocate_base_request(const char* method);
 
 /**
  * \brief Allocate the `json_message_t` structure.
+ *
  * \return The allocated `json_message_t` structure.
  */
 struct json_message_t* alloc_json_message_t(char* data, size_t len, struct connection *connection);
@@ -69,66 +71,78 @@ struct json_message_t* alloc_json_message_t(char* data, size_t len, struct conne
 /**
  * \brief Deallocate `json_message_t`.
  * Deallocates also the contained byte data.
+ *
+ * \param msg The JSON message structure to deallocate.
  */
 void deallocate_json_message_t(struct json_message_t *msg);
 
-/*
- * \brief The function prototype for the response handler callbacks.
+/**
+ * \brief The function prototype for response handler callbacks.
+ *
  * \param response The full json response object.
  * \param userdata The user-supplied context data pointer.
  */
 typedef void (*rpc_response_handler)(json_t *response, void* userdata);
 
-/*
- * \brief The function prototype for free callbacks
- * \param userdata The user-supplied context data pointer (to be freed)
+/**
+ * \brief The function prototype for free callbacks.
+ *
+ * \param userdata The user-supplied context data pointer (to be freed).
  */
 typedef void (*rpc_free_func)(void* userdata);
 
 /**
  * \brief The function prototype for the underlying transport mechanism of the write function.
+ *
  * \param connection The connection to which to write the data.
  * \param data The byte data to write.
  * \param len The length of the data to write.
- * \return True if the write was successful, false if it failed.
+ * \return True if the write was successful.\n
+ *         False if the write failed.
  */
 typedef bool (*write_func)(struct connection *connection, char* data, size_t len);
 
 /**
- * \brief Get the message list size
+ * \brief Get the message list size.
+ *
  * \return The number of messages in the list
  */
 int rpc_message_list_size();
 
 /**
- * \brief Check if message list is empty
- * \return Returns true if list is empty, false if list contains elements.
+ * \brief Check if the message list is empty.
+ *
+ * \return True if the list is empty.\n
+ *         False if the list contains elements.
  */
 bool rpc_message_list_is_empty();
 
 /**
- * \brief set the message id generation function
- * \param generate_msg_id is a function pointer to implementing function
+ * \brief Set the message ID generation function.
+ *
+ * \param generate_msg_id A function pointer to the implementing function.
  */
 void rpc_set_generate_msg_id(generate_msg_id generate_msg_id);
 
 /**
- * \brief Register json RPC handler methods.
+ * \brief Register the json RPC handler methods.
+ *
  * \param method_table[] The `json_rpc_method_entry_t` entries for RPC.
  */
 void rpc_init(struct jsonrpc_method_entry_t method_table[]);
 
 /**
- * \brief Handles the sending of a json-rpc message, generates an ID for the message.
+ * \brief Handles the sending of a json-rpc message and generates an ID for the message.
+ *
  * \param message The json message to deserialize.
  * \param success_handler The internal success handler to be called for successful responses.
  * \param failure_handler The internal failure handler to be called for failure responses.
- * \param free_func The internal free function to be called after success or failure callback has been called
+ * \param free_func The internal free function to be called after a success or failure callback has been called.
  * \param request_context The user-supplied request context data pointer that is passed to the callback handlers.
- * \param returned_message_entry If the message can successfully allocated, a message entry is returned.
+ * \param returned_message_entry If the message can be successfully allocated, a message entry is returned.
  * \param data The serialized JSON message.
- * \param message_id The message identifier for reference. Ownership is transferred to caller.
- * \return 0 for success.
+ * \param message_id The message identifier for reference. The ownership is transferred to the caller.
+ * \return 0 for success.\n
  *         1 for failure.
  */
 int rpc_construct_message(json_t *message,
@@ -142,11 +156,13 @@ int rpc_construct_message(json_t *message,
 
 /**
  * \brief Handles the incoming raw json-rpc string from the connection.
- * \param data The byte data buffer of received data.
+ * \param data The byte data buffer of the received data.
  * \param len The length of the byte data buffer.
- * \param connection The connection to which the data belongs. (TBD how about: The connection containing the data.)
+ * \param connection The connection to which the data belongs.
  * \param write_func The function to use for writing data back.
  * \param protocol_error The flag is set to true if the frame data cannot be parsed. Otherwise it is set to false.
+ * \return 0 for success.\n
+ *         1 for failure.
  */
 int rpc_handle_message(char *data,
                        size_t len,
@@ -154,30 +170,32 @@ int rpc_handle_message(char *data,
                        write_func write_function,
                        bool *protocol_error);
 
-/*
+/**
  * \brief Destroys all messages that are waiting for processing.
  */
 void rpc_destroy_messages();
 
 /**
- * \brief Adds the message_entry to rpc message entry list. It's used to match the request messages
- * to reponses. The messsage_entry is typically created by calling rpc_construct_message.
+ * \brief Adds the `message_entry` to the RPC message entry list. It is used to match the request messages
+ * to reponses. The `messsage_entry` is typically created by calling `rpc_construct_message`.
+ *
  * \param message_entry The message to add to the list.
  */
 void rpc_add_message_entry_to_list(void *message_entry);
 
 /**
  * \brief Remove the message from message list by the identifier.
- * \param message_id The id for message to remove.
- * \return The removed message
+ * \param message_id The ID of the message to remove.
+ * \return The removed message.
  */
 void remove_message_for_id(const char *message_id);
 
 /**
- * \brief Deallocates the message_entry. The client needs to deallocate it manually by calling this function if the
- * message can't be sent.
+ * \brief Deallocates the `message_entry`. The client needs to deallocate it manually by calling this function if the
+ * message cannot be sent.
+ *
  * \param message_entry The message that is to be deallocated and which is typically created by calling
- * rpc_construct_message.
+ * `rpc_construct_message`.
  */
 void rpc_dealloc_message_entry(void *message_entry);
 

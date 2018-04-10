@@ -46,18 +46,18 @@
 
 /**
  * \file pt_device_object.h
- * \brief A utility header to contain the LWM2M device object ID:3.
+ * \brief A utility header to contain the LwM2M device object ID:3
  * creation for mediated endpoints.
  *
- * See the LWM2M definition for device resource:
+ * See the LwM2M definition for device resource:
  * http://www.openmobilealliance.org/tech/profiles/LWM2M_Device-v1_0_1.xml
  */
 
 /**
  * \brief The device object data ID:3.
  *
- * The `NULL` can be passed to optional values and no resource is generated for that field.
- * The parameter strings must be NUL-terminated.
+ * `NULL` can be passed to optional values and no resource is generated for that field.
+ * The parameter strings must be NULL terminated.
  */
 typedef struct ptdo_device_object_data {
     char *manufacturer; /**< The manufacturer information of the device. This is an optional value. */
@@ -76,12 +76,17 @@ typedef struct ptdo_device_object_data {
  * \brief Create the device object ID:3.
  *
  * The following mandatory resources are always generated:
- * - Reboot, executable resource ID:4
+ * - Reboot, executable resource ID:4.
  * - Error code, readable resource ID:11. Supports only one instance.
  *
- * The LWM2M mandatory resource for binding mode ID:16 is not created.
+ * The LwM2M mandatory resource for binding mode ID:16 is not created.
  * Future implementations may create the resource.
  *
+ * \param device The device object to initialize with `\3` object and resources.
+ * \param device_object_data The struct containing the values and function pointer for the `\3` object and resources.
+ * \return The status of the device object initialization operation.\n
+ *         'PT_STATUS_SUCCESS' on successful initialize.\n
+ *         See `pt_status_t` for possible error codes.
  */
 pt_status_t ptdo_initialize_device_object(pt_device_t *device,
                                           ptdo_device_object_data_t *device_object_data);

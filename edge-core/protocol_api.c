@@ -519,7 +519,7 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
 
     // This code support to create devices without the objects key and the objects array can be empty too.
     size_t object_count = json_array_size(object_array_handle);
-    tr_debug("JSON parsed object count = %lu\r\n", object_count);
+    tr_debug("JSON parsed object count = %zu\r\n", object_count);
     for (size_t object_index = 0; object_index < object_count; object_index++) {
         if (ret != PT_API_SUCCESS) {
             break;
@@ -539,7 +539,7 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
         // Get handle to object-instance array
         json_t *object_instance_array_handle = json_object_get(object_dict_handle, "object-instances");
         size_t object_instance_count = json_array_size(object_instance_array_handle);
-        tr_debug("JSON parsed object instance count = %lu\r\n", object_instance_count);
+        tr_debug("JSON parsed object instance count = %zu\r\n", object_instance_count);
         for (size_t object_instance_index = 0; object_instance_index < object_instance_count; object_instance_index++) {
             if (ret != PT_API_SUCCESS) {
                 break;
@@ -560,7 +560,7 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
             // Get handle to resource array
             json_t *resource_array_handle = json_object_get(instance_dict_handle, "resources");
             size_t resource_count = json_array_size(resource_array_handle);
-            tr_debug("JSON parsed resource count = %lu\r\n", resource_count);
+            tr_debug("JSON parsed resource count = %zu\r\n", resource_count);
             for (size_t resource_index = 0; resource_index < resource_count; resource_index++) {
                 // Get handle to object instance
                 json_t *resource_dict_handle = json_array_get(resource_array_handle, resource_index);

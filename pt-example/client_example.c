@@ -68,7 +68,8 @@ struct connection *g_connection = NULL;
 
 /**
  * \brief Flag for the protocol translator example run state
- * 0 if the protocol translator main loop should terminate.
+ *
+ * 0 if the protocol translator main loop should terminate.\n
  * 1 if the protocol translator main loop should continue.
  */
 volatile int keep_running = 1;
@@ -76,14 +77,16 @@ volatile int keep_running = 1;
 /**
  * \brief Flag for controlling whether the pt-example should unregister the devices when it terminates.
  *        Devices should not be unregistered if the device registrations failed.
- * true if the devices should be unregistered when terminating.
- * false if the devices should not be unregistered when terminating.
+ *
+ * True if the devices should be unregistered when terminating.\n
+ * False if the devices should not be unregistered when terminating.
  */
 volatile bool unregister_devices_flag = true;
 
 /**
- * \brief Flag for protocol translator thread state
- * 0 if the thread is not running.
+ * \brief Flag for protocol translator thread state.
+ *
+ * 0 if the thread is not running.\n
  * 1 if the thread is running.
  */
 volatile int protocol_translator_api_running = 0;
@@ -108,7 +111,6 @@ static void unregister_devices();
 
 /**
  * \brief Destroys the reappearing thread parameters
- * \param params The parameters to destroy.
  */
 void stop_protocol_translator_api_thread() {
     void *result;
@@ -124,8 +126,10 @@ pt_device_list_t *_devices = NULL;
 
 /**
  * \brief Find the device by device id from the devices list.
+ *
  * \param device_id The device identifier.
- * \return The device if found. If the device is not found NULL is returned.
+ * \return The device if found.\n
+ *         NULL is returned if the device is not found.
  */
 pt_device_t *find_device(const char* device_id)
 {
@@ -186,6 +190,7 @@ static void shutdown_and_cleanup()
 
 /**
  * \brief The client example shutdown handler.
+ *
  * \param signum The signal number that initiated the shutdown handler.
  */
 void shutdown_handler(int signum)
@@ -362,6 +367,8 @@ void device_registration_failure(const char* device_id, void *userdata)
     shutdown_and_cleanup();
 }
 
+
+#ifdef ENABLE_REAPPEARING_DEVICE
 /**
  * \brief Reappearing Device registration success callback handler.
  * In this callback you can react to successful endpoint device registration.
@@ -374,7 +381,6 @@ void device_registration_failure(const char* device_id, void *userdata)
  * \param device_id The device id from context from the `pt_register_device()` call.
  * \param userdata The user supplied context from the pt_register_device() call.
  */
-#ifdef ENABLE_REAPPEARING_DEVICE
 static void reappearing_device_registration_success(const char* device_id, void *userdata)
 {
     struct reappearing_thread_params *params = (struct reappearing_thread_params *)userdata;
@@ -384,6 +390,7 @@ static void reappearing_device_registration_success(const char* device_id, void 
 }
 #endif
 
+#ifdef ENABLE_REAPPEARING_DEVICE
 /**
  * \brief Reappearing Device registration failure callback handler.
  * In this callback you can react to failed endpoint device registration.
@@ -396,7 +403,6 @@ static void reappearing_device_registration_success(const char* device_id, void 
  * \param device_id The device id from context from the `pt_register_device()` call.
  * \param userdata The user supplied context from the `pt_register_device()` call.
  */
-#ifdef ENABLE_REAPPEARING_DEVICE
 static void reappearing_device_registration_failure(const char* device_id, void *userdata)
 {
     tr_info("Device registration failed for '%s', customer code", device_id);
@@ -506,7 +512,7 @@ void destroy_reappearing_device_thread_params(struct reappearing_thread_params *
 /**
  * \brief returns should the thread exit
  * \param params The parameters of the reappearing thread.
- * \return bool True if the thread should quit and false if the thread should continue.
+ * \return True if the thread should quit and false if the thread should continue.
  */
 bool reappearing_thread_done(struct reappearing_thread_params *params)
 {
@@ -597,12 +603,12 @@ static void *reappearing_device_thread(void *args)
 }
 #endif
 
+#ifdef ENABLE_REAPPEARING_DEVICE
 /**
  * \brief Creates the reappearing device thread with given parameters.
  * \param params The parameters that configure the functionality of the reappearing device thread.
  * \return pthread_t* The structure that may be used to communicate with the thread.
  */
-#ifdef ENABLE_REAPPEARING_DEVICE
 static pthread_t *create_reappearing_device_thread(struct reappearing_thread_params *params)
 {
 

@@ -28,6 +28,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} $ENV{MCC_LINUX_X86_EXTRA_L
 # import definitions from environment
 add_definitions($ENV{MCC_LINUX_X86_EXTRA_DEFS})
 link_libraries($ENV{MCC_LINUX_X86_EXTRA_LIBS} rt pthread)
+add_definitions(-D_GNU_SOURCE)
 set(MBED_EDGE_BUILD_TARGET 1)
 
 # check that we are actually running on Linux, if we're not then we may pull in
