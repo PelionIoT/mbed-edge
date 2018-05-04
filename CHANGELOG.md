@@ -1,5 +1,13 @@
 # Changelog for Mbed Edge
 
+## Release 0.4.5 (2018-05-04)
+
+ * Updated Mbed Cloud Client version to 1.3.1.1. Which contains following fixes.
+   * Linux :RPi3 device gets stuck when rebooting the system after performing firmware
+     update.
+   * Linux: Update client fix for handling callbacks properly.
+   * POST response handling to send the final response only once.
+
 ## Release R0.4.4 (2018-04-04)
 
  * WISE-3610 compilation warnings fixes.
