@@ -2,7 +2,7 @@
 
 This document contains the instructions for using and developing Mbed Edge.
 
-The full Mbed Edge documentation is [part of our Mbed Cloud documentation site](https://cloud.mbed.com/docs/current/connecting/mbed-edge.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+The full Mbed Edge documentation is [part of our Mbed Cloud documentation site](https://cloud.mbed.com/docs/current/connecting/mbed-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
 
 ## License
 
