@@ -33,7 +33,7 @@
 #include "common/default_message_id_generator.h"
 #include "edge-core/server.h"
 #include "edge-core/edge_server.h"
-#include "common/edge_common.h"
+#include "edge-core/srv_comm.h"
 #include "mbedtls/base64.h"
 
 #include "ns_list.h"
@@ -129,12 +129,34 @@ static void initialize_pt_resources(char *name, int pt_id){
                                   LWM2M_INTEGER, OPERATION_READ /*GET_ALLOWED*/, /* userdata */ NULL);
 }
 
-void protocol_api_free_pt_resources(protocol_translator_t *protocol_translator)
+protocol_translator_t *edge_core_create_protocol_translator()
 {
-    int pt_id = protocol_translator->id;
+    protocol_translator_t *pt = calloc(1, sizeof(protocol_translator_t));
+    if (!pt) {
+        tr_err("Could not allocate memory for protocol translator structure.");
+        return NULL;
+    }
+    // Set the id to invalid
+    if (NULL != pt) {
+        pt->id = -1;
+    }
+    pt->name = NULL;
+    pt->registered = false;
+    return pt;
+}
+
+void edge_core_protocol_translator_destroy(protocol_translator_t **protocol_translator)
+{
+    if(*protocol_translator == NULL)
+        return;
+
+    int pt_id = (*protocol_translator)->id;
     if (pt_id != -1) {
         edgeclient_remove_object_instance(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id);
     }
+    free((*protocol_translator)->name);
+    free(*protocol_translator);
+    *protocol_translator = NULL;
 }
 
 static bool check_service_availability(json_t **result)
@@ -144,8 +166,8 @@ static bool check_service_availability(json_t **result)
  */
 {
     if (edgeclient_is_shutting_down()) {
-        *result = jsonrpc_error_object(PT_API_INTERNAL_ERROR,
-                                       "Error",
+        *result = jsonrpc_error_object(PT_API_EDGE_CORE_SHUTTING_DOWN,
+                                       pt_api_get_error_message(PT_API_EDGE_CORE_SHUTTING_DOWN),
                                        json_string("Service unavailable, because the server is shutting down"));
         return false;
     }
@@ -170,6 +192,7 @@ int protocol_translator_register(json_t *json_params, json_t **result, void *use
         // FIXME: write back an error response and close the connection.
         *result = jsonrpc_error_object_predefined(
                 JSONRPC_INVALID_PARAMS, json_string("Protocol translator registration failed. Request id missing."));
+        connection->connected = false;
         return 1;
     }
     pt_translator_registration_status_e status = get_protocol_translator_registration_status(connection);
@@ -182,12 +205,14 @@ int protocol_translator_register(json_t *json_params, json_t **result, void *use
             tr_err("protocol_translator_register 'name' key not found");
             *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
                                                       json_string("Key 'name' missing"));
+            connection->connected = false;
             return 1;
         }
         else if (!name_val || strnlen(name_val, 10) == 0) {
             tr_err("protocol_translator_unregister: No value for key 'name'");
             *result = jsonrpc_error_object_predefined(
                     JSONRPC_INVALID_PARAMS, json_string("Value for key 'name' missing or empty"));
+            connection->connected = false;
             return 1;
         } else if (!is_protocol_translator_registered(name_val, ctx_data)) {
             char *name = malloc(sizeof(char) * strlen(name_val) + 1);
@@ -208,6 +233,7 @@ int protocol_translator_register(json_t *json_params, json_t **result, void *use
             new_translator->conn = connection;
             ns_list_add_to_end(&ctx_data->registered_translators, new_translator);
             tr_info("Registered protocol translator '%s'", name);
+
             *result = json_string("ok");
             edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
             return 0;
@@ -221,6 +247,7 @@ int protocol_translator_register(json_t *json_params, json_t **result, void *use
             *result = jsonrpc_error_object(PT_API_PROTOCOL_TRANSLATOR_NAME_RESERVED,
                                            pt_api_get_error_message(PT_API_PROTOCOL_TRANSLATOR_NAME_RESERVED),
                                            json_string("Cannot register the protocol translator."));
+            connection->connected = false;
             return 1;
         }
     }
@@ -229,6 +256,7 @@ int protocol_translator_register(json_t *json_params, json_t **result, void *use
     *result = jsonrpc_error_object(PT_API_PROTOCOL_TRANSLATOR_ALREADY_REGISTERED,
                                    pt_api_get_error_message(PT_API_PROTOCOL_TRANSLATOR_ALREADY_REGISTERED),
                                    json_string("Already registered."));
+    connection->connected = false;
     return 1;
 }
 
@@ -271,18 +299,16 @@ static void update_device_amount_resource_by_delta(struct connection* connection
 
 const char* check_device_id(json_t *json_params, json_t **result)
 {
-    json_t *device_id_obj = json_object_get(json_params, "device-id");
+    json_t *device_id_obj = json_object_get(json_params, "deviceId");
     if (device_id_obj == NULL) {
-        *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
-                                       "Error",
-                                       json_string("Missing `device-id` field."));
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                       json_string("Missing `deviceId` field."));
         return NULL;
     }
     const char* device_id = json_string_value(device_id_obj);
     if (!device_id || strlen(device_id) == 0) {
-        *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
-                                       "Error",
-                                       json_string("Invalid `device-id` field value."));
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                       json_string("Invalid `deviceId` field value."));
         return NULL;
     }
     return device_id;
@@ -352,7 +378,7 @@ int device_register(json_t *json_params, json_t **result, void *userdata)
     }
     const char* device_id = check_device_id(json_params, result);
     if(!device_id) {
-        tr_error("Device register failed. Field 'device-id' was missing or value was either null or empty string");
+        tr_error("Device register failed. Field 'deviceId' was missing or value was either null or empty string");
         return 1;
     }
     const char *error_detail = NULL;
@@ -403,7 +429,7 @@ int device_unregister(json_t *json_params, json_t **result, void *userdata)
     }
     const char* device_id = check_device_id(json_params, result);
     if(!device_id){
-        tr_error("Device unregister failed. Field 'device-id' was missing or value was either null or empty string");
+        tr_error("Device unregister failed. Field 'deviceId' was missing or value was either null or empty string");
         return 1;
     }
     if (!edgeclient_remove_endpoint(device_id)) {
@@ -447,7 +473,7 @@ int write_value(json_t *json_params, json_t **result, void *userdata)
     }
     const char* device_id = check_device_id(json_params, result);
     if(!device_id) {
-        tr_warn("Write value failed.  Field 'device-id' was missing or value was either null or empty string");
+        tr_warn("Write value failed.  Field 'deviceId' was missing or value was either null or empty string");
 
         return 1;
     }
@@ -519,66 +545,72 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
 
     // This code support to create devices without the objects key and the objects array can be empty too.
     size_t object_count = json_array_size(object_array_handle);
-    tr_debug("JSON parsed object count = %zu\r\n", object_count);
+    tr_debug("JSON parsed object count = %zu", object_count);
     for (size_t object_index = 0; object_index < object_count; object_index++) {
         if (ret != PT_API_SUCCESS) {
             break;
         }
         // Get handle to object
         json_t *object_dict_handle = json_array_get(object_array_handle, object_index);
-        // And get object-id
-        json_t *object_id_handle = json_object_get(object_dict_handle, "object-id");
+        // And get objectId
+        json_t *object_id_handle = json_object_get(object_dict_handle, "objectId");
         if (!object_id_handle) {
             ret = PT_API_INVALID_JSON_STRUCTURE;
-            *error_detail = "Invalid or missing object-id key.";
+            *error_detail = "Invalid or missing objectId key.";
             tr_error("%s", *error_detail);
             break;
         }
         object_id = json_integer_value(object_id_handle);
-        tr_debug("JSON parsed object, id = %d\r\n", object_id);
-        // Get handle to object-instance array
-        json_t *object_instance_array_handle = json_object_get(object_dict_handle, "object-instances");
+        tr_debug("JSON parsed object, id = %d", object_id);
+        // Get handle to objectInstance array
+        json_t *object_instance_array_handle = json_object_get(object_dict_handle, "objectInstances");
         size_t object_instance_count = json_array_size(object_instance_array_handle);
-        tr_debug("JSON parsed object instance count = %zu\r\n", object_instance_count);
+        tr_debug("JSON parsed object instance count = %zu", object_instance_count);
         for (size_t object_instance_index = 0; object_instance_index < object_instance_count; object_instance_index++) {
             if (ret != PT_API_SUCCESS) {
                 break;
             }
             // Get handle to object instance
             json_t *instance_dict_handle = json_array_get(object_instance_array_handle, object_instance_index);
-            // And get object-instance-id
-            json_t *instance_id_handle = json_object_get(instance_dict_handle, "object-instance-id");
+            // And get objectInstanceId
+            json_t *instance_id_handle = json_object_get(instance_dict_handle, "objectInstanceId");
             if (!instance_id_handle) {
-                *error_detail = "Invalid or missing object-instance-id key.";
+                *error_detail = "Invalid or missing objectInstanceId key.";
                 tr_error("%s", *error_detail);
                 ret = PT_API_INVALID_JSON_STRUCTURE;
                 break;
             }
             object_instance_id = json_integer_value(instance_id_handle);
 
-            tr_debug("JSON parsed object instance, id = %d\r\n", object_instance_id);
+            tr_debug("JSON parsed object instance, id = %d", object_instance_id);
             // Get handle to resource array
             json_t *resource_array_handle = json_object_get(instance_dict_handle, "resources");
             size_t resource_count = json_array_size(resource_array_handle);
-            tr_debug("JSON parsed resource count = %zu\r\n", resource_count);
+            tr_debug("JSON parsed resource count = %zu", resource_count);
             for (size_t resource_index = 0; resource_index < resource_count; resource_index++) {
                 // Get handle to object instance
                 json_t *resource_dict_handle = json_array_get(resource_array_handle, resource_index);
-                // And get object-instance-id
-                json_t *resource_id_handle = json_object_get(resource_dict_handle, "item-id");
+                // And get objectInstanceId
+                json_t *resource_id_handle = json_object_get(resource_dict_handle, "resourceId");
                 if (!resource_id_handle) {
-                    *error_detail = "Invalid or missing resource item-id key.";
+                    *error_detail = "Invalid or missing resource resourceId key.";
                     tr_error("%s", *error_detail);
                     ret = PT_API_INVALID_JSON_STRUCTURE;
                     break;
                 }
                 resource_id = json_integer_value(resource_id_handle);
 
-                tr_debug("JSON parsed resource, id = %d\r\n", resource_id);
+                tr_debug("JSON parsed resource, id = %d", resource_id);
                 json_t *resource_value_handle = json_object_get(resource_dict_handle, "value");
                 uint32_t decoded_len = 0;
                 if (resource_value_handle) {
                     const char *resource_value_encoded = json_string_value(resource_value_handle);
+                    if (resource_value_encoded == NULL) {
+                        *error_detail = "Message value is not a string.";
+                        tr_error("%s", *error_detail);
+                        ret = PT_API_ILLEGAL_VALUE;
+                        break;
+                    }
 
                     uint32_t decoded_len_max = apr_base64_decode_len(resource_value_encoded);
                     resource_value = (uint8_t *) malloc(decoded_len_max);
@@ -640,14 +672,14 @@ static pt_api_result_code_e update_device_values_from_json(json_t *json_structur
 {
     pt_api_result_code_e ret = PT_API_SUCCESS; // return value of the function
     // Get the device id
-    json_t *device_id_handle = json_object_get(json_structure, "device-id");
+    json_t *device_id_handle = json_object_get(json_structure, "deviceId");
     if (!device_id_handle) {
-        tr_error("Invalid device-id field");
+        tr_error("Invalid deviceId field");
         return JSONRPC_INVALID_PARAMS;
     }
     const char *device_id_val = json_string_value(device_id_handle);
 
-    tr_debug("JSON parsed endpoint, name = %s\r\n", device_id_val);
+    tr_debug("JSON parsed endpoint, name = %s", device_id_val);
     if (!edgeclient_endpoint_exists(device_id_val)) {
         tr_debug("Endpoint doesn't exist, lets create it...");
         if (!edgeclient_add_endpoint(device_id_val, connection)) {
@@ -743,10 +775,10 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
     json_t *params = json_object_get(request, "params");
 
     json_t *uri_obj = json_object();
-    json_object_set_new(uri_obj, "device-id", json_string(request_ctx->device_id));
-    json_object_set_new(uri_obj, "object-id", json_integer(request_ctx->object_id));
-    json_object_set_new(uri_obj, "object-instance-id", json_integer(request_ctx->object_instance_id));
-    json_object_set_new(uri_obj, "resource-id", json_integer(request_ctx->resource_id));
+    json_object_set_new(uri_obj, "deviceId", json_string(request_ctx->device_id));
+    json_object_set_new(uri_obj, "objectId", json_integer(request_ctx->object_id));
+    json_object_set_new(uri_obj, "objectInstanceId", json_integer(request_ctx->object_instance_id));
+    json_object_set_new(uri_obj, "resourceId", json_integer(request_ctx->resource_id));
     json_object_set(params, "uri", uri_obj);
     json_decref(uri_obj);
 
@@ -782,12 +814,13 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
         goto write_to_pt_cleanup;
     }
 
-    ret_val = edge_common_construct_and_send_message(connection,
-                                                     request,
-                                                     handle_write_to_pt_success,
-                                                     handle_write_to_pt_failure,
-                                                     pt_write_free_func,
-                                                     request_ctx);
+    ret_val = rpc_construct_and_send_message(connection,
+                                             request,
+                                             handle_write_to_pt_success,
+                                             handle_write_to_pt_failure,
+                                             pt_write_free_func,
+                                             request_ctx,
+                                             connection->transport_connection->write_function);
 
 write_to_pt_cleanup:
     // json_string makes a copy of json_value above.

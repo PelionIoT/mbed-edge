@@ -1,5 +1,79 @@
 # Changelog for Mbed Edge
 
+## Release 0.5.0 (2018-06-29)
+
+ * Update Mbed Cloud Client to `1.3.3`.
+ * **Breaking change** Revised the build system to support normal CMake cycle.
+   * Removed pre-generated `build`-directory. Normal out of tree builds are now
+     supported.
+   * Build helper script `build_mbed_edge.sh` removed.
+   * Added `cmake`-directory for predefined CMake configurations.
+   * Added `cmake/targets`-directory for predefined build targets.
+   * Added `cmake/toolchains`-directory for predefined build toolchains.
+ * **Breaking change** Changed underlying communication channel between the Edge Core and protocol translators to use Unix domain socket instead of TCP socket.
+ * **Breaking API change** Removed host and port parameters from `pt_client_start()` function and replaced with `socket_path`.
+   The underlying communication channel is changed to Unix domain socket.
+ * Released JSONRPC API documentation for protocol translators to use.
+   The new API is a JSONRPC 2.0 API and uses a websocket as transport.
+ * Added simple Javascript protocol translator example to `examples/simple-js-example`.
+ * Added `jansson` and `libevent` to libraries.
+   Removed runtime and compilation time dependency from environment and operating system.
+   These are now built and linked into Mbed Edge binaries in the project.
+ * Added `libwebsocket` and `mbedtls` to libraries.
+   These are now built and linked into Mbed Edge binaries in the project.
+ * Removed `mbed_edge_config.h` from `WISE-3610-SDK` in favor of CMake configuration
+   options.
+ * Fixed the file path in the documentation for the `update_default_resources.c`.
+   Correct folder for the file is `config`.
+ * Fix the version information printed by edge-core in product repository.
+ * WISE-3610 SDK 1.0.19e support.
+ * Improve performance when a lot of endpoints are used.
+ * Edge Core check the JSONRPC Protocol API version of Edge Client. If the version doesn't match
+   the connection is closed.
+ * Implemented a common Trace API which all Edge components use.
+ * Removed `common/edge_common.[c|h]`.
+ * Changed default for maximum number of registered endpoints limit. New default value is 500.
+
+### Bugfixes
+
+ * Fixed a bug where Edge Core did't decrease the number of allocated endpoints if the Protocol API client was killed.
+ * Fixed leaks in edge-core shutdown.
+ * Fixed a bug where objects were added twice to Mbed Cloud Client.
+ * Fixed a bug when Edge Core could not start when the --reset-storage parameter was used.
+ * Fixed Edge Core to return `Edge Core is shutting down` instead of `Internal error` when Edge Core is closing
+ * Fixed Edge Core to return `Invalid params` instead of `Error` if deviceId is invalid.
+ * Fixed Edge Core crash when it cannot allocate the http port.
+ * Fixed registration update behaviour to set the flag to false if resources were added or removed in correct order. The issue was that flag was set to false first and in a nested function call set back to true. This caused unnecessary empty registration updates to Mbed Cloud.
+
+### Known issues
+
+ * Mbed Edge communicates on behalf of multiple devices. There is a underlying limitation
+   in the CoAP communication to effectively reduce the amount of requests in flight to
+   be one. On very heavy communication cases this will introduce extra latency.
+   An example calculation:
+   * 30 mediated devices with a resource tree of 20 resources.
+   * Round trip time to Mbed Cloud of 200 ms.
+   * 10 KB registration message.
+   * Underlying Mbed Cloud Client will send data in 1 KB blocks and waits for
+     acknowledgement for each block. This equals 10 * 200 ms = 2 seconds.
+   * During that time other messages are not processed.
+ * If there are lot of notification updates passed to Mbed Cloud from Mbed Edge the
+   responsiveness to Mbed Cloud initated requests may be hindered.
+ * Protocol translators may cause side-effect on devices connecting through another
+   protocol translator if both protocol translators use same names for the devices.
+   There is limited checking on the actual protocol translator which owns the
+   translated device specified by the name. Ensure that devices have unique names
+   across the protocol translators, as an example add a prefix or suffix based on the
+   protocol translator name which must be unique.
+ * `DELETE` (CoAP/LWM2M) operation not supported.
+ * Devices moving between Mbed Edge instances have corner cases that are not supported.
+   You should de-register the devices from the current Mbed Edge before connecting to
+   an another Mbed Edge.
+ * Mediated device lifetime tracking not supported. Devices will have the same lifetime
+   as the Mbed Edge device. Default is 1 hour.
+   The `#define` to change the lifetime is `MBED_CLOUD_CLIENT_LIFETIME`.
+ * Device unregistration to Mbed Cloud uses only the lifetame expiration mechanism.
+
 ## Release 0.4.5 (2018-05-04)
 
  * Updated Mbed Cloud Client version to 1.3.1.1. Which contains following fixes.

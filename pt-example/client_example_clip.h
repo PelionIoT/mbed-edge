@@ -34,9 +34,8 @@ typedef struct {
     /* options without arguments */
     int help;
     /* options with arguments */
+    char *edge_domain_socket;
     char *endpoint_postfix;
-    char *host;
-    char *port;
     char *protocol_translator_name;
     /* special */
     const char *usage_pattern;
@@ -47,21 +46,20 @@ const char help_message[] =
 "Protocol Translator Example.\n"
 "\n"
 "Usage:\n"
-"  pt-example --protocol-translator-name <name> [--endpoint-postfix <name>] [--port <int>] [--host <hostname>]\n"
+"  pt-example --protocol-translator-name <name> [--endpoint-postfix <name>] [--edge-domain-socket <domain-socket>]\n"
 "  pt-example --help\n"
 "\n"
 "Options:\n"
 "  -h --help                                 Show this screen.\n"
 "  -n --protocol-translator-name <name>      Name of the Protocol Translator.\n"
 "  -e --endpoint-postfix <postfix>           Name for the endpoint postfix [default: -0]\n"
-"  -p --port <int>                           Edge Core port number [default: 22223].\n"
-"  --host <string>                           Edge Core host address [default: 127.0.0.1].\n"
+"  --edge-domain-socket <string>             Edge Core domain socket path [default: /tmp/edge.sock].\n"
 "\n"
 "";
 
 const char usage_pattern[] =
 "Usage:\n"
-"  pt-example --protocol-translator-name <name> [--endpoint-postfix <name>] [--port <int>] [--host <hostname>]\n"
+"  pt-example --protocol-translator-name <name> [--endpoint-postfix <name>] [--edge-domain-socket <domain-socket>]\n"
 "  pt-example --help";
 
 typedef struct {
@@ -283,15 +281,12 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             return 1;
         } else if (!strcmp(option->olong, "--help")) {
             args->help = option->value;
+        } else if (!strcmp(option->olong, "--edge-domain-socket")) {
+            if (option->argument)
+                args->edge_domain_socket = option->argument;
         } else if (!strcmp(option->olong, "--endpoint-postfix")) {
             if (option->argument)
                 args->endpoint_postfix = option->argument;
-        } else if (!strcmp(option->olong, "--host")) {
-            if (option->argument)
-                args->host = option->argument;
-        } else if (!strcmp(option->olong, "--port")) {
-            if (option->argument)
-                args->port = option->argument;
         } else if (!strcmp(option->olong, "--protocol-translator-name")) {
             if (option->argument)
                 args->protocol_translator_name = option->argument;
@@ -315,7 +310,7 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
-        0, (char*) "-0", (char*) "127.0.0.1", (char*) "22223", NULL,
+        0, (char*) "/tmp/edge.sock", (char*) "-0", NULL,
         usage_pattern, help_message
     };
     Tokens ts;
@@ -325,12 +320,11 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     };
     Option options[] = {
         {"-h", "--help", 0, 0, NULL},
+        {NULL, "--edge-domain-socket", 1, 0, NULL},
         {"-e", "--endpoint-postfix", 1, 0, NULL},
-        {NULL, "--host", 1, 0, NULL},
-        {"-p", "--port", 1, 0, NULL},
         {"-n", "--protocol-translator-name", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 5, commands, arguments, options};
+    Elements elements = {0, 0, 4, commands, arguments, options};
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))

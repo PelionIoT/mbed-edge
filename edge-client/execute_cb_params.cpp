@@ -49,7 +49,7 @@ EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx)
     edgeclient_deallocate_request_context(ctx);
 }
 
-ExecuteCallbackParams::ExecuteCallbackParams(void *m2m_ctx) : ctx(m2m_ctx)
+ExecuteCallbackParams::ExecuteCallbackParams(void *endpoint_context) : ctx(endpoint_context)
 {
     tr_debug("Create ExecuteCallbackParams %p", this);
     uri = NULL;

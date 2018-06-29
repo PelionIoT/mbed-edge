@@ -28,36 +28,20 @@
  * protocol translator.
  * \param ctx The program context.
  * \param protocol_translator The protocol translator context.
- * \param bev The libevent bufferevent.
  * \param pt_cbs The protocol translator user supplied callback functions.
  * \return The connection structure containing the connection-related data.
  */
 struct connection* connection_init(struct context *ctx,
                                    protocol_translator_t *protocol_translator,
-                                   struct bufferevent *bev,
                                    const protocol_translator_callbacks_t *pt_cbs,
                                    void *userdata);
 void connection_free(struct connection *connection);
 
 /**
  * \brief Set the message id generation function.
- * \param generate_msg_id is The function pointer or NULL. If NULL is given a default implementation is selected.
+ * \param generate_msg_id The function pointer or NULL. If NULL is given, a default implementation is selected.
  */
 void pt_client_set_msg_id_generator(generate_msg_id generate_msg_id);
-
-/**
- * \brief function which is called by libevent when there is more available data to be read.
- * \param bev is the bufferevent object
- * \param ctx is the connection reference
- * */
-void read_cb(struct bufferevent *bev, void *ctx);
-
-/**
- * \brief function which is called by libevent for new events
- * \param bev is the bufferevent object
- * \param events describes this event, e.g. BEVEVENT_ERROR
- * */
-void event_cb(struct bufferevent *bev, short events, void *arg);
 
 /**
  * \brief This function cleans used memory, e.g. unhandled requests.
@@ -65,6 +49,5 @@ void event_cb(struct bufferevent *bev, short events, void *arg);
  *
  * */
 void pt_client_final_cleanup();
-
 
 #endif /* CLIENT_H_ */

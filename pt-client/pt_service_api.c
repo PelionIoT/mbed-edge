@@ -18,13 +18,15 @@
  * ----------------------------------------------------------------------------
  */
 
+#include <assert.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "jsonrpc/jsonrpc.h"
 #include "edge-rpc/rpc.h"
 #include "common/apr_base64.h"
 #include "common/pt_api_error_codes.h"
-#include "pt-client/pt_api.h"
+#include "pt-client/pt_api_internal.h"
 #include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "clnt"
@@ -90,25 +92,25 @@ int update_device_values_from_json(struct connection *connection,
     }
 
     // Get the device id
-    json_t *device_id_handle = get_handle(uri_handle, result, "device-id");
+    json_t *device_id_handle = get_handle(uri_handle, result, "deviceId");
     if (!device_id_handle && *result) {
         return 1;
     }
 
     // Get the object id
-    json_t *object_id_handle = get_handle(uri_handle, result, "object-id");
+    json_t *object_id_handle = get_handle(uri_handle, result, "objectId");
     if (!object_id_handle && *result) {
         return 1;
     }
 
     // Get the object instance id
-    json_t *object_instance_id_handle = get_handle(uri_handle, result, "object-instance-id");
+    json_t *object_instance_id_handle = get_handle(uri_handle, result, "objectInstanceId");
     if (!object_instance_id_handle && *result) {
         return 1;
     }
 
     // Get the resource id
-    json_t *resource_id_handle = get_handle(uri_handle, result, "resource-id");
+    json_t *resource_id_handle = get_handle(uri_handle, result, "resourceId");
     if (!resource_id_handle && *result) {
         return 1;
     }
@@ -138,6 +140,9 @@ int update_device_values_from_json(struct connection *connection,
     /* Create a resource and add it to object instance */
     uint16_t resource_id = json_integer_value(resource_id_handle);
     const char *encoded_value = json_string_value(resource_value_handle);
+    if (encoded_value == NULL) {
+        return 1;
+    }
     uint32_t decoded_len = apr_base64_decode_len(encoded_value);
     uint8_t *resource_value = malloc(decoded_len);
     uint32_t decoded_len2 = apr_base64_decode_binary(resource_value, encoded_value);
@@ -180,3 +185,4 @@ int pt_receive_write_value(json_t *json_params, json_t **result, void *userdata)
     *result = json_string("ok");
     return 0;
 }
+

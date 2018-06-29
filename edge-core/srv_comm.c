@@ -20,11 +20,12 @@
 
 #include "edge-core/server.h"
 #include "edge-core/edge_server.h"
-#include "common/edge_common.h"
-#include "fstrm/fstrm.h"
+#include "edge-core/srv_comm.h"
+#include "common/websocket_comm.h"
+#include "edge-core/websocket_serv.h"
 
-#include <event2/event.h>
-#include <event2/bufferevent.h>
+#include "event2/event.h"
+#include "event2/bufferevent.h"
 
 #include "ns_list.h"
 
@@ -33,47 +34,6 @@
 #define TRACE_GROUP "edge-common-srv"
 
 static bool close_connection_common(struct connection *connection, bool free_connection);
-
-/*
- * Process reading READY frame from writer
- */
-bool process_control_frame_ready(struct connection *connection)
-{
-    fstrm_res res;
-
-    if (!edge_common_match_ct(connection)) {
-        return false;
-    }
-
-    fstrm_control_reset(connection->control);
-    res = fstrm_control_set_type(connection->control, FSTRM_CONTROL_ACCEPT);
-    if (res != fstrm_res_success) {
-        return false;
-    }
-    res = fstrm_control_add_field_content_type(connection->control, (const uint8_t *) "jsonrpc", strlen("jsonrpc"));
-    if (res != fstrm_res_success) {
-        return false;
-    }
-
-    if (!edge_common_write_control_frame(connection)) {
-        return false;
-    }
-
-    connection->state = CONNECTION_STATE_READING_CONTROL_START;
-    return true;
-}
-
-bool process_control_frame_start(struct connection *connection)
-{
-    /* Match the "Content Type" against ours. */
-    if (!edge_common_match_ct(connection))
-        return false;
-
-    /* Success. */
-    connection->state = CONNECTION_STATE_DATA;
-    tr_info("Connection ready to accept data frames from protocol translator.");
-    return true;
-}
 
 static bool remove_connection_from_list(struct connection *connection, connection_elem_list *list)
 {
@@ -100,7 +60,7 @@ static bool remove_connection_from_lists(struct connection *connection)
     } else {
         conn_found = remove_connection_from_list(connection, &ctx_data->not_accepted_translators);
         if (conn_found) {
-            tr_debug("Found from unregistered translators.");
+            tr_debug("Found from not accepted translators.");
         } else {
             tr_warn("Connection %p was not found in lists.", connection);
         }
@@ -114,12 +74,18 @@ static uint32_t accepted_connection_count(struct connection *connection)
     return ns_list_count(&ctx_data->registered_translators);
 }
 
-static bool close_connection(struct connection *connection)
+bool close_connection(struct connection *connection)
 {
+    tr_debug("close_connection %p", connection);
+    websocket_server_connection_destroy((websocket_connection_t *) connection->transport_connection->transport);
+    transport_connection_t_destroy(&connection->transport_connection);
+
     bool result = close_connection_common(connection, false);
     uint32_t open_connections_amount = accepted_connection_count(connection);
     bool exiting = connection->ctx->ctx_data->exiting;
-    connection_free(connection);
+    int32_t endpoints_removed = (int32_t) connection_free(connection);
+    edgeserver_change_number_registered_endpoints_by_delta(-endpoints_removed);
+
     if (exiting) {
         if (open_connections_amount == 0) {
             edgeserver_exit_event_loop();
@@ -132,114 +98,36 @@ static bool close_connection(struct connection *connection)
     return result;
 }
 
-void stop_free_bufferevent(struct bufferevent *bev, short events, void *arg)
+void close_connection_trigger(struct connection *connection)
 {
-    if ((events & BEV_EVENT_READING) && (events & BEV_EVENT_EOF)) {
-        (void) close_connection((struct connection *) arg);
-    }
-}
+    tr_debug("close_connection_trigger %p", connection);
 
-bool process_control_frame_stop(struct connection *connection)
-{
-    tr_debug("process_control_frame_stop");
-    fstrm_res res;
-
-    connection->state = CONNECTION_STATE_STOPPED;
-
-    /* Setup the FINISH frame. */
-    fstrm_control_reset(connection->control);
-    res = fstrm_control_set_type(connection->control, FSTRM_CONTROL_FINISH);
-    if (res != fstrm_res_success) {
-        return false;
-    }
-
-    //Set callback to free bufferevent after FINISH frame has been sent
-    bufferevent_setcb(connection->bev, NULL, NULL, stop_free_bufferevent, connection);
-
-    /* Send the FINISH frame. */
-    if (!edge_common_write_control_frame(connection)) {
-        return false;
-    }
-
-    return true;
-}
-
-static bool process_control_frame_finish(struct connection *connection)
-{
-    tr_debug("process_control_frame_finish %p", connection);
-    return close_connection(connection);
-}
-
-bool edge_common_process_control_frame(struct connection *connection, bool *destroyed_connection)
-{
-    fstrm_res res;
-    fstrm_control_type type;
-
-    tr_debug("Process control frame.");
-    *destroyed_connection = false;
-    res = fstrm_control_get_type(connection->control, &type);
-    if (res != fstrm_res_success) {
-        tr_warn("Control frame type get failed.");
-        return false;
-    }
-
-    tr_debug("Received %s (%u).", fstrm_control_type_to_str(type), type);
-
-    switch (connection->state) {
-        case CONNECTION_STATE_READING_CONTROL_READY: {
-            tr_debug("Handling READY state read");
-            if (type != FSTRM_CONTROL_READY)
-                return false;
-            return process_control_frame_ready(connection);
-        }
-        case CONNECTION_STATE_READING_CONTROL_START: {
-            tr_debug("Handling START state");
-            if (type != FSTRM_CONTROL_START)
-                return false;
-            return process_control_frame_start(connection);
-        }
-        case CONNECTION_STATE_DATA: {
-            tr_debug("Handling DATA state");
-            if (type != FSTRM_CONTROL_STOP)
-                return false;
-            return process_control_frame_stop(connection);
-        }
-        case CONNECTION_STATE_READING_CONTROL_FINISH: {
-            tr_debug("Handling READING_CONTROL_FINISH");
-            if (type != FSTRM_CONTROL_FINISH) {
-                return false;
-            }
-            *destroyed_connection = true;
-            return process_control_frame_finish(connection);
-        }
-
-        default:
-            tr_debug("Default state, return false.");
-            return false;
-    }
-    return true;
+    struct websocket_connection *websocket_conn = (websocket_connection_t*) connection->transport_connection->transport;
+    websocket_close_connection_trigger(websocket_conn);
 }
 
 static bool close_connection_common(struct connection *connection, bool free_connection)
 {
-    struct bufferevent *bev = connection->bev;
     bool result = remove_connection_from_lists(connection);
     if (free_connection) {
         connection_free(connection);
     }
-    bufferevent_free(bev);
     return result;
 }
 
-void edge_common_process_data_frame_specific(struct connection *connection, bool *connection_destroyed)
+int edge_core_write_data_frame_websocket(struct connection *connection, char *data, size_t len)
 {
-    bool protocol_error;
-    edge_common_process_data_frame(connection, &protocol_error);
-    if (protocol_error) {
-        close_connection_common(connection, true);
-        *connection_destroyed = true;
-        // In connection_free, the PT resource are destroyed. Therefore we should reregister.
-        edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
+    if (((websocket_connection_t*)connection->transport_connection->transport)->to_close) {
+        tr_info("Protocol translator is closing down, dropping message: %.*s", (int) len, data);
+        return -1;
     }
+    return send_to_websocket(data, len, connection->transport_connection->transport);
 }
 
+void edge_core_process_data_frame_websocket(struct connection *connection,
+                                            bool *protocol_error,
+                                            size_t len,
+                                            const char *data)
+{
+    (void) rpc_handle_message(data, len, connection, edge_core_write_data_frame_websocket, protocol_error);
+}

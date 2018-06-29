@@ -28,13 +28,12 @@
 #include "edge-rpc/rpc.h"
 #include "common/test_support.h"
 #include "pt-client/pt_api_internal.h"
-#include "common/edge_common.h"
 #include "common/apr_base64.h"
 
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "clnt"
 
-struct pt_customer_callback *allocate_customer_callback(struct connection *connection,
+struct pt_customer_callback *allocate_customer_callback(connection_t *connection,
                                                         pt_response_handler success_handler,
                                                         pt_response_handler failure_handler,
                                                         void *userdata)
@@ -53,7 +52,7 @@ struct pt_customer_callback *allocate_customer_callback(struct connection *conne
 }
 
 EDGE_LOCAL struct pt_device_customer_callback *allocate_device_customer_callback(
-        struct connection *connection,
+        connection_t *connection,
         pt_device_response_handler success_handler,
         pt_device_response_handler failure_handler,
         const char *device_id,
@@ -105,7 +104,7 @@ EDGE_LOCAL void pt_handle_pt_register_success(json_t *response, void *callback_d
 {
     tr_debug("Handling register success.");
     struct pt_device_customer_callback *customer_callback = (struct pt_device_customer_callback *) callback_data;
-    struct connection *connection = customer_callback->connection;
+    connection_t *connection = customer_callback->connection;
     connection->protocol_translator->registered = true;
 
     if (callback_data) {
@@ -118,10 +117,10 @@ EDGE_LOCAL void pt_handle_pt_register_failure(json_t *response, void *callback_d
 {
     tr_debug("Handling register failure.");
     struct pt_device_customer_callback *customer_callback = (struct pt_device_customer_callback *) callback_data;
-    struct connection *connection = customer_callback->connection;
+    connection_t *connection = customer_callback->connection;
     connection->protocol_translator->registered = false;
     // FIXME: handle registration failure connection close gracefully elsewhere
-    edge_common_write_stop_frame(connection);
+    //edge_common_write_stop_frame(connection);
 
     if (callback_data) {
         struct pt_customer_callback *customer_callback = (struct pt_customer_callback*) callback_data;
@@ -172,13 +171,21 @@ EDGE_LOCAL pt_status_t write_data_frame(json_t *message,
                                         void *callback_data)
 {
     struct pt_device_customer_callback *customer_callback = (struct pt_device_customer_callback*) callback_data;
-    struct connection *connection = customer_callback->connection;
-    int32_t ret_val = edge_common_construct_and_send_message(connection,
-                                                             message,
-                                                             success_handler,
-                                                             failure_handler,
-                                                             free_func,
-                                                             customer_callback);
+    connection_t *connection = customer_callback->connection;
+
+    if (!customer_callback->connection->connected) {
+        tr_warn("Not connected, discarding write.");
+        json_decref(message);
+        return PT_STATUS_NOT_CONNECTED;
+    }
+
+    int32_t ret_val = rpc_construct_and_send_message(connection,
+                                                     message,
+                                                     success_handler,
+                                                     failure_handler,
+                                                     free_func,
+                                                     customer_callback,
+                                                     connection->transport_connection->write_function);
 
     if (ret_val == -1) {
         return PT_STATUS_ALLOCATION_FAIL;
@@ -189,7 +196,7 @@ EDGE_LOCAL pt_status_t write_data_frame(json_t *message,
     return PT_STATUS_SUCCESS;
 }
 
-pt_status_t pt_register_protocol_translator(struct connection *connection,
+pt_status_t pt_register_protocol_translator(connection_t *connection,
                                             pt_response_handler success_handler,
                                             pt_response_handler failure_handler,
                                             void *userdata)
@@ -258,15 +265,15 @@ static void parse_objects(pt_object_list_t *objects, json_t *j_objects){
 
         tr_debug("Adding object %d", current_object->id);
         json_array_append_new(j_objects, j_object);
-        json_object_set_new(j_object, "object-id", json_integer(current_object->id));
-        json_object_set_new(j_object, "object-instances", j_object_instances);
+        json_object_set_new(j_object, "objectId", json_integer(current_object->id));
+        json_object_set_new(j_object, "objectInstances", j_object_instances);
         ns_list_foreach(pt_object_instance_t, current_instance, instances)
         {
             json_t *j_object_instance = json_object();
             json_t *j_resources = json_array();
             pt_resource_list_t *resources = current_instance->resources;
             tr_debug("Adding object instance %d", current_instance->id);
-            json_object_set_new(j_object_instance, "object-instance-id", json_integer(current_instance->id));
+            json_object_set_new(j_object_instance, "objectInstanceId", json_integer(current_instance->id));
             json_array_append_new(j_object_instances, j_object_instance);
             ns_list_foreach(pt_resource_t, current_resource, resources)
             {
@@ -280,7 +287,7 @@ static void parse_objects(pt_object_list_t *objects, json_t *j_objects){
                     opaque->value_size);
                 assert(encoded_length == encoded_length2);
                 tr_debug("Adding resource %d", opaque->id);
-                json_object_set_new(j_resource, "item-id", json_integer(opaque->id));
+                json_object_set_new(j_resource, "resourceId", json_integer(opaque->id));
                 json_object_set_new(j_resource, "operations", json_integer(opaque->operations));
                 json_object_set_new(j_resource, "type", json_string(convert_resource_type_to_str(opaque->type)));
                 json_object_set_new(j_resource, "value", json_string(encoded_value));
@@ -292,7 +299,7 @@ static void parse_objects(pt_object_list_t *objects, json_t *j_objects){
     }
 }
 
-EDGE_LOCAL pt_status_t check_device_registration_preconditions(struct connection *connection,
+EDGE_LOCAL pt_status_t check_device_registration_preconditions(connection_t *connection,
                                                                pt_device_t *device, const char *action, const char *message)
 {
     if (connection == NULL || connection->protocol_translator == NULL) {
@@ -333,7 +340,7 @@ EDGE_LOCAL pt_status_t check_registration_data_allocated(json_t *register_msg,
     return PT_STATUS_SUCCESS;
 }
 
-pt_status_t pt_register_device(struct connection *connection,
+pt_status_t pt_register_device(connection_t *connection,
                                pt_device_t *device, pt_device_response_handler success_handler,
                                pt_device_response_handler failure_handler, void *userdata)
 {
@@ -364,7 +371,7 @@ pt_status_t pt_register_device(struct connection *connection,
     // TODO: Check failures in following block
     json_object_set_new(params, "lifetime", device_lifetime);
     json_object_set_new(params, "queuemode", device_queuemode);
-    json_object_set_new(params, "device-id", device_id);
+    json_object_set_new(params, "deviceId", device_id);
     json_object_set_new(params, "objects", j_objects);
     parse_objects(device->objects, j_objects);
 
@@ -389,7 +396,7 @@ EDGE_LOCAL pt_status_t check_unregistration_data_allocated(json_t *unregister_ms
     return PT_STATUS_SUCCESS;
 }
 
-pt_status_t pt_unregister_device(struct connection *connection,
+pt_status_t pt_unregister_device(connection_t *connection,
                                  pt_device_t *device,
                                  pt_device_response_handler success_handler,
                                  pt_device_response_handler failure_handler,
@@ -413,13 +420,13 @@ pt_status_t pt_unregister_device(struct connection *connection,
     if (PT_STATUS_SUCCESS != status) {
         return status;
     }
-    json_object_set_new(params, "device-id", device_id);
+    json_object_set_new(params, "deviceId", device_id);
 
     return write_data_frame(unregister_msg,
-                           pt_handle_device_unregister_success,
-                           pt_handle_device_unregister_failure,
-                           device_customer_callback_free_func,
-                           customer_callback);
+                            pt_handle_device_unregister_success,
+                            pt_handle_device_unregister_failure,
+                            device_customer_callback_free_func,
+                            customer_callback);
 }
 
 pt_device_t *pt_create_device(char* device_id, const uint32_t lifetime, const queuemode_t queuemode, pt_status_t *status)
@@ -676,7 +683,7 @@ EDGE_LOCAL pt_status_t check_write_value_data_allocated(json_t *request,
     return PT_STATUS_SUCCESS;
 }
 
-pt_status_t pt_write_value(struct connection *connection, pt_device_t *device,
+pt_status_t pt_write_value(connection_t *connection, pt_device_t *device,
                            pt_object_list_t *objects,
                            pt_device_response_handler success_handler,
                            pt_device_response_handler failure_handler,
@@ -700,14 +707,56 @@ pt_status_t pt_write_value(struct connection *connection, pt_device_t *device,
     }
 
     // TODO: Check failures in next block
-    json_object_set_new(params, "device-id", device_id);
+    json_object_set_new(params, "deviceId", device_id);
     json_object_set_new(params, "objects", j_objects);
     parse_objects(objects, j_objects);
 
-    return write_data_frame(request,
-                           pt_handle_pt_write_value_success,
-                           pt_handle_pt_write_value_failure,
-                           device_customer_callback_free_func,
-                           customer_callback);
+    status =  write_data_frame(request,
+                               pt_handle_pt_write_value_success,
+                               pt_handle_pt_write_value_failure,
+                               device_customer_callback_free_func,
+                               customer_callback);
+
+    if (PT_STATUS_SUCCESS != status) {
+        tr_info("Could not write data to Edge Core, call failure callback.");
+        customer_callback->failure_handler(device->device_id, userdata);
+        device_customer_callback_free(customer_callback);
+        tr_info("Could not write data to Edge Core, deallocate customer callbacks.");
+    }
+
+    return status;
 }
 
+void pt_client_connection_destroy(connection_t **connection)
+{
+    if (connection && *connection) {
+        if ((*connection)) {
+            (*connection)->protocol_translator_callbacks->connection_shutdown_cb(connection, (*connection)->userdata);
+        }
+    }
+}
+
+protocol_translator_t *pt_client_create_protocol_translator(char* name)
+{
+    protocol_translator_t *pt = calloc(1, sizeof(protocol_translator_t));
+    if (!pt) {
+        tr_err("Could not allocate memory for protocol translator structure.");
+        return NULL;
+    }
+    // Set the id to invalid
+    if (NULL != pt) {
+        pt->id = -1;
+    }
+    pt->name = name;
+    pt->registered = false;
+    return pt;
+}
+
+void pt_client_protocol_translator_destroy(protocol_translator_t **pt)
+{
+    if (pt && *pt) {
+        free((*pt)->name);
+        free((*pt));
+        *pt = NULL;
+    }
+}

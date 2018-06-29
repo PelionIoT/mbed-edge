@@ -10,12 +10,12 @@ boot() {
 	$MOUNT_KCM
 
 	# pipe output to logger: /var/log/messages
-	(start-stop-daemon -S -x $MCCED_BIN -- -p 22225 -o 8081 | logger -t mbed) &
+	(start-stop-daemon -S -x $MCCED_BIN -- -o 8081 | logger -t mbed) &
 }
 
 start()
 {
-    (start-stop-daemon -S -x $MCCED_BIN -- -p 22225 -o 8081 | logger -t mbed) &
+    (start-stop-daemon -S -x $MCCED_BIN -- -o 8081 | logger -t mbed) &
 }
 
 stop()

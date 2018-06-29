@@ -30,6 +30,7 @@
 #include "ns_list.h"
 
 #include "mbed-trace/mbed_trace.h"
+#include "common/edge_time.h"
 #define TRACE_GROUP "rpc"
 
 /**
@@ -116,10 +117,10 @@ void rpc_dealloc_message_entry(void *message_entry)
     }
 }
 
-struct json_message_t* alloc_json_message_t(char* data, size_t len, struct connection *connection)
+struct json_message_t* alloc_json_message_t(const char* data, size_t len, struct connection *connection)
 {
     struct json_message_t *msg = malloc(sizeof(struct json_message_t));
-    msg->data = data;
+    msg->data = strndup(data, len);
     msg->len = len;
     msg->connection = connection;
     return msg;
@@ -143,26 +144,6 @@ void rpc_init(struct jsonrpc_method_entry_t method_table[])
     _method_table = method_table;
 }
 
-/**
- * \brief Get current milliseconds
- * Uses CLOCK_MONOTONIC as source from POSIX.1-2001, POSIX.1-2008, SUSv2 compliant system.
- * If _POSIX_MONOTONIC_CLOCK is not defined the function returns 0
- * \return current milliseconds as uint64_t or 0 if clock source is not available.
- */
-uint64_t get_posix_clock_time()
-{
-#ifdef _POSIX_MONOTONIC_CLOCK
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-        return (uint64_t) (ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
-    } else {
-        return 0;
-    }
-#else
-    return 0;
-#endif
-}
-
 int rpc_construct_message(json_t *message,
                           rpc_response_handler success_handler,
                           rpc_response_handler failure_handler,
@@ -170,6 +151,7 @@ int rpc_construct_message(json_t *message,
                           void *request_context,
                           void **returned_msg_entry,
                           char **data,
+                          size_t *data_len,
                           char **message_id)
 {
     *returned_msg_entry = NULL;
@@ -186,7 +168,10 @@ int rpc_construct_message(json_t *message,
     *message_id = g_generate_msg_id();
     json_object_set_new(message, "id", json_string(*message_id));
 
-    *data = json_dumps(message, JSON_COMPACT | JSON_SORT_KEYS);
+    *data_len = json_dumpb(message, NULL, 0, JSON_COMPACT | JSON_SORT_KEYS);
+
+    *data = (char*) malloc(*data_len);
+    *data_len = json_dumpb(message, *data, *data_len, JSON_COMPACT | JSON_SORT_KEYS);
 
     if (*data != NULL) {
         message_t *msg_entry = alloc_message(message, success_handler, failure_handler, free_func, request_context);
@@ -197,6 +182,40 @@ int rpc_construct_message(json_t *message,
         tr_err("Error in adding the request to request list.");
         return 1;
     }
+}
+
+int32_t rpc_construct_and_send_message(struct connection *connection,
+                                       json_t *message,
+                                       rpc_response_handler success_handler,
+                                       rpc_response_handler failure_handler,
+                                       rpc_free_func free_func,
+                                       void *customer_callback,
+                                       write_func write_function)
+{
+    void *message_entry;
+    char *data;
+    char *message_id;
+    size_t data_len;
+    int rc = rpc_construct_message(message, success_handler, failure_handler,
+                                   free_func, customer_callback, &message_entry,
+                                   &data, &data_len, &message_id);
+
+    if (rc == 1 || data == NULL) {
+        json_decref(message);
+        free_func(customer_callback);
+        return -1;
+    }
+
+    /*
+     * Add message to list before writing to socket.
+     * There is a condition when other end may respond back before
+     * having the message in the message list.
+     */
+    rpc_add_message_entry_to_list(message_entry);
+    write_function(connection, data, data_len);
+    free(message_id);
+
+    return 0;
 }
 
 void rpc_add_message_entry_to_list(void *message_entry)
@@ -252,7 +271,7 @@ int handle_response(json_t *response)
         json_t *result_obj = json_object_get(response, "result");
 
         /* Get the start clock units */
-        uint64_t begin_time = get_posix_clock_time();
+        uint64_t begin_time = edgetime_get_monotonic_in_ms();
 
         // FIXME: Check that result contains ok
         if (result_obj != NULL) {
@@ -265,7 +284,7 @@ int handle_response(json_t *response)
         }
 
         /* Get the end clock units */
-        uint64_t end_time = get_posix_clock_time();
+        uint64_t end_time = edgetime_get_monotonic_in_ms();
 
         /* This will convert the clock units to milliseconds, this measures cpu time
          * The measured runtime contains the time consumed in internal callbacks and
@@ -288,7 +307,7 @@ int handle_response(json_t *response)
     return rc;
 }
 
-int rpc_handle_message(char *data,
+int rpc_handle_message(const char *data,
                        size_t len,
                        struct connection *connection,
                        write_func write_function,
@@ -298,11 +317,13 @@ int rpc_handle_message(char *data,
     struct json_message_t *json_message = alloc_json_message_t(data, len, connection);
     char *response = jsonrpc_handler(data, len, _method_table, handle_response, json_message, protocol_error);
 
-    if (response != NULL) {
-        write_function(connection, response, strlen(response));
-    }
     deallocate_json_message_t(json_message);
-    return 0;
+    if (response == NULL) {
+        return 1;
+
+    }
+    int rc = write_function(connection, response, strlen(response));
+    return rc;
 }
 
 void rpc_destroy_messages()

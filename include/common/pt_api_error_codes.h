@@ -34,6 +34,11 @@
  */
 
 typedef enum {
+
+    /*
+     * Generic error codes
+     */
+
     /**
      * \brief Operation succeeded.
      */
@@ -43,6 +48,10 @@ typedef enum {
      * \brief Unknown PT API error
      */
     PT_API_UNKNOWN_ERROR = -1,
+
+    /*
+     * Error codes related to server state
+     */
 
     /**
      * \brief An internal error code.
@@ -75,6 +84,16 @@ typedef enum {
     PT_API_ENDPOINT_ALREADY_REGISTERED = -30005,
 
     /**
+     * \brief The Edge Core is shutting down.
+     */
+    PT_API_EDGE_CORE_SHUTTING_DOWN = -30006,
+
+
+    /*
+     * Error codes related to client state.
+     */
+
+    /**
      * \brief The protocol translator client write error.
      */
     PT_API_PROTOCOL_TRANSLATOR_CLIENT_WRITE_ERROR = -30100,
@@ -92,6 +111,7 @@ typedef enum {
      * \brief the JSON structure is not according to specification.
      */
     PT_API_INVALID_JSON_STRUCTURE = -30103
+
 } pt_api_result_code_e;
 
 /**

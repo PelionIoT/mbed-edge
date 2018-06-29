@@ -19,13 +19,13 @@
  */
 
 #include <float.h>
-#include <jansson.h>
+#include <string.h>
+
 #include "ipso_objects.h"
 #include "common/constants.h"
 #include "common/integer_length.h"
 #include "pt-client/pt_api.h"
 #include "pt-example/byte_order.h"
-#include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
 
 #define TRACE_GROUP "ipso-objects"
@@ -217,37 +217,4 @@ char* ipso_convert_value_to_hex_string(uint8_t *data, const uint32_t value_size)
     }
 
     return str;
-}
-
-int ipso_object_to_json_string(pt_object_t *object, char** data)
-{
-    json_t *js_root = json_object();
-    json_t *js_instances = json_array();
-    json_object_set_new(js_root, "object-id", json_integer(object->id));
-    json_object_set_new(js_root, "instances", js_instances);
-
-    ns_list_foreach(pt_object_instance_t, instance, object->instances) {
-        json_t *js_instance = json_object();
-        json_array_append_new(js_instances, js_instance);
-
-        json_t *js_resources = json_array();
-        json_object_set_new(js_instance, "resources", js_resources);
-        json_object_set_new(js_instance, "instance-id", json_integer(instance->id));
-
-        ns_list_foreach(pt_resource_t, resource_abs, instance->resources) {
-            pt_resource_opaque_t *resource = (pt_resource_opaque_t*) resource_abs;
-            json_t *js_resource = json_object();
-            json_array_append_new(js_resources, js_resource);
-            json_object_set_new(js_resource, "resource-id", json_integer(resource->id));
-            json_object_set_new(js_resource, "operations", json_integer(resource->operations));
-            json_object_set_new(js_resource, "value_size", json_integer(resource->value_size));
-            char* value_in_hex = ipso_convert_value_to_hex_string(resource->value,
-                                                                  resource->value_size);
-            json_object_set_new(js_resource, "value", json_string(value_in_hex));
-            free(value_in_hex);
-        }
-    }
-    *data = json_dumps(js_root, JSON_INDENT(1) | JSON_SORT_KEYS);
-    json_decref(js_root);
-    return 0;
 }

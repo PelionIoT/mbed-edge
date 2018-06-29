@@ -18,12 +18,14 @@
  * ----------------------------------------------------------------------------
  */
 
+#include <string.h>
+
 #include "common/integer_length.h"
 #include "pt-client/pt_api.h"
 #include "pt-client/pt_device_object.h"
 #include "pt-example/client_config.h"
-#include "pt-example/ipso_objects.h"
-#include "pt-example/thermal_zone.h"
+#include "ipso_objects.h"
+#include "thermal_zone.h"
 #include "mbed-trace/mbed_trace.h"
 
 #define TRACE_GROUP "clnt-example"

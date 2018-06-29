@@ -37,6 +37,7 @@ struct error_message_entry_t ERROR_MESSAGES[] =
          {PT_API_ILLEGAL_VALUE, "Illegal value."},
          {PT_API_INVALID_JSON_STRUCTURE, "Invalid json structure."},
          {PT_API_ENDPOINT_ALREADY_REGISTERED, "Cannot register endpoint, because it's already registered."},
+         {PT_API_EDGE_CORE_SHUTTING_DOWN, "Edge Core is shutting down."},
          {PT_API_UNKNOWN_ERROR, NULL}};
 
 const char *pt_api_get_error_message(pt_api_result_code_e code)

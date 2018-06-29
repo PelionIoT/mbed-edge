@@ -1,1 +1,0 @@
-../libmy/m4/ld-version-script.m4

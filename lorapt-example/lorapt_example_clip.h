@@ -34,8 +34,7 @@ typedef struct {
     /* options without arguments */
     int help;
     /* options with arguments */
-    char *edge_core_host;
-    char *edge_core_port;
+    char *edge_domain_socket;
     char *keep_alive;
     char *mosquitto_host;
     char *mosquitto_port;
@@ -48,13 +47,12 @@ const char help_message[] =
 "LORA Protocol Translator Example.\n"
 "\n"
 "Usage:\n"
-"  lorapt-example [--edge-core-port <int>] [--edge-core-host <hostname>] [--mosquitto-port <int>] [--mosquitto-host <hostname>] [--keep-alive <int>]\n"
+"  lorapt-example [--edge-domain-socket <domain-socket>] [--mosquitto-port <int>] [--mosquitto-host <hostname>] [--keep-alive <int>]\n"
 "  lorapt-example --help\n"
 "\n"
 "Options:\n"
 "  -h --help                      Show this screen.\n"
-"  --edge-core-port <int>         Edge Core port number [default: 22223].\n"
-"  --edge-core-host <string>      Edge Core host address [default: 127.0.0.1].\n"
+"  --edge-domain-socket <string>  Edge Core domain socket path [default: /tmp/edge.sock].\n"
 "  --mosquitto-port <int>         Mosquitto port number [default: 1883].\n"
 "  --mosquitto-host <string>      Mosquitto host address [default: 127.0.0.1].\n"
 "  --keep-alive <int>             Specify the keep-alive parameter in minutes [default: 60].\n"
@@ -63,7 +61,7 @@ const char help_message[] =
 
 const char usage_pattern[] =
 "Usage:\n"
-"  lorapt-example [--edge-core-port <int>] [--edge-core-host <hostname>] [--mosquitto-port <int>] [--mosquitto-host <hostname>] [--keep-alive <int>]\n"
+"  lorapt-example [--edge-domain-socket <domain-socket>] [--mosquitto-port <int>] [--mosquitto-host <hostname>] [--keep-alive <int>]\n"
 "  lorapt-example --help";
 
 typedef struct {
@@ -285,12 +283,9 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             return 1;
         } else if (!strcmp(option->olong, "--help")) {
             args->help = option->value;
-        } else if (!strcmp(option->olong, "--edge-core-host")) {
+        } else if (!strcmp(option->olong, "--edge-domain-socket")) {
             if (option->argument)
-                args->edge_core_host = option->argument;
-        } else if (!strcmp(option->olong, "--edge-core-port")) {
-            if (option->argument)
-                args->edge_core_port = option->argument;
+                args->edge_domain_socket = option->argument;
         } else if (!strcmp(option->olong, "--keep-alive")) {
             if (option->argument)
                 args->keep_alive = option->argument;
@@ -320,8 +315,8 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
-        0, (char*) "127.0.0.1", (char*) "22223", (char*) "60", (char*)
-        "127.0.0.1", (char*) "1883",
+        0, (char*) "/tmp/edge.sock", (char*) "60", (char*) "127.0.0.1", (char*)
+        "1883",
         usage_pattern, help_message
     };
     Tokens ts;
@@ -331,13 +326,12 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     };
     Option options[] = {
         {"-h", "--help", 0, 0, NULL},
-        {NULL, "--edge-core-host", 1, 0, NULL},
-        {NULL, "--edge-core-port", 1, 0, NULL},
+        {NULL, "--edge-domain-socket", 1, 0, NULL},
         {NULL, "--keep-alive", 1, 0, NULL},
         {NULL, "--mosquitto-host", 1, 0, NULL},
         {NULL, "--mosquitto-port", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 6, commands, arguments, options};
+    Elements elements = {0, 0, 5, commands, arguments, options};
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))

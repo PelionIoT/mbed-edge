@@ -16,7 +16,7 @@
 echo 'ARM Cloud client update package script'
 
 #Set the SOURCE_DIRECTORY to your SDK root folder
-SOURCE_DIRECTORY='/path/to/sdk/root/private/qca-networking-2016-spf-2-0_qca_oem_standard.git/IPQ4019.ILQ.1.1.1.r2/common/build/ipq/'
+SOURCE_DIRECTORY='/home/adv/work/private/qca-networking-2016-spf-2-0_qca_oem_standard.git/IPQ4019.ILQ.1.1.1.r2/common/build/ipq/'
 OUT_DIRECTORY='image'
 OUT_FILE='nand-ipq40xx-sysupgrade.img'
 

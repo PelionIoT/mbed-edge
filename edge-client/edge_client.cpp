@@ -25,7 +25,7 @@ extern "C" {
 #include "edge-core/edge_server.h"
 #include "edge-client/msg_api.h"
 }
-
+#include <pthread.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -147,6 +147,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(
         value = (uint8_t *) malloc(value_len + 1);
         if (!value) {
             tr_err("edgeclient_endpoint_value_set_handler - cannot duplicate value to null terminate it!");
+            free(ctx);
             return NULL;
         }
         copied_value = (uint8_t *) value;
@@ -419,7 +420,6 @@ EDGE_LOCAL void edgeclient_on_registered_callback(void) {
     tr_debug("on_registered_callback, unregistered objects count %d", client_data->unregistered_objects.size());
     // Move unregistered objects to be registered if there is any
     if (!client_data->unregistered_objects.empty()) {
-        edgeclient_add_client_objects_for_registering();
         start_registration = true;
     }
     client_data->g_handle_register_cb();
@@ -577,11 +577,11 @@ bool edgeclient_stop()
         if (translators_removed) {
             edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
         }
-        if (endpoints_removed > 0) {
+        if (client_data->edgeclient_status == REGISTERED && endpoints_removed > 0) {
             tr_info("edgeclient_stop - removing %u endpoints", endpoints_removed);
             edgeclient_update_register(EDGECLIENT_DONT_LOCK_MUTEX);
         } else {
-            tr_info("edgeclient_stop - stopping eventloop");
+            tr_info("edgeclient_stop - initiating graceful shutdown");
             edgeserver_graceful_shutdown();
         }
     } else {
@@ -599,10 +599,10 @@ void edgeclient_create(const edgeclient_create_parameters_t *params)
     if (client == NULL) {
         setup_config_mountdir();
         eventloop_stats_init();
+        edgeclient_setup_credentials(params->reset_storage);
         client = new EdgeClientImpl();
         edgeclient_data_init();
         edgeclient_mutex_init();
-        edgeclient_setup_credentials(params->reset_storage);
 
         client_data->g_handle_write_to_pt_cb = params->handle_write_to_pt_cb;
         client_data->g_handle_register_cb = params->handle_register_cb;
@@ -623,6 +623,7 @@ void edgeclient_destroy()
         edgeclient_data_free();
         delete client;
         client = NULL;
+        fcc_finalize();
         ns_event_loop_thread_stop();
     }
 }
@@ -674,9 +675,13 @@ void edgeclient_update_register(edgeclient_mutex_action_e mutex_action) {
     list_objects();
 #endif
     if (client_data->edgeclient_status == REGISTERED) {
-        client_data->m2m_resources_added_or_removed = false;
         tr_debug("update_register_client() status = %d", client_data->edgeclient_status);
         edgeclient_add_client_objects_for_registering();
+        // Mark the flag to false after adding objects for registering.
+        // The function `edgeclient_add_client_objects_for_registering()`
+        // sets `client_data->m2m_resources_added_or_removed`
+        // to true. When registering starts this value must be set to false.
+        client_data->m2m_resources_added_or_removed = false;
         client_data->edgeclient_status = REGISTERING;
         start_registration = true;
     }
@@ -1416,9 +1421,8 @@ EDGE_LOCAL void load_byoc_data_to_kcm()
 
 EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage)
 {
-
     fcc_status_e status = fcc_init();
-    if(status != FCC_STATUS_SUCCESS) {
+    if (status != FCC_STATUS_SUCCESS) {
         tr_error("fcc_init failed with status %d!", status);
         exit(1);
     }

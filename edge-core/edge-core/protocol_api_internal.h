@@ -21,8 +21,33 @@
 #ifndef PROTOCOL_API_INTERNAL_H
 #define PROTOCOL_API_INTERNAL_H
 
-#include "common/edge_common.h"
+#include "edge-rpc/rpc.h"
 
-void protocol_api_free_pt_resources(protocol_translator_t *protocol_translator);
+typedef struct protocol_translator {
+    char* name;
+    bool registered;
+    int id;
+} protocol_translator_t;
+
+typedef struct transport_connection {
+    void *transport;
+    write_func write_function;
+} transport_connection_t;
+
+struct connection {
+    bool connected;
+    struct context *ctx;
+    protocol_translator_t *protocol_translator;
+    transport_connection_t *transport_connection;
+    void *userdata;
+};
+
+/*
+ * \brief Create a new protocol translator
+ */
+protocol_translator_t *edge_core_create_protocol_translator();
+
+void edge_core_protocol_translator_destroy(protocol_translator_t **protocol_translator);
+void transport_connection_t_destroy(transport_connection_t **transport_connection);
 
 #endif

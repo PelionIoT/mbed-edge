@@ -25,6 +25,16 @@
 #include <common/test_support.h>
 #include "pt-client/pt_api.h"
 
+struct ctx_data;
+
+struct context {
+    struct event_base *ev_base;
+    const char *socket_path;
+    size_t json_flags;
+    struct ctx_data *ctx_data;
+};
+
+
 struct pt_customer_callback {
     struct connection *connection;
     pt_response_handler success_handler;
@@ -39,6 +49,35 @@ struct pt_device_customer_callback {
     char* device_id;
     void *userdata;
 };
+
+typedef struct transport_connection {
+    void *transport;
+    write_func write_function;
+} transport_connection_t;
+
+struct connection {
+    bool connected;
+    struct context *ctx;
+    protocol_translator_t *protocol_translator;
+    const protocol_translator_callbacks_t *protocol_translator_callbacks;
+    // Move to websocket_connection_t
+    struct lws_context *lws_context;
+    transport_connection_t *transport_connection;
+    void *userdata;
+};
+
+/**
+ * \brief Deallocate connections.
+ * \param connection The array to deallocate.
+ */
+void pt_client_connection_destroy(struct connection **connection);
+
+protocol_translator_t *pt_client_create_protocol_translator(char *name);
+void pt_client_protocol_translator_destroy(protocol_translator_t **pt);
+
+int pt_client_read_data(connection_t *connection, char *data, size_t len);
+
+typedef bool (*pt_f_close_condition)(bool client_close);
 
 #ifdef BUILD_TYPE_TEST
 void pt_reset_api();
@@ -84,6 +123,9 @@ pt_status_t check_write_value_data_allocated(json_t *request,
                                              struct pt_device_customer_callback *customer_callback);
 void device_customer_callback_free_func(void* callback_data);
 void customer_callback_free_func(void *callback_data);
+
+void pt_init_check_close_condition_function(pt_f_close_condition func);
+
 #endif
 
 #endif

@@ -25,8 +25,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "pt-example/thermal_zone.h"
-#include "pt-example/read_file.h"
+#include "thermal_zone.h"
+#include "read_file.h"
 #include "mbed-trace/mbed_trace.h"
 
 #define TRACE_GROUP            "tzone"

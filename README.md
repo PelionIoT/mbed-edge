@@ -2,6 +2,8 @@
 
 This document contains the instructions for using and developing Mbed Edge.
 
+The full Mbed Edge documentation is [part of our Mbed Cloud documentation site](https://cloud.mbed.com/docs/current/connecting/mbed-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+
 ## License
 
 This software is provided under Apache 2.0 license.
@@ -14,39 +16,35 @@ The contents of the repository.
 
 | Folder name           | Contents
 |-----------------------|---------------------------------------------------------
-| `build`               | Build files and output.
+| `cmake`               | CMake scripts
 | `common`              | Common functionality of edge-core and pt-client.
-| `doc`                 | Documentation of the source code.
+| `config`              | The configuration files location.
 | `edge-client`         | A wrapper used to integrate Mbed Edge with Mbed Cloud Client.
 | `edge-core`           | Edge Core server process.
-| `edge-module-sources` | Additional modules required by Mbed Edge.
 | `edge-rpc`            | Common RPC functionality of edge-core and pt-client.
 | `edge-tool`           | A helper tool to observe and manipulate Edge mediated resources.
+| `examples`            | Examples for Mbed Edge.
 | `include`             | Header files for Mbed Edge.
-| `lib`                 | Git submodules.
+| `lib`                 | Mbed Edge library dependencies
 | `lorapt-example`      | Protocol translator example for WISE-3610 Lora GW.
 | `pt-client`           | Protocol translator client stub.
 | `pt-example`          | Protocol translator example implementation.
-| `targets`             | Build targets.
+| `WISE-3610-SDK`       | WISE-3610 SDK integration files
 
 ### Files
 
 | File name                         | Description
 |-----------------------------------|---------------------------------------------
-| `build_mbed_edge.sh`              | A helper script to build Mbed Edge with one command.
 | `CMakeLists.txt`                  | The root CMakeLists file.
 | `git_details.cmake`               | CMake file used for generating the version information.
-| `mbed_cloud_client_user_config.h` | A configuration file for the Mbed Cloud Client settings.
-| `mbed_client_user_config.h`       | A configuration file for the Mbed Client settings.
-| `mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
+| `config/mbed_cloud_client_user_config.h` | A configuration file for the Mbed Cloud Client settings.
+| `config/mbed_client_user_config.h`       | A configuration file for the Mbed Client settings.
+| `config/mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
 
 ## Dependencies
 
 Currently, there are a few dependencies in the build system:
 
-* libevent 2.0.21
-* libevent-pthreads 2.0.21
-* libjansson 2.7
 * librt
 * libstdc++
 * OPTIONAL: libmosquitto (for lorapt-example)
@@ -54,17 +52,46 @@ Currently, there are a few dependencies in the build system:
 Install these in Ubuntu 16.04:
 
 ```
-$ apt install libevent-dev libjansson-dev libc6-dev
+$ apt install libc6-dev
 $ apt install libmosquitto-dev mosquitto-clients
+```
+
+## Build tool dependencies
+
+Tools needed for building:
+ * Git for cloning this repository.
+ * CMake 2.8 or later.
+ * GCC for compiling.
+
+```
+$ apt install build-essential cmake git
+```
+
+## Initialize repositories
+
+Fetch the Git submodules that are direct dependencies for Mbed Edge.
+```
+$ git submodule init
+$ git submodule update
 ```
 
 ## Configuring Mbed Edge build
 
-You can configure the build options for Mbed Cloud Client in the `mbed_edge_config.h`
-file, located in `./build/mcc-linux-x86`. You can enable `BYOC_MODE` or `DEVELOPER_MODE`
-to insert the certificates to Mbed Edge during compilation. For factory provisioning,
-you need to remove the mode (`BYOC_MODE` and `DEVELOPER_MODE`) from the `mbed_edge_config.h`.
-You can also use it for other build definitions.
+You can configure the build options for Mbed Cloud Client with the CMake command line
+flags.
+You can enable `BYOC_MODE` or `DEVELOPER_MODE` by giving a flag `-DBYOC_MODE=ON` or
+`-DDEVELOPER_MODE=ON` when creating the CMake build to insert the certificates to
+Mbed Edge during compilation. For factory provisioning, you need to give the mode
+`-DFACTORY_MODE=ON`.
+
+```
+$ mkdir build
+$ cd build
+$ cmake -DDEVELOPER_MODE=ON ..
+$ make
+```
+
+Other build flags can also be set with this method.
 
 ### Factory provisioning
 
@@ -74,32 +101,31 @@ used to connect Mbed Edge to Mbed Cloud. For more information, read the
 
 ### Using your own certificate authority
 
-To use your own certificate authority, add the following line to the `mbed_edge_config.h`
-file:
-
-```
-#define BYOC_MODE 1
-```
+To use your own certificate authority, add the following flag to the CMake command:
+`-DBYOC_MODE=ON`.
 
 After this, you need to add a `byoc_data.h` file filled with the BYOC information to the `edge-client` folder.
 
 ### Developer mode
 
-To enable the developer mode, add the following line to the `mbed_edge_config.h` file:
-
-```
-#define DEVELOPER_MODE 1
-```
+To enable the developer mode, add the following flag to the CMake command:
+`-DDEVELOPER_MODE=ON`.
 
 After this, you need to add the `mbed_cloud_dev_credentials.c` file to the
-`edge-client` folder. You need a user account in Mbed Cloud to be able to
-generate a developer certificate.
+`config` folder. You need a user account in Mbed Cloud to be able to
+generate a developer certificate. To obtain the developer certificate, follow
+these steps:
+
+ * Go to **Device identity** -> **Security**.
+ * Click actions and **Generate developer certificate**
+ * Give a name and an optional description to the certificate.
+ * Download the certificate file `mbed_cloud_dev_credentials.c`.
 
 ### Expiration time configuration
 
 To configure the expiration time from the default of one hour (3600 seconds),
 change the compile time define `MBED_CLOUD_CLIENT_LIFETIME` in the
-`mbed_cloud_client_user_config.h` file. The expiration time is inherited by the
+`config/mbed_cloud_client_user_config.h` file. The expiration time is inherited by the
 mediated endpoints from the Mbed Edge Core. You should set the expiration
 time to a meaningful value for your setup. For more the details of the expiration,
 read the [Mbed Cloud Client documentation](https://cloud.mbed.com/docs/v1.2/connecting/deregister-your-device.html).
@@ -108,38 +134,16 @@ read the [Mbed Cloud Client documentation](https://cloud.mbed.com/docs/v1.2/conn
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
 ```
 
-### Configuring compilation flags
-
-To configure the compilation flags, edit the `CMAKE_C_FLAGS` variable in the
-`targets/mcc-linux-x86/CMake/toolchain.cmake`.
-
-### Using developer certificate from Mbed Cloud
-
-You need a user account in Mbed Cloud to be able to generate developer certificate.
-
-In the Mbed Cloud Portal:
-
- * Go to **Device identity** -> **Security**.
- * Click actions and **Generate developer certificate**
- * Give a name and an optional description to the certificate.
- * Download the certificate file `mbed_cloud_dev_credentials.c`.
- * Copy the certificate source code file to `edge-client` directory.
-
 ### Getting the update resources
 
-To enable the firmware update functionality, you need to set the following flags
-in the `mbed_edge_config.h` file:
-
-```
-#define MBED_CLOUD_CLIENT_SUPPORT_UPDATE 1
-#define MBED_CLOUD_DEV_UPDATE_ID 1
-#define MBED_CLOUD_DEV_UPDATE_PSK 1
-#define MBED_CLOUD_DEV_UPDATE_CERT 1
-```
+To enable the firmware update functionality, you need to set the following flag
+in the CMake command line: `-DFIRMWARE_UPDATE=ON`.
 
 In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
 The exact value of the define depends on the used Linux distribution and the
 machine used to run Mbed Edge.
+For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
+a value `ARM_UCP_LINUX_GENERIC`.
 
 When you have enabled the update, you need to generate the
 `update_default_resources.c` file. To create this file, use the
@@ -150,7 +154,7 @@ Give, for example, the following command:
 $ manifest-tool init -d "<company domain name>" -m "<product model identifier>"
 ```
 
-When you have created the file, you need to move it to the `edge-client` folder.
+When you have created the file, you need to move it to the `config` folder.
 The command also creates the `.update-certificates` folder. This folder contains
 the self-signed certificates that are used to sign the resources and can be used
 to sign the manifest for the firmware update.
@@ -162,10 +166,15 @@ on how to build a resource file and certificates safe for a production environme
 
 ### Configuring the maximum number of registered endpoints
 
-You can configure the maximum number of registered endpoints in the `mbed_edge_config.h` file:
+Maximum number of registered endpoints can be configured by giving
+`-DEDGE_REGISTERED_ENDPOINT_LIMIT=1000` when creating CMake build.
+The default limit is `500` endpoints.
 
 ```
-#define EDGE_REGISTERED_ENDPOINT_LIMIT 1000
+$ mkdir build
+$ cd build
+$ cmake -D[MODE] -DFIRMWARE_UPDATE=[ON|OFF] -DEDGE_REGISTERED_ENDPOINT_LIMIT=10 ..
+$ make
 ```
 
 This value helps to limit the computation and memory resources usage.
@@ -175,12 +184,15 @@ unregister.
 ### Configuring the network interface
 
 To help Edge Core to select the correct network interface, please set the
-correct value in the `mbed_edge_config.h`:
+correct value in the CMake command line `-DEDGE_PRIMARY_NETWORK_INTERFACE_ID=eth0`.
+Default value is `eth0`.
 
 ```
-#define EDGE_PRIMARY_NETWORK_INTERFACE_ID "eth0"
+$ mkdir build
+$ cd build
+$ cmake -D[MODE] -DFIRMWARE_UPDATE=[ON|OFF] -DEDGE_REGISTERED_ENDPOINT_LIMIT=[LIMIT] -DEDGE_PRIMARY_NETWORK_INTERFACE_ID=eth0 ..
+$ make
 ```
-
 You can find the correct value for example using the Linux command `ifconfig`.
 Networking should mostly work with a fake interface ID. However, you need the
 correct interface ID for example for the UDP/server like functionality to get the
@@ -203,27 +215,33 @@ The default behavior is to use the new more secure way of generating the key.
 If you want to enable the compatibility the flag has to be defined and the
 value of the flag set to `1`.
 
-The flag must be defined in the `mbed_edge_config.h`:
+The flag must be defined in the `cmake/edge-configure.cmake`:
 
 ```
-#define PAL_DEVICE_KEY_DERIVATION_BACKWARD_COMPATIBILITY_CALC 1
+add_definitions ("-DPAL_DEVICE_KEY_DERIVATION_BACKWARD_COMPATIBILITY_CALC=1")
 ```
 
 ### Using custom targets
 
-The repository comes with a toolchain to build for a native Linux machine.
-If you want to use a different machine, you should edit the `toolchain.cmake`
-file located in the `./targets/mcc-linux-x86/CMake` folder.
+Custom targets can be set by creating custom cmake files to `./cmake/targets` and
+`./cmake/toolchains`-folders. The `targets`-folder is used for setting up the Mbed
+Edge build options, whereas the `toolchains`-folder is used for setting the build
+environment variables. After creating the custom cmake file, the `./cmake/edge_configure.cmake`
+needs to be edited to include the new targets.
 
 ### Building executables
 
-You can use the following script to build Mbed Edge:
+You can use the following commands to do a developer build:
 
 ```
-$ ./build_mbed_edge.sh
+$ cp [DEVELOPER_CLOUD_CREDENTIALS] config/mbed_cloud_dev_credentials.c
+$ mkdir build
+$ cd build
+$ cmake -DDEVELOPER_MODE=ON ..
+$ make
 ```
 
-The built binaries are in `build/mcc-linux-x86/existing/bin`.
+The built binaries are in `build/bin`.
 
 The following executables will be in the folder:
 
@@ -232,24 +250,31 @@ The following executables will be in the folder:
 - `lorapt-example` - The LoRa protocol translator (example).
 (Only built if `libmosquitto` is installed)
 
-You can use the same script to clean the build:
+### Building Mbed Edge Doxygen API
+
+You can use the following commands to build the Doxygen documentation:
 
 ```
-$ ./build_mbed_edge.sh --clean
+$ mkdir build-doc
+$ cd build-doc
+$ cmake ..
+$ make edge-doc
 ```
+
+The generated documentation can be found from the `build-doc/doxygen`-folder.
 
 ### General info for running the binaries
 
 To run the Mbed Edge example, start Edge Core first:
 
 ```
-$ ./edge-core -p <port> -o <http-port>
+$ ./edge-core --edge-pt-domain-socket <domain-socket> -o <http-port>
 ```
 
-In the `edge-core` command, the `port` parameter is the port number where the protocol
-translator connects to. The `http-port` parameter is the port that you can use
-for querying the status of Mbed Edge. The default ports are `22223` (for the protocol
-translator API) and `8080` (for the HTTP status API).
+In the `edge-core` command, the `edge-pt-domain-socket` parameter is the domain socket
+path where the protocol translator connects to. The `http-port` parameter is the port that you can use for querying the status of Mbed Edge.
+The default domain socket path is `/tmp/edge.sock` (for the protocol
+translator API) and the default HTTP port is `8080` (for the HTTP status API).
 
 To see other command line options, write:
 
@@ -266,8 +291,8 @@ You can use the `--reset-storage` parameter to clear the settings in this folder
 when starting the server. This does not remove the devices and settings in the cloud.
 You need to remove them manually, for example using the Mbed Cloud Portal.
 
-You can set the location of the configuration directory in the
-`mbed_edge_config.h` file by changing the values of
+You can set the location of the configuration directory in your Edge target configuration file,
+for example: `cmake/targets/wise3610.cmake` by changing the values of
 `PAL_FS_MOUNT_POINT_PRIMARY` and `PAL_FS_MOUNT_POINT_SECONDARY`.
 
 <span class="notes">**Note:** Do not add trailing `/` to the paths.
@@ -285,12 +310,12 @@ After starting Edge Core, you can start the protocol translator. It connects
 then to Edge Core:
 
 ```
-$ ./pt-example --port <port> --protocol-translator-name <protocol-translator-name>
+$ ./pt-example --edge-domain-socket <domain-socket> --protocol-translator-name <protocol-translator-name>
 ```
 
-In the pt-example, `port` is the port number where edge-core is waiting for
-the connection. `protocol-translator-name` is the name of the protocol translator
-connection to Mbed Edge. The default port to connect the protocol translator is `22223`.
+In the pt-example, `edge-domain-socket` is the domain socket path  where edge-core is waiting for the connection. The `protocol-translator-name` is the name of the protocol
+translator connection to Mbed Edge. The default domain socket path  to connect the
+protocol translator is `/tmp/edge.sock`.
 
 To see other command-line options, write:
 

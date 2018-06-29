@@ -26,7 +26,8 @@
 #include "pt-client/pt_api.h"
 #include "mbed-trace/mbed_trace.h"
 #include "pt-example/client_config.h"
-#include "lorapt-example/lorapt_example_clip.h"
+#include "lorapt_example_clip.h"
+#include "common/edge_trace.h"
 
 #define TRACE_GROUP "clnt-example"
 
@@ -70,8 +71,7 @@ typedef struct {
  * data to the protocol translator API.
  */
 typedef struct protocol_translator_api_start_ctx {
-    const char *hostname;
-    int port;
+    const char *socket_path;
 } protocol_translator_api_start_ctx_t;
 protocol_translator_api_start_ctx_t *global_pt_ctx;
 
@@ -113,7 +113,7 @@ void* lorapt_translator_thread_routine(void *ctx)
     pt_cbs->received_write_cb = lorapt_receive_write_handler;
     pt_cbs->connection_shutdown_cb = lorapt_shutdown_handler;
 
-    pt_client_start(pt_start_ctx->hostname, pt_start_ctx->port, "testing-lora", pt_cbs,
+    pt_client_start(pt_start_ctx->socket_path, "testing-lora", pt_cbs,
                     (void*) ctx, &g_connection);
     free(pt_cbs);
     return NULL;
@@ -557,16 +557,15 @@ int main(int argc, char *argv[])
     bool clean_session = true;
     struct mosquitto *mosq = NULL;
 
-    pt_client_initialize_trace_api();
+    edge_trace_init();
     DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ "0.1");
     lorapt_devices = (lorapt_device_list_t*)calloc(1, sizeof(lorapt_device_list_t));
     ns_list_init(lorapt_devices);
 
     global_pt_ctx = malloc(sizeof(protocol_translator_api_start_ctx_t));
 
-    global_pt_ctx->hostname = NULL;
-    global_pt_ctx->port = atoi(args.edge_core_port);
-    global_pt_ctx->hostname = args.edge_core_host;
+    global_pt_ctx->socket_path = NULL;
+    global_pt_ctx->socket_path = args.edge_domain_socket;
 
     mosquitto_lib_init();
     mosq = mosquitto_new(NULL, clean_session, NULL);
@@ -596,6 +595,7 @@ int main(int argc, char *argv[])
         (void) pthread_join(lorapt_thread, &result);
     }
     free(global_pt_ctx);
+    edge_trace_destroy();
     return 0;
 }
 

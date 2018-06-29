@@ -1,1 +1,0 @@
-../libmy/m4/my_pkg_config_files.m4

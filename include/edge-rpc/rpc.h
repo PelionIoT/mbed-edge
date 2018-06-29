@@ -43,10 +43,7 @@
  * Data must not be NULL terminated.
  */
 
-/**
- * \brief Connection abstraction for implementations to define.
- */
-typedef struct connection connection_;
+struct connection;
 
 struct json_message_t {
     char *data;
@@ -66,7 +63,7 @@ json_t* allocate_base_request(const char* method);
  *
  * \return The allocated `json_message_t` structure.
  */
-struct json_message_t* alloc_json_message_t(char* data, size_t len, struct connection *connection);
+struct json_message_t* alloc_json_message_t(const char* data, size_t len, struct connection *connection);
 
 /**
  * \brief Deallocate `json_message_t`.
@@ -82,7 +79,7 @@ void deallocate_json_message_t(struct json_message_t *msg);
  * \param response The full json response object.
  * \param userdata The user-supplied context data pointer.
  */
-typedef void (*rpc_response_handler)(json_t *response, void* userdata);
+typedef void (*rpc_response_handler)(json_t *response, void *userdata);
 
 /**
  * \brief The function prototype for free callbacks.
@@ -97,10 +94,10 @@ typedef void (*rpc_free_func)(void* userdata);
  * \param connection The connection to which to write the data.
  * \param data The byte data to write.
  * \param len The length of the data to write.
- * \return True if the write was successful.\n
- *         False if the write failed.
+ * \return 0 if the write was successful.\n
+ *         Non-zero if the write failed.
  */
-typedef bool (*write_func)(struct connection *connection, char* data, size_t len);
+typedef int (*write_func)(struct connection *connection, char* data, size_t len);
 
 /**
  * \brief Get the message list size.
@@ -141,6 +138,7 @@ void rpc_init(struct jsonrpc_method_entry_t method_table[]);
  * \param request_context The user-supplied request context data pointer that is passed to the callback handlers.
  * \param returned_message_entry If the message can be successfully allocated, a message entry is returned.
  * \param data The serialized JSON message.
+ * \param data_len The size of the serialized JSON message.
  * \param message_id The message identifier for reference. The ownership is transferred to the caller.
  * \return 0 for success.\n
  *         1 for failure.
@@ -152,7 +150,30 @@ int rpc_construct_message(json_t *message,
                           void *request_context,
                           void **returned_message_entry,
                           char **data,
+                          size_t *data_len,
                           char **message_id);
+
+/**
+ * \brief Constructs and sends the message. If successfully sent, adds the message entry
+ * to RPC message entry list which is used to match the requests to response messages.
+ *
+ * \param connection The connection to write the data for.
+ * \param message The json message to deserialize.
+ * \param success_handler The internal success handler to be called for successful responses.
+ * \param failure_handler The internal failure handler to be called for failure responses.
+ * \param free_func The internal free function to be called after success or failure callback has been called
+ * \param customer_callback_context The user-supplied customer callback context data pointer that is passed to the callback handlers.
+ * \return 0 if the message was successfully sent.\n
+ *        -1 if the message couldn't be allocated.\n
+ *        -2 if the message couldn't be sent.
+ */
+int32_t rpc_construct_and_send_message(struct connection *connection,
+                                       json_t *message,
+                                       rpc_response_handler success_handler,
+                                       rpc_response_handler failure_handler,
+                                       rpc_free_func free_func,
+                                       void *customer_callback_ctx,
+                                       write_func write_function);
 
 /**
  * \brief Handles the incoming raw json-rpc string from the connection.
@@ -164,7 +185,7 @@ int rpc_construct_message(json_t *message,
  * \return 0 for success.\n
  *         1 for failure.
  */
-int rpc_handle_message(char *data,
+int rpc_handle_message(const char *data,
                        size_t len,
                        struct connection *connection,
                        write_func write_function,

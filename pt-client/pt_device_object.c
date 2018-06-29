@@ -18,6 +18,8 @@
  * ----------------------------------------------------------------------------
  */
 
+#include <string.h>
+
 #include "common/constants.h"
 #include "pt-client/pt_api.h"
 #include "pt-client/pt_device_object.h"

@@ -23,9 +23,9 @@
 
 #include "ns_list.h"
 
-#include "common/edge_common.h"
-#include "common/default_message_id_generator.h"
 #include "common/constants.h"
+#include "common/default_message_id_generator.h"
+#include "edge-rpc/rpc.h"
 
 /**
  * \defgroup EDGE_PT_API Protocol translator API
@@ -48,12 +48,12 @@
  * #include <stdint.h>
  * #include "pt-client/pt_api.h"
  *
- * void connection_ready_handler(struct connection *connection, void *userdata)
+ * void connection_ready_handler(connection_t *connection, void *userdata)
  * {
  *     printf("Connection between protocol translator and Core service ready.\n");
  * }
  *
- * int received_write_handler(struct connection *connection,
+ * int received_write_handler(connection_t *connection,
  *                            const char *device_id, const uint16_t object_id,
  *                            const uint16_t instance_id,
  *                            const uint16_t resource_id,
@@ -64,7 +64,7 @@
  *     printf("Received write from the Edge Core.\n");
  * }
  *
- * void shutdown_cb_handler(struct connection **connection, void* userdata)
+ * void shutdown_cb_handler(connection_t **connection, void* userdata)
  * {
  *     printf("Received shutdown from the Edge Core, closing down.\n");
  * }
@@ -72,30 +72,29 @@
  * int main(int argc, char **argv)
  * {
  *     if (argc != 3) {
- *         fprintf(stderr, "Usage: pt-client <port> <protocol translator name>\n");
+ *         fprintf(stderr, "Usage: pt-client <protocol translator name>\n");
  *         return 1;
  *     }
  *
- *     struct connection *connection = NULL;
+ *     connection_t *connection = NULL;
  *     protocol_translator_callbacks_t pt_cbs;
  *     pt_cbs.connection_ready_cb = connection_ready_handler;
  *     pt_cbs.received_write_cb = received_write_handler;
  *     pt_cbs.connection_shutdown_cb = shutdown_cb_handler;
- *     int port = atoi(argv[1]);
- *     char *name = argv[2];
+ *     char *name = argv[1];
  *     void *userdata = (void*) "example_userdata";
- *     pt_client_start("127.0.0.1", port, name, &pt_cbs, userdata, connection);
+ *     pt_client_start('/tmp/edge.sock', name, &pt_cbs, userdata, connection);
  *
  *     return 0;
  * }
  * ~~~
  *
  * The API functions define the success and failure callback handlers that are called from an internal event
- * loop. Therefore, make sure that the operations in the callbacks do not block the event loop. All API functions 
- * must have the `connection` as first argument. This is the connection to write the requests. Callbacks will have 
+ * loop. Therefore, make sure that the operations in the callbacks do not block the event loop. All API functions
+ * must have the `connection` as first argument. This is the connection to write the requests. Callbacks will have
  * an `userdata` argument, which is the application user data set in the protocol translator API calls.
- * Blocking the event loop blocks the protocol translator and it cannot continue until the control is given back to 
- * the event loop from customer callbacks. If there is a long running operation for the responses in the callback handlers, 
+ * Blocking the event loop blocks the protocol translator and it cannot continue until the control is given back to
+ * the event loop from customer callbacks. If there is a long running operation for the responses in the callback handlers,
  * you should move that into a thread.
  *
  * An example of registering the protocol translator with the customer callbacks:
@@ -180,6 +179,57 @@ typedef struct pt_device pt_device_t;
  */
 typedef void (*pt_resource_callback)(const pt_resource_opaque_t *resource, const uint8_t *value, const uint32_t size, void* userdata);
 
+
+/**
+ * \brief A function prototype for calling the client code when the connection is ready for passing messages
+ * \param connection The connection which is ready.
+ * \param userdata The user supplied data to pass back when the handler is called.
+ */
+typedef void (*pt_connection_ready_cb)(struct connection *connection, void *userdata);
+
+/**
+ * \brief A function prototype for calling the client code when the connection is disconnected.
+ * \param connection The connection which disconnected.
+ * \param userdata The user supplied data to pass back the the handler is called.
+ */
+typedef void (*pt_disconnected_cb)(struct connection *connection, void *userdata);
+
+/**
+ * \brief A function prototype for calling the client code when the connection is shutting down
+ * \param connection The connection reference of the protocol translator client connection.
+ * \param userdata The user supplied data to pass back when the handler is called.
+ */
+typedef void (*pt_connection_shutdown_cb)(struct connection **connection, void *userdata);
+
+/**
+ * \brief Function pointer type definition for handling received message from Mbed Edge Core.
+ *
+ * The callbacks are run on the same thread as the event loop of the protocol translator client.\n
+ * If the related functionality of the callback does some long processing the processing
+ * must be moved to worker thread.\n
+ * If the processing is run directly in the callback it will block the event loop and therefore it
+ * will block the whole protocol translator.
+ *
+ * \param connection The connection which this write originates.
+ * \param device_id The device ID to write the data.
+ * \param object_id The object ID to write the data.
+ * \param instance_id The instance ID to write the data.
+ * \param resource_id The resource ID to write the data.
+ * \param operation The operation of the write.
+ * \param value The pointer to byte data to write.
+ * \param value_size The length of the data.
+ * \param userdata The pointer to user supplied data from `pt_client_start`.
+ *
+ * \return Returns 0 on success and non-zero on failure.
+ */
+typedef int (*pt_received_write_handler)(struct connection *connection,
+                                         const char *device_id, const uint16_t object_id,
+                                         const uint16_t instance_id,
+                                         const uint16_t resource_id,
+                                         const unsigned int operation,
+                                         const uint8_t *value, const uint32_t value_size,
+                                         void *userdata);
+
 typedef enum {
     NONE,
     QUEUE
@@ -190,7 +240,8 @@ typedef enum {
     PT_STATUS_ERROR,
     PT_STATUS_ITEM_EXISTS,
     PT_STATUS_INVALID_PARAMETERS,
-    PT_STATUS_ALLOCATION_FAIL
+    PT_STATUS_ALLOCATION_FAIL,
+    PT_STATUS_NOT_CONNECTED
 } pt_status_t;
 
 #define PT_RESOURCE_BASE_FIELDS \
@@ -239,6 +290,24 @@ typedef struct pt_device {
     pt_object_list_t *objects;
 } pt_device_t;
 
+typedef struct protocol_translator {
+    char* name;
+    bool registered;
+    int id;
+} protocol_translator_t;
+
+/**
+ * \brief A structure to hold the callbacks of the protocol translator
+ */
+typedef struct protocol_translator_callbacks {
+    pt_connection_ready_cb connection_ready_cb;
+    pt_disconnected_cb disconnected_cb;
+    pt_received_write_handler received_write_cb;
+    pt_connection_shutdown_cb connection_shutdown_cb;
+} protocol_translator_callbacks_t;
+
+typedef struct connection connection_t;
+
 /**
  * \brief A function pointer type definition for callbacks given in the protocol translator API functions as an argument.
  * This function definition is used for providing success and failure callback handlers.
@@ -286,7 +355,7 @@ void pt_init_service_api();
  *         'PT_STATUS_SUCCESS' on successful registration.\n
  *         See `pt_status_t` for possible error codes.
  */
-pt_status_t pt_register_protocol_translator(struct connection *connection,
+pt_status_t pt_register_protocol_translator(connection_t *connection,
                                             pt_response_handler success_handler,
                                             pt_response_handler failure_handler,
                                             void* userdata);
@@ -305,7 +374,7 @@ pt_status_t pt_register_protocol_translator(struct connection *connection,
  *         'PT_STATUS_SUCCESS' on successful registration.\n
  *         See `pt_status_t` for possible error codes.
  */
-pt_status_t pt_register_device(struct connection *connection,
+pt_status_t pt_register_device(connection_t *connection,
                                pt_device_t *device,
                                pt_device_response_handler success_handler,
                                pt_device_response_handler failure_handler,
@@ -324,7 +393,7 @@ pt_status_t pt_register_device(struct connection *connection,
  *         'PT_STATUS_SUCCESS' on successful unregistration.\n
  *         See `pt_status_t` for possible error codes.
  */
-pt_status_t pt_unregister_device(struct connection *connection,
+pt_status_t pt_unregister_device(connection_t *connection,
                                  pt_device_t *device,
                                  pt_device_response_handler success_handler,
                                  pt_device_response_handler failure_handler,
@@ -365,7 +434,7 @@ void pt_device_free(pt_device_t *device);
  * \return The added empty object.\n
  *         The ownership of the returned object is within the `pt_device_t`.
  */
-pt_object_t *pt_device_add_object(pt_device_t *device, uint16_t id, pt_status_t *error);
+pt_object_t *pt_device_add_object(pt_device_t *device, uint16_t id, pt_status_t *status);
 
 /**
  * \brief Finds an object from the device.
@@ -387,7 +456,7 @@ pt_object_t *pt_device_find_object(pt_device_t *device, uint16_t id);
  * \return The added empty object instance.\n
  *         The ownership of the returned object instance is within the `pt_object_t`.
  */
-pt_object_instance_t * pt_object_add_object_instance(pt_object_t *object, uint16_t id, pt_status_t *error);
+pt_object_instance_t * pt_object_add_object_instance(pt_object_t *object, uint16_t id, pt_status_t *status);
 
 /**
  * \brief Finds an object instance from object
@@ -504,7 +573,7 @@ pt_resource_opaque_t *pt_object_instance_find_resource(pt_object_instance_t *ins
  *         'PT_STATUS_SUCCESS' on successful write.\n
  *         See `pt_status_t` for possible error codes.
  */
-pt_status_t pt_write_value(struct connection *connection,
+pt_status_t pt_write_value(connection_t *connection,
                            pt_device_t *device,
                            pt_object_list_t *objects,
                            pt_device_response_handler success_handler,
@@ -523,17 +592,21 @@ pt_status_t pt_write_value(struct connection *connection,
 int pt_receive_write_value(json_t *json_params, json_t **result, void *userdata);
 
 /**
- * \brief Should be called as the first thing when the protocol translator process is started.
- * The traces are not printed out before this function is called.
+ * \brief The function to handle the received close call from Mbed Edge Core.
+ *
+ * \param json_params The params object from JSON request.
+ * \param result The output parameter to return the result of the function.
+ * \param userdata The internal RPC supplied context.
+ * \return 0 is returned for the successful handling of the close request.\n
+ *         1 is returned for failure.
  */
-void pt_client_initialize_trace_api();
+int pt_receive_close(json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Starts the protocol translator client event loop and tries to connect to a local instance
  * of Mbed Edge.
  *
- * \param hostname The host to connect to.
- * \param port The port to connect to on localhost.
+ * \param socket_path The path to AF_UNIX domain socket to connect.
  * \param name The protocol translator name, must be unique in the Mbed Edge instance. The protocol translator API cleans the reserved memory for the name when closing down.
  * \param pt_cbs A struct containing the callbacks to the customer side implementation.
  * \param userdata The user data
@@ -542,12 +615,12 @@ void pt_client_initialize_trace_api();
  * \return 1 if there is an error in configuring or starting the event loop.\n
  *         The function returns when the event loop is shut down and the return value is 0.
  */
-int pt_client_start(const char *hostname, const int port, const char *name, const protocol_translator_callbacks_t *pt_cbs, void *userdata, struct connection **connection);
+int pt_client_start(const char *socket_path, const char *name, const protocol_translator_callbacks_t *pt_cbs, void *userdata, connection_t **connection);
 
 /**
  * \brief Gracefully shuts down the protocol translator client.
  */
-void pt_client_shutdown(struct connection *connection);
+void pt_client_shutdown(connection_t *connection);
 
 /**
  * @}

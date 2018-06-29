@@ -18,8 +18,8 @@
  * ----------------------------------------------------------------------------
  */
 
-#include <event2/http.h>
-#include <event2/buffer.h>
+#include "event2/http.h"
+#include "event2/buffer.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -27,7 +27,6 @@
 #include <string.h>
 
 #include "edge-core/http_server.h"
-#include "common/edge_common.h"
 
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "serv"

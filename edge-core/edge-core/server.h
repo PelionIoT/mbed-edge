@@ -21,8 +21,6 @@
 #ifndef SERVER_H_
 #define SERVER_H_
 
-#include "common/edge_common.h"
-
 #include "ns_list.h"
 
 /**
@@ -33,6 +31,16 @@
 /** \file server.h
  * \brief The server side entry definitions of Mbed Edge.
  */
+
+struct ctx_data;
+
+struct context {
+    struct event_base *ev_base;
+    struct event *ev_sighup;
+    const char *socket_path;
+    size_t json_flags;
+    struct ctx_data *ctx_data;
+};
 
 /**
  * \brief Enumeration of Mbed Edge statuses.
@@ -72,24 +80,6 @@ struct connection_list_elem {
 
 typedef NS_LIST_HEAD(struct connection_list_elem, link) connection_elem_list;
 
-#ifndef RELEASE_VERSION
-#define RELEASE_VERSION "unknown-version"
-#endif
-
-#ifndef GIT_BRANCH
-#define GIT_BRANCH "unknown"
-#endif
-
-#ifndef GIT_COMMIT
-#define GIT_COMMIT "unknown"
-#endif
-
-#ifdef GIT_DIRTY
-#define VERSION_STRING RELEASE_VERSION"-"GIT_BRANCH"-"GIT_COMMIT"-"GIT_DIRTY
-#else
-#define VERSION_STRING RELEASE_VERSION"-"GIT_BRANCH"-"GIT_COMMIT
-#endif
-
 struct cloud_error {
     int error_code;
     char *error_description;
@@ -118,16 +108,16 @@ struct connection* connection_init(struct context *ctx);
 /**
  * \brief Deallocate the connection structure reserved memory.
  * \param connection The connection to be deallocated.
+ * \return the number of endpoints removed.
  */
-void connection_free(struct connection *connection);
+uint32_t connection_free(struct connection *connection);
 
 /**
  * \brief Create and start Mbed Edge eventloop.
  * \param ctx The program context.
- * \param protocol_port The port to listen to for protocol translator connections.
  * \param http_port The port of the HTTP server to listen to.
  */
-bool create_server_event_loop(struct context *ctx, int protocol_port, int http_port);
+bool create_server_event_loop(struct context *ctx, int http_port);
 
 /**
  * @}

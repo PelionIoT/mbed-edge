@@ -27,13 +27,13 @@
 #include "mbed-trace/mbed_trace.h"
 #include "pt-example/client_config.h"
 #include "pt-example/client_example.h"
-#include "pt-example/ipso_objects.h"
-#include "pt-example/thermal_zone.h"
+#include "ipso_objects.h"
+#include "thermal_zone.h"
 #include "pt-example/byte_order.h"
 #define TRACE_GROUP "clnt-example"
-#include "pt-example/client_example_clip.h"
+#include "client_example_clip.h"
 #include <errno.h>
-
+#include "common/edge_trace.h"
 #include <pthread.h>
 #include <unistd.h>
 
@@ -43,7 +43,7 @@
 pthread_t *reappearing_thread = NULL;
 struct reappearing_thread_params *reappearing_params = NULL;
 
-struct connection *g_connection = NULL;
+connection_t *g_connection = NULL;
 
 /**
  * \defgroup EDGE_PT_CLIENT_EXAMPLE Protocol translator client example.
@@ -75,6 +75,14 @@ struct connection *g_connection = NULL;
 volatile int keep_running = 1;
 
 /**
+ * \brief Flag for the protocol translator example connected
+ *
+ * false disconnected state
+ * true connected state
+ */
+volatile bool connected = false;
+
+/**
  * \brief Flag for controlling whether the pt-example should unregister the devices when it terminates.
  *        Devices should not be unregistered if the device registrations failed.
  *
@@ -101,8 +109,7 @@ pthread_t protocol_translator_api_thread;
  * data to the protocol translator API.
  */
 typedef struct protocol_translator_api_start_ctx {
-    const char *hostname;
-    int port;
+    const char *socket_path;
     char *name;
 } protocol_translator_api_start_ctx_t;
 
@@ -179,7 +186,6 @@ static void shutdown_and_cleanup()
 {
     shutdown_reappearing_thread();
     unregister_devices();
-
     while (_devices && ns_list_count(_devices) > 0 && keep_running) {
         sleep(1);
     }
@@ -228,6 +234,7 @@ bool setup_signals(void)
                 strerror(errno));
     }
 #ifdef DEBUG
+    tr_info("Setting support for SIGUSR2");
     if (sigaction(SIGUSR2, &sa, NULL) != 0) {
         return false;
     }
@@ -342,6 +349,12 @@ void write_value(const char *device_id_string, int temperature)
 void device_registration_success(const char* device_id, void *userdata)
 {
     tr_info("Device registration successful for '%s', customer code", device_id);
+
+    // FIXME: connected should be set when all the devices have been registered.
+    // This prevent the main thread from writing values before the device has been registered.
+    // If main thread writes a value before the device is registered, the device registration wil fail
+    // causing the application to exit (with current design).
+    connected = true;
 }
 
 /**
@@ -680,32 +693,61 @@ void protocol_translator_registration_success(void *userdata)
 void protocol_translator_registration_failure(void *userdata)
 {
     tr_info("PT registration failure, customer code");
+    unregister_devices_flag = false;
+    keep_running = 0;
+    shutdown_and_cleanup();
 }
 
 /**
- * \brief The implementation of the `connection_ready_cb` function prototype from `common/edge_common.h`.
+ * \brief The implementation of the `pt_connection_ready_cb` function prototype from `pt-client/pt_api.h`.
+ *
  * With this callback, you can react to the protocol translator being ready for passing a
- * message with Mbed Edge.
+ * message with the Mbed Edge Core.
  * The callback runs on the same thread as the event loop of the protocol translator client.
  * If the related functionality of the callback runs a long process, you need to move it to
  * a worker thread. If the process runs directly in the callback, it
  * blocks the event loop and thus, blocks the protocol translator.
+ *
+ * \param connection The connection which is ready.
+ * \param userdata The user supplied context from the `pt_register_protocol_translator()` call.
  */
-void connection_ready_handler(struct connection *connection, void *userdata)
+void connection_ready_handler(connection_t *connection, void *userdata)
 {
     /* Initiate protocol translator registration */
     pt_status_t status = pt_register_protocol_translator(
-        g_connection,
+        connection,
         protocol_translator_registration_success,
         protocol_translator_registration_failure,
-        /* userdata */ NULL);
+        userdata);
     if (status != PT_STATUS_SUCCESS) {
         shutdown_and_cleanup();
     }
 }
 
 /**
- * \brief Implementation of handler for write messages received from mbed Edge Core.
+ * \brief The implementation of the `pt_disconnected_cb` function prototype from `pt-client/pt_api.h`.
+ *
+ * With this callback, you can react to the protocol translator being disconnected from
+ * the Mbed Edge Core.
+ * The callback runs on the same thread as the event loop of the protocol translator client.
+ * If the related functionality of the callback runs a long process, you need to move it to
+ * a worker thread. If the process runs directly in the callback, it
+ * blocks the event loop and thus, blocks the protocol translator.
+ *
+ * \param connection The connection which is disconnected.
+ * \param userdata The user supplied context from the `pt_register_protocol_translator()` call.
+ */
+void disconnected_handler(connection_t *connection, void *userdata)
+{
+    (void) userdata;
+    (void) connection;
+    tr_info("Protocol translator got disconnected.");
+    connected = false;
+}
+
+/**
+ * \brief Implementation of `pt_received_write_handle` function prototype handler for
+ * write messages received from the Mbed Edge Core.
  *
  * The callback is run on the same thread as the event loop of the protocol translator client.
  * If the related functionality of the callback does some long processing the processing
@@ -724,7 +766,7 @@ void connection_ready_handler(struct connection *connection, void *userdata)
  *
  * \return Returns 0 on success and non-zero on failure.
  */
-int received_write_handler(struct connection* connnection,
+int received_write_handler(connection_t* connection,
                            const char *device_id, const uint16_t object_id,
                            const uint16_t instance_id, const uint16_t resource_id,
                            const unsigned int operation,
@@ -767,30 +809,40 @@ int received_write_handler(struct connection* connnection,
          * Update the reset min and max to Edge Core. The Edge Core cannot know the
          * resetted values unless written back.
          */
-        pt_write_value(g_connection, device, device->objects, write_value_success, write_value_failure, (void*) device_id);
+        pt_write_value(connection, device, device->objects, write_value_success, write_value_failure, (void*) device_id);
     }
     return 0;
 }
 
 /**
- * \brief Implementation of the handler for shutting down the client application.
+ * \brief Implementation of the `pt_connection_shutdown_cb` function prototype
+ * for shutting down the client application.
  *
  * The callback to be called when the protocol translator client is shutting down. This
  * lets the client application know when the pt-client is shutting down
  * \param connection The connection of the using application.
  * \param userdata The original userdata from the application.
+ *
+ * \param connection The connection which is closing down.
+ * \param userdata The user supplied context from the `pt_register_protocol_translator()` call.
  */
-void shutdown_cb_handler(struct connection **connection, void *userdata)
+void shutdown_cb_handler(connection_t **connection, void *userdata)
 {
     tr_info("Shutting down pt client application, customer code");
     // The connection went away. Main thread can quit now.
+    if (keep_running == 0) {
+        tr_warn("Already shutting down.");
+        return;
+    }
     keep_running = 0; // Close main thread
     shutdown_and_cleanup();
 }
 
 /**
  * \brief A function to start the protocol translator API.
+ *
  * This function is the protocol translator threads main entry point.
+ *
  * \param ctx The context object must containt `protocol_translator_api_start_ctx_t` structure
  * to pass the initialization data to protocol translator start function.
  */
@@ -800,10 +852,11 @@ void *protocol_translator_api_start_func(void *ctx)
 
     protocol_translator_callbacks_t pt_cbs;
     pt_cbs.connection_ready_cb = (pt_connection_ready_cb) connection_ready_handler;
+    pt_cbs.disconnected_cb = (pt_disconnected_cb) disconnected_handler;
     pt_cbs.received_write_cb = (pt_received_write_handler) received_write_handler;
     pt_cbs.connection_shutdown_cb = (pt_connection_shutdown_cb) shutdown_cb_handler;
 
-    if(0 != pt_client_start(pt_start_ctx->hostname, pt_start_ctx->port, pt_start_ctx->name, &pt_cbs, /* userdata */ NULL , &g_connection)) {
+    if(0 != pt_client_start(pt_start_ctx->socket_path, pt_start_ctx->name, &pt_cbs, /* userdata */ NULL , &g_connection)) {
         shutdown_reappearing_thread();
         keep_running = 0;
     }
@@ -812,6 +865,7 @@ void *protocol_translator_api_start_func(void *ctx)
 
 /**
  * \brief Function to create the protocol translator thread.
+ *
  * \param ctx The context to pass initialization data to protocol translator API.
  */
 void start_protocol_translator_api(protocol_translator_api_start_ctx_t *ctx)
@@ -904,20 +958,21 @@ void main_loop(DocoptArgs *args)
                                                                                         args->endpoint_postfix);
       if (cpu_temperature_device) {
           client_config_add_device_to_config(_devices, cpu_temperature_device);
-          register_device(cpu_temperature_device,
-                          device_registration_success,
-                          device_registration_failure,
-                          cpu_temperature_device->device_id);
     }
     while (keep_running) {
-        if (find_device(cpu_temperature_device_id) && protocol_translator_api_running) {
-            float temperature = tzone_read_cpu_temperature();
-            update_temperature_to_device(cpu_temperature_device, temperature);
-            pt_write_value(g_connection, cpu_temperature_device,
-                           cpu_temperature_device->objects,
-                           write_value_success,
-                           write_value_failure,
-                           cpu_temperature_device->device_id);
+        if (connected) {
+            if (find_device(cpu_temperature_device_id) && protocol_translator_api_running) {
+                float temperature = tzone_read_cpu_temperature();
+                update_temperature_to_device(cpu_temperature_device, temperature);
+                pt_write_value(g_connection,
+                               cpu_temperature_device,
+                               cpu_temperature_device->objects,
+                               write_value_success,
+                               write_value_failure,
+                               cpu_temperature_device->device_id);
+            }
+        } else {
+            tr_debug("main_loop: currently in disconnected state. Not writing any values!");
         }
         sleep(5);
     }
@@ -927,10 +982,13 @@ void main_loop(DocoptArgs *args)
 #ifndef BUILD_TYPE_TEST
 /**
  * \brief Main entry point to the example application.
- * Expects to have three command line arguments:
- * [0] = executable name
- * [1] = Mbed Edge port to connect
- * [2] = Protocol translator name
+ *
+ * Mandatory arguments:
+ * \li Protocol translator name
+ *
+ * Optional arguments:
+ * \li Endpoint postfix to indicate the running pt-example in device names.
+ * \li Edge domain socket path if default path is not used.
  *
  * Starts the protocol translator client and registers the connection ready callback handler.
  *
@@ -939,7 +997,7 @@ void main_loop(DocoptArgs *args)
  */
 int main(int argc, char **argv)
 {
-    pt_client_initialize_trace_api();
+    edge_trace_init();
     DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ "0.1");
 
     _devices = client_config_create_device_list(args.endpoint_postfix);
@@ -956,12 +1014,9 @@ int main(int argc, char **argv)
         return 1;
     }
     ctx->name = args.protocol_translator_name;
-    if (!args.port) {
-        fprintf(stderr, "--port parameter is mandatory. Please see --help\n");
-        return 1;
-    }
-    ctx->port = atoi(args.port);
-    ctx->hostname = args.host;
+
+    ctx->socket_path = args.edge_domain_socket;
+
     start_protocol_translator_api(ctx);
 
     main_loop(&args);
@@ -970,6 +1025,7 @@ int main(int argc, char **argv)
     stop_protocol_translator_api_thread();
     free(ctx);
     pt_client_final_cleanup();
+    edge_trace_destroy();
 }
 #endif
 

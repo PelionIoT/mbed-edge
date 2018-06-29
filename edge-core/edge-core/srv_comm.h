@@ -21,10 +21,19 @@
 #ifndef SRV_COMM_H_
 #define SRV_COMM_H_
 
-bool process_control_frame_start(struct connection *connection);
-bool process_control_frame_ready(struct connection *connection);
-bool process_control_frame_stop(struct connection *connection);
-void stop_free_bufferevent(struct bufferevent *bev, short events, void *arg);
+#include "edge-core/protocol_api_internal.h"
+
+struct connection;
+
+int edge_core_write_data_frame_websocket(struct connection *connection, char *data, size_t len);
+void edge_core_process_data_frame_websocket(struct connection *connection,
+                                            bool *protocol_error,
+                                            size_t len,
+                                            const char *data);
+bool close_connection(struct connection *connection);
+void close_connection_trigger(struct connection *connection);
+int edge_core_count_send_queue_websocket(struct connection *connection);
+void connection_destroy(struct connection **connection);
 
 #endif /* SRV_COMM_H_ */
 

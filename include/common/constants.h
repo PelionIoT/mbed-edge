@@ -21,15 +21,15 @@
 #ifndef INCLUDE_COMMON_CONSTANTS_H_
 #define INCLUDE_COMMON_CONSTANTS_H_
 
-/*! *\brief Read operation bitmask for a resource */
+/*! *\brief Read operation bitmask for a resource. */
 #define OPERATION_READ      0x01
-/*! \brief Write operation bitmask for a resource */
+/*! \brief Write operation bitmask for a resource. */
 #define OPERATION_WRITE     0x02
-
+/*! \brief Combined read and write operation bitmask for a resource. */
 #define OPERATION_READ_WRITE OPERATION_READ | OPERATION_WRITE
-/*! \brief Execution operation bitmask for a resource */
+/*! \brief Execution operation bitmask for a resource. */
 #define OPERATION_EXECUTE   0x04
-/*! \brief Delete operation bitmask for a resource */
+/*! \brief Delete operation bitmask for a resource. */
 #define OPERATION_DELETE    0x08
 
 typedef enum {

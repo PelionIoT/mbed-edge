@@ -36,8 +36,8 @@ typedef struct {
     int reset_storage;
     int version;
     /* options with arguments */
+    char *edge_pt_domain_socket;
     char *http_port;
-    char *pt_api_port;
     /* special */
     const char *usage_pattern;
     const char *help_message;
@@ -47,21 +47,21 @@ const char help_message[] =
 "Edge Core\n"
 "\n"
 "Usage:\n"
-"  edge-core [--pt-api-port <int>] [--http-port <int>] [--reset-storage]\n"
+"  edge-core [--edge-pt-domain-socket <domain-socket>] [--http-port <int>] [--reset-storage]\n"
 "  edge-core --help\n"
 "  edge-core --version\n"
 "\n"
 "Options:\n"
-"  -h --help                     Show this screen.\n"
-"  -v --version                  Show the version number\n"
-"  -p --pt-api-port <int>        Protocol API port number [default: 22223].\n"
-"  -o --http-port <int>          HTTP port number [default: 8080].\n"
-"  -r --reset-storage            Before starting the server, clean old Mbed Cloud Client configurations.\n"
+"  -h --help                            Show this screen.\n"
+"  -v --version                         Show the version number\n"
+"  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
+"  -o --http-port <int>                 HTTP port number [default: 8080].\n"
+"  -r --reset-storage                   Before starting the server, clean old Mbed Cloud Client configurations.\n"
 "";
 
 const char usage_pattern[] =
 "Usage:\n"
-"  edge-core [--pt-api-port <int>] [--http-port <int>] [--reset-storage]\n"
+"  edge-core [--edge-pt-domain-socket <domain-socket>] [--http-port <int>] [--reset-storage]\n"
 "  edge-core --help\n"
 "  edge-core --version";
 
@@ -288,12 +288,12 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             args->reset_storage = option->value;
         } else if (!strcmp(option->olong, "--version")) {
             args->version = option->value;
+        } else if (!strcmp(option->olong, "--edge-pt-domain-socket")) {
+            if (option->argument)
+                args->edge_pt_domain_socket = option->argument;
         } else if (!strcmp(option->olong, "--http-port")) {
             if (option->argument)
                 args->http_port = option->argument;
-        } else if (!strcmp(option->olong, "--pt-api-port")) {
-            if (option->argument)
-                args->pt_api_port = option->argument;
         }
     }
     /* commands */
@@ -314,7 +314,7 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
-        0, 0, 0, (char*) "8080", (char*) "22223",
+        0, 0, 0, (char*) "/tmp/edge.sock", (char*) "8080",
         usage_pattern, help_message
     };
     Tokens ts;
@@ -326,8 +326,8 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-h", "--help", 0, 0, NULL},
         {"-r", "--reset-storage", 0, 0, NULL},
         {"-v", "--version", 0, 0, NULL},
-        {"-o", "--http-port", 1, 0, NULL},
-        {"-p", "--pt-api-port", 1, 0, NULL}
+        {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
+        {"-o", "--http-port", 1, 0, NULL}
     };
     Elements elements = {0, 0, 5, commands, arguments, options};
 
