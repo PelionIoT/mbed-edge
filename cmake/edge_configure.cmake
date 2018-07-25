@@ -83,21 +83,29 @@ include ("cmake/toolchains/${TARGET_TOOLCHAIN}.cmake")
 
 if (${FIRMWARE_UPDATE})
   MESSAGE ("Enabling firmware update for Mbed Edge")
-  if (NOT DEFINED MBED_UPDATE_RESOURCE_FILE)
-    MESSAGE ("The custom update resource descriptor c-file not injected.")
-    SET (MBED_UPDATE_RESOURCE_FILE "config/update_default_resources.c")
+  if (${DEVELOPER_MODE})
+    if (NOT DEFINED MBED_UPDATE_RESOURCE_FILE)
+      MESSAGE ("The custom update resource descriptor c-file not injected.")
+      SET (MBED_UPDATE_RESOURCE_FILE "config/update_default_resources.c")
+    else ()
+      MESSAGE ("Setting update resource descriptor file to \"${MBED_UPDATE_RESOURCE_FILE}\".")
+    endif()
+
+    add_definitions ("-DMBED_CLOUD_DEV_UPDATE_ID=1")
+    add_definitions ("-DMBED_CLOUD_DEV_UPDATE_PSK=1")
+    add_definitions ("-DMBED_CLOUD_DEV_UPDATE_CERT=1")
+
+    add_library (mbed-update-default-resources ${MBED_UPDATE_RESOURCE_FILE})
+
   endif()
+
   if (NOT DEFINED MBED_CLOUD_CLIENT_UPDATE_STORAGE)
     MESSAGE (FATAL_ERROR "Firmware update enabled, missing update storage flag")
   endif()
 
-  MESSAGE ("Setting update resource descriptor file to \"${MBED_UPDATE_RESOURCE_FILE}\".")
   add_definitions ("-DMBED_CLOUD_CLIENT_SUPPORT_UPDATE=1")
-  add_definitions ("-DMBED_CLOUD_DEV_UPDATE_ID=1")
-  add_definitions ("-DMBED_CLOUD_DEV_UPDATE_PSK=1")
-  add_definitions ("-DMBED_CLOUD_DEV_UPDATE_CERT=1")
   add_definitions ("-DMBED_CLOUD_CLIENT_UPDATE_STORAGE=${MBED_CLOUD_CLIENT_UPDATE_STORAGE}")
-  add_library (mbed-update-default-resources ${MBED_UPDATE_RESOURCE_FILE})
+
 endif()
 
 # mbedtls is supported
@@ -152,7 +160,8 @@ if (DEFINED PAL_UPDATE_FIRMWARE_DIR)
 endif()
 
 if (DEFINED TRACE_LEVEL)
-    if (${TRACE_LEVEL} STREQUAL "DEBUG")
+  add_definitions ("-DMBED_CONF_MBED_TRACE_ENABLE=1")
+  if (${TRACE_LEVEL} STREQUAL "DEBUG")
         add_definitions ("-DMBED_TRACE_MAX_LEVEL=TRACE_LEVEL_DEBUG")
     elseif (${TRACE_LEVEL} STREQUAL "INFO")
         add_definitions ("-DMBED_TRACE_MAX_LEVEL=TRACE_LEVEL_INFO")

@@ -1,5 +1,5 @@
 if (NOT TARGET_GROUP STREQUAL test)
-  file (GLOB SOURCES ./*.c ../common/edge_trace.c)
+  file (GLOB SOURCES ./*.c ../common/edge_trace.c ../common/read_file.c)
 
   include_directories (${CMAKE_CURRENT_LIST_DIR}/include)
 

@@ -36,6 +36,7 @@ typedef struct {
     int reset_storage;
     int version;
     /* options with arguments */
+    char *cbor_conf;
     char *edge_pt_domain_socket;
     char *http_port;
     /* special */
@@ -47,7 +48,7 @@ const char help_message[] =
 "Edge Core\n"
 "\n"
 "Usage:\n"
-"  edge-core [--edge-pt-domain-socket <domain-socket>] [--http-port <int>] [--reset-storage]\n"
+"  edge-core [options]\n"
 "  edge-core --help\n"
 "  edge-core --version\n"
 "\n"
@@ -56,12 +57,18 @@ const char help_message[] =
 "  -v --version                         Show the version number\n"
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
 "  -o --http-port <int>                 HTTP port number [default: 8080].\n"
-"  -r --reset-storage                   Before starting the server, clean old Mbed Cloud Client configurations.\n"
+"  -r --reset-storage                   Before starting the server, clean old Mbed Cloud Client configuration.\n"
+"  -c --cbor-conf <cbor>                The CBOR configuration file path.\n"
+"                                       The CBOR configuration option is mandatory for the first\n"
+"                                       start of the Mbed Edge Core when it is built with BYOC_MODE.\n"
+"                                       This option cannot be used if built with DEVELOPER_MODE or FACTORY_MODE.\n"
+"                                       If this options is given second time the current Mbed Cloud Client\n"
+"                                       configuration is removed and new configuration injected.\n"
 "";
 
 const char usage_pattern[] =
 "Usage:\n"
-"  edge-core [--edge-pt-domain-socket <domain-socket>] [--http-port <int>] [--reset-storage]\n"
+"  edge-core [options]\n"
 "  edge-core --help\n"
 "  edge-core --version";
 
@@ -288,6 +295,9 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             args->reset_storage = option->value;
         } else if (!strcmp(option->olong, "--version")) {
             args->version = option->value;
+        } else if (!strcmp(option->olong, "--cbor-conf")) {
+            if (option->argument)
+                args->cbor_conf = option->argument;
         } else if (!strcmp(option->olong, "--edge-pt-domain-socket")) {
             if (option->argument)
                 args->edge_pt_domain_socket = option->argument;
@@ -314,7 +324,7 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
-        0, 0, 0, (char*) "/tmp/edge.sock", (char*) "8080",
+        0, 0, 0, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
         usage_pattern, help_message
     };
     Tokens ts;
@@ -326,10 +336,11 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-h", "--help", 0, 0, NULL},
         {"-r", "--reset-storage", 0, 0, NULL},
         {"-v", "--version", 0, 0, NULL},
+        {"-c", "--cbor-conf", 1, 0, NULL},
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
         {"-o", "--http-port", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 5, commands, arguments, options};
+    Elements elements = {0, 0, 6, commands, arguments, options};
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))

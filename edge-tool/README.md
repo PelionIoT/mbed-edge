@@ -2,11 +2,19 @@
 
 The Edge tool can be used during development for retrieving the values from Edge device and Edge mediated endpoints.
 
+It can also be used to convert the development certificate to CBOR configuration object. The development certificate is a C source file which can be downloaded from the Mbed Cloud Portal.
+The generated CBOR file can be given to Mbed Edge Core as command line argument when Mbed Edge Core is built with `BYOC_MODE`.
+
 ## Pre-requisites
 
 Python version 3.4.3+ with SSL support.
 
-The Edge tool depends on [Mbed Cloud SDK](https://cloud.mbed.com/docs/v1.2/mbed-cloud-sdk-python/index.html). It will get installed by the [bootstrap-edge-tool-env.sh](./bootstrap-edge-tool-env.sh) in a virtual environment.
+The Edge tool depends on
+ * [Mbed Cloud SDK](https://cloud.mbed.com/docs/v1.2/mbed-cloud-sdk-python/index.html).
+ * [CBOR2](https://pypi.org/project/cbor2)
+ * [PyCLibrary](https://pypi.org/project/pyclibrary)
+ 
+The dependencies will get installed by the [bootstrap-edge-tool-env.sh](./bootstrap-edge-tool-env.sh) to a virtual environment.
 
 You have to have an account in Mbed Cloud and an API key to access the Mbed Cloud REST API.
 For Mbed.

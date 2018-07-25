@@ -30,6 +30,7 @@ extern "C" {
 #include <stddef.h>
 #include "common/constants.h"
 #include "common/pt_api_error_codes.h"
+#include "edge-client/edge_client_byoc.h"
 
 /**
  * \brief Used to specify if mutex should be reserved during calling a function.
@@ -131,7 +132,7 @@ typedef struct {
  * \brief Loads the Mbed Cloud Client credentials (either your own CA or a developer certificate) and sets up the
  *        callback handlers.
  */
-void edgeclient_create(const edgeclient_create_parameters_t *params);
+void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t *byoc_data);
 
 /**
  * \brief Shutdown and destroy the Mbed Cloud Client instance.

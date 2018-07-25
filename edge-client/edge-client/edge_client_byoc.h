@@ -18,9 +18,14 @@
  * ----------------------------------------------------------------------------
  */
 
-#ifndef EDGE_READ_FILE_H
-#define EDGE_READ_FILE_H
+#ifndef EDGE_CLIENT_BYOC_H_
+#define EDGE_CLIENT_BYOC_H_
 
-int read_file_content(const char* filename, char** data, size_t *read);
+typedef struct {
+    char *cbor_file;
+} byoc_data_t;
 
-#endif /* EDGE_READ_FILE_H */
+byoc_data_t *edgeclient_create_byoc_data(char *cbor_file);
+int edgeclient_inject_byoc(byoc_data_t *byoc_data);
+
+#endif /* EDGE_CLIENT_BYOC_H_ */

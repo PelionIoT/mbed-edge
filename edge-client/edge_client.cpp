@@ -29,32 +29,31 @@ extern "C" {
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+
 #include "pal.h"
 #include "pal_fileSystem.h"
 #include "fcc_defs.h"
 #include "factory_configurator_client.h"
 #include "mbed_cloud_client_user_config.h"
 #include "key_config_manager.h"
-#include "edge-client/edge_client_impl.h"
-#include "common/constants.h"
 #include "common/pt_api_error_codes.h"
+#include "common/constants.h"
+#include "common/test_support.h"
 #include "edge-client/edge_client.h"
 #include "edge-client/edge_client_format_values.h"
+#include "edge-client/edge_client_impl.h"
+#include "edge-client/edge_client_internal.h"
+#include "edge-client/edge_client_byoc.h"
+#include "edge-client/edge_core_cb.h"
+#include "edge-client/execute_cb_params.h"
+#include "edge-client/execute_cb_params_base.h"
+#include "edge-client/eventloop_tracing.h"
 #include "mbed-trace/mbed_trace.h"
 #include "mbed-client/m2mstring.h"
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mvector.h"
 #include "ns_event_loop.h"
-#ifdef BYOC_MODE
-#include "../edge-client/byoc_data.h"
-#endif
-#include "edge-client/edge_client_internal.h"
-#include "common/test_support.h"
-#include "edge-client/edge_core_cb.h"
-#include "edge-client/execute_cb_params.h"
-#include "edge-client/execute_cb_params_base.h"
-#include "edge-client/eventloop_tracing.h"
 
 typedef struct x_update_register_msg {
     EVENT_MESSAGE_BASE;
@@ -593,13 +592,13 @@ bool edgeclient_stop()
     return ret_val;
 }
 
-void edgeclient_create(const edgeclient_create_parameters_t *params)
+void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t *byoc_data)
 {
     tr_info("create_client()");
     if (client == NULL) {
         setup_config_mountdir();
         eventloop_stats_init();
-        edgeclient_setup_credentials(params->reset_storage);
+        edgeclient_setup_credentials(params->reset_storage, byoc_data);
         client = new EdgeClientImpl();
         edgeclient_data_init();
         edgeclient_mutex_init();
@@ -1183,243 +1182,7 @@ EDGE_LOCAL void setup_config_mountdir()
     }
 }
 
-#if BYOC_MODE
-EDGE_LOCAL void load_byoc_data_to_kcm()
-{
-    tr_info("Loading BYOC data to KCM");
-
-    uint8_t data[4];
-    uint32_t value;
-
-    kcm_status_e status = KCM_STATUS_SUCCESS;
-
-    if (status == KCM_STATUS_SUCCESS) {
-        value = BYOC_USE_BOOTSTRAP;
-        memcpy(data, &value, 4);
-        kcm_item_delete((const uint8_t *) g_fcc_use_bootstrap_parameter_name,
-                        strlen(g_fcc_use_bootstrap_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_use_bootstrap_parameter_name,
-                                strlen(g_fcc_use_bootstrap_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                data,
-                                4,
-                                NULL);
-    }
-
-    if (BYOC_USE_BOOTSTRAP) {
-        tr_info("BYOC in bootstrap mode");
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_bootstrap_server_ca_certificate_name,
-                            strlen(g_fcc_bootstrap_server_ca_certificate_name),
-                            KCM_CERTIFICATE_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_bootstrap_server_ca_certificate_name,
-                                    strlen(g_fcc_bootstrap_server_ca_certificate_name),
-                                    KCM_CERTIFICATE_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_SERVER_ROOT_CA_CERTIFICATE,
-                                    (size_t)BYOC_SERVER_ROOT_CA_CERTIFICATE_SIZE,
-                                    NULL);
-        }
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_bootstrap_device_certificate_name,
-                            strlen(g_fcc_bootstrap_device_certificate_name),
-                            KCM_CERTIFICATE_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_bootstrap_device_certificate_name,
-                                    strlen(g_fcc_bootstrap_device_certificate_name),
-                                    KCM_CERTIFICATE_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_DEVICE_CERTIFICATE,
-                                    (size_t)BYOC_DEVICE_CERTIFICATE_SIZE,
-                                    NULL);
-        }
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_bootstrap_device_private_key_name,
-                            strlen(g_fcc_bootstrap_device_private_key_name),
-                            KCM_PRIVATE_KEY_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_bootstrap_device_private_key_name,
-                                    strlen(g_fcc_bootstrap_device_private_key_name),
-                                    KCM_PRIVATE_KEY_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_DEVICE_PRIVATE_KEY,
-                                    (size_t)BYOC_DEVICE_PRIVATE_KEY_SIZE,
-                                    NULL);
-        }
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_bootstrap_server_uri_name,
-                            strlen(g_fcc_bootstrap_server_uri_name),
-                            KCM_CONFIG_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_bootstrap_server_uri_name,
-                                    strlen(g_fcc_bootstrap_server_uri_name),
-                                    KCM_CONFIG_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_SERVER_URI,
-                                    strlen(BYOC_SERVER_URI),
-                                    NULL);
-        }
-    }
-    else {
-        tr_info("BYOC in LwM2M mode");
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_lwm2m_server_ca_certificate_name,
-                            strlen(g_fcc_lwm2m_server_ca_certificate_name),
-                            KCM_CERTIFICATE_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_lwm2m_server_ca_certificate_name,
-                                    strlen(g_fcc_lwm2m_server_ca_certificate_name),
-                                    KCM_CERTIFICATE_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_SERVER_ROOT_CA_CERTIFICATE,
-                                    (size_t)BYOC_SERVER_ROOT_CA_CERTIFICATE_SIZE,
-                                    NULL);
-        }
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_lwm2m_device_certificate_name,
-                            strlen(g_fcc_lwm2m_device_certificate_name),
-                            KCM_CERTIFICATE_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_lwm2m_device_certificate_name,
-                                    strlen(g_fcc_lwm2m_device_certificate_name),
-                                    KCM_CERTIFICATE_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_DEVICE_CERTIFICATE,
-                                    (size_t)BYOC_DEVICE_CERTIFICATE_SIZE,
-                                    NULL);
-        }
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_lwm2m_device_private_key_name,
-                            strlen(g_fcc_lwm2m_device_private_key_name),
-                            KCM_PRIVATE_KEY_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_lwm2m_device_private_key_name,
-                                    strlen(g_fcc_lwm2m_device_private_key_name),
-                                    KCM_PRIVATE_KEY_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_DEVICE_PRIVATE_KEY,
-                                    (size_t)BYOC_DEVICE_PRIVATE_KEY_SIZE,
-                                    NULL);
-        }
-        if (status == KCM_STATUS_SUCCESS) {
-            kcm_item_delete((const uint8_t *) g_fcc_lwm2m_server_uri_name,
-                            strlen(g_fcc_lwm2m_server_uri_name),
-                            KCM_CONFIG_ITEM);
-            status = kcm_item_store((const uint8_t*)g_fcc_lwm2m_server_uri_name,
-                                    strlen(g_fcc_lwm2m_server_uri_name),
-                                    KCM_CONFIG_ITEM,
-                                    true,
-                                    (const uint8_t*)BYOC_SERVER_URI,
-                                    strlen(BYOC_SERVER_URI),
-                                    NULL);
-        }
-    }
-
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t*)KEY_ACCOUNT_ID, strlen(KEY_ACCOUNT_ID), KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)KEY_ACCOUNT_ID,
-                                strlen(KEY_ACCOUNT_ID),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_ACCOUNT_ID,
-                                strlen(BYOC_ACCOUNT_ID),
-                                NULL);
-    }
-
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t *) g_fcc_endpoint_parameter_name,
-                        strlen(g_fcc_endpoint_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_endpoint_parameter_name,
-                                strlen(g_fcc_endpoint_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_ENDPOINT_NAME,
-                                strlen(BYOC_ENDPOINT_NAME),
-                                NULL);
-    }
-
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t *) g_fcc_manufacturer_parameter_name,
-                        strlen(g_fcc_manufacturer_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_manufacturer_parameter_name,
-                                strlen(g_fcc_manufacturer_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_MANUFACTURER,
-                                strlen(BYOC_MANUFACTURER),
-                                NULL);
-    }
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t *) g_fcc_model_number_parameter_name,
-                        strlen(g_fcc_model_number_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_model_number_parameter_name,
-                                strlen(g_fcc_model_number_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_MODEL_NUMBER,
-                                strlen(BYOC_MODEL_NUMBER),
-                                NULL);
-    }
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t *) g_fcc_device_serial_number_parameter_name,
-                        strlen(g_fcc_device_serial_number_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_device_serial_number_parameter_name,
-                                strlen(g_fcc_device_serial_number_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_SERIAL_NUMBER,
-                                strlen(BYOC_SERIAL_NUMBER),
-                                NULL);
-    }
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t *) g_fcc_device_type_parameter_name,
-                        strlen(g_fcc_device_type_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_device_type_parameter_name,
-                                strlen(g_fcc_device_type_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_DEVICE_TYPE,
-                                strlen(BYOC_DEVICE_TYPE),
-                                NULL);
-    }
-    if (status == KCM_STATUS_SUCCESS) {
-        kcm_item_delete((const uint8_t *) g_fcc_hardware_version_parameter_name,
-                        strlen(g_fcc_hardware_version_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_hardware_version_parameter_name,
-                                strlen(g_fcc_hardware_version_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                (const uint8_t*)BYOC_HARDWARE_VERSION,
-                                strlen(BYOC_HARDWARE_VERSION),
-                                NULL);
-    }
-    if (status == KCM_STATUS_SUCCESS) {
-        value = BYOC_MEMORY_TOTAL_KB;
-        memcpy(data, &value, 4);
-        kcm_item_delete((const uint8_t *) g_fcc_memory_size_parameter_name,
-                        strlen(g_fcc_memory_size_parameter_name),
-                        KCM_CONFIG_ITEM);
-        status = kcm_item_store((const uint8_t*)g_fcc_memory_size_parameter_name,
-                                strlen(g_fcc_memory_size_parameter_name),
-                                KCM_CONFIG_ITEM,
-                                true,
-                                data,
-                                4,
-                                NULL);
-    }
-    if (status == KCM_STATUS_SUCCESS) {
-        tr_info("BYOC loaded successfully");
-    }
-    else {
-        tr_error("BYOC failed!");
-        exit(-1);
-    }
-}
-#endif
-
-EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage)
+EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *byoc_data)
 {
     fcc_status_e status = fcc_init();
     if (status != FCC_STATUS_SUCCESS) {
@@ -1437,15 +1200,17 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage)
     }
 
 #if BYOC_MODE
-    load_byoc_data_to_kcm();
+    tr_info("Starting in BYOC mode.");
+    edgeclient_inject_byoc(byoc_data);
 #elif defined(DEVELOPER_MODE)
-    tr_info("Starting developer cert injection");
+    tr_info("Starting in DEVELOPER mode.");
+    tr_info("Injecting developer certificate injection");
     status = fcc_developer_flow();
-    tr_debug("fcc_developer_flow status %d", status);
+    tr_debug("fcc_bootstrap_flow status %d", status);
     if (status == FCC_STATUS_KCM_FILE_EXIST_ERROR) {
         tr_warn("KCM data already exits");
     } else if (status != FCC_STATUS_SUCCESS) {
-        tr_error("Failed to load developer credentials - exit");
+        tr_error("Failed to load certificate credentials - exit");
     }
 #endif
     status = fcc_verify_device_configured_4mbed_cloud();

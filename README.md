@@ -87,9 +87,14 @@ Mbed Edge during compilation. For factory provisioning, you need to give the mod
 ```
 $ mkdir build
 $ cd build
-$ cmake -DDEVELOPER_MODE=ON ..
+$ cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=OFF ..
 $ make
 ```
+
+In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-tool` to generate the `update_default_resources.c`, 
+see the documentation on [getting the update resources](#getting-the-update-resources).
+
+With the `BYOC_MODE` it is possible to inject the Mbed Cloud Client configuration as CBOR file. The `--cbor-conf` argument takes the path to CBOR file. The `edge-tool` can be used to convert the C source file Mbed Cloud developer credentials file to CBOR format. See the instructions in [`edge-tool/README.md`](./edge-tool/README.md)
 
 Other build flags can also be set with this method.
 

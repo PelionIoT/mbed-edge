@@ -6,7 +6,7 @@ PKG_RELEASE:=1
 PKG_SOURCES=mbed-edge-sources
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 NPROC:=`nproc`
-PARALLELISM=$(shell echo $((NPROC + 1)))
+PARALLELISM:=`expr $(shell echo $(NPROC)) + 1`
 
 include $(INCLUDE_DIR)/package.mk
 

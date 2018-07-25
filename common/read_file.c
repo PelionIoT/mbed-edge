@@ -26,7 +26,7 @@
 #define TRACE_GROUP "rf"
 #define RF_CHUNK 65536
 
-int read_file_content(const char* filename, char** data, size_t *read)
+int edge_read_file(const char* filename, uint8_t** data, size_t *read)
 {
     if (!filename || !data || !read) {
         tr_err("Invalid parameters for read_file_content.");
@@ -42,8 +42,8 @@ int read_file_content(const char* filename, char** data, size_t *read)
         return 1;
     }
 
-    char *buffer = NULL;
-    char *tmp;
+    uint8_t *buffer = NULL;
+    uint8_t *tmp;
     size_t size = 0;
     size_t used = 0;
     size_t n;
@@ -69,7 +69,7 @@ int read_file_content(const char* filename, char** data, size_t *read)
         }
         buffer = tmp;
 
-        n = fread(buffer + used, sizeof(char), RF_CHUNK, f);
+        n = fread(buffer + used, sizeof(uint8_t), RF_CHUNK, f);
         if (n == 0) {
             // No more to read.
             break;

@@ -1,6 +1,15 @@
 # Changelog for Mbed Edge
 
-## Release 0.5.0 (2018-06-29)
+## Release 0.5.1 (2018-07-25)
+
+ * Added CBOR configuration file injection mechanism for `BYOC_MODE`.
+   The configuration is injected with `--cbor-conf` command line argument in `edge-core`.
+ * Moved `read_file.[c|h]` from `pt-example` to `common`.
+ * Added Mbed Cloud developer credentials C source file conversion to CBOR support to `edge-tool`.
+ * Updated Mbed Cloud Client to version 1.4.0
+ * Prevent enabling the developer update resources if the developer mode is not enabled
+
+## Release 0.5.0 (2018-06-26)
 
  * Update Mbed Cloud Client to `1.3.3`.
  * **Breaking change** Revised the build system to support normal CMake cycle.

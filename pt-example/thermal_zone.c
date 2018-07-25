@@ -26,7 +26,7 @@
 #include <unistd.h>
 
 #include "thermal_zone.h"
-#include "read_file.h"
+#include "common/read_file.h"
 #include "mbed-trace/mbed_trace.h"
 
 #define TRACE_GROUP            "tzone"
@@ -51,7 +51,7 @@ const char *tzone_get_cpu_thermal_zone_file_path()
                         sprintf(type_file, "%s/%s/type", THERMAL_ZONE_CLASS_DIR, dir->d_name);
                         char *type = NULL;
                         size_t read;
-                        if (read_file_content(type_file, &type, &read) != 0 || read == 0) {
+                        if (edge_read_file(type_file, (uint8_t**) &type, &read) != 0 || read == 0) {
                             tr_err("Could not read the thermal zone type.");
                         }
                         free(type_file);
@@ -92,9 +92,9 @@ float tzone_read_cpu_temperature()
     float temperature = 0;
     if (tzone_has_cpu_thermal_zone() == 1) {
         /* Read the temperature from file, in Linux the temperature is in millis */
-        char *buffer = NULL;
+        uint8_t *buffer = NULL;
         size_t read;
-        if (read_file_content(tzone_get_cpu_thermal_zone_file_path(), &buffer, &read) != 0
+        if (edge_read_file(tzone_get_cpu_thermal_zone_file_path(), &buffer, &read) != 0
             || read == 0) {
             float r = (float) rand() / (float) RAND_MAX;
             float rand_temp = 20.0 + (r * 80.0);
@@ -107,7 +107,7 @@ float tzone_read_cpu_temperature()
                    rand_temp);
             return rand_temp;
         }
-        temperature = atof(buffer) / 1000;
+        temperature = atof((char*) buffer) / 1000;
         tr_debug("Read temperature value: %s | Converted to float %f.", buffer, temperature);
         if (buffer != NULL) {
             free(buffer);

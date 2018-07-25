@@ -48,9 +48,9 @@ typedef pthread_mutex_t edge_mutex_t;
  *        memory for the mutex data structure.
  * \param type is used for setting mutex type using pthread_mutexattr_settype. See `man
  * pthread_mutex_attr`. Allowed values are:
- *                        - PTHREAD_MUTEX_FAST_NP
- *                        - PTHREAD_MUTEX_RECURSIVE_NP
- *                        - PTHREAD_MUTEX_ERRORCHECK_NP
+ *                        - PTHREAD_MUTEX_FAST
+ *                        - PTHREAD_MUTEX_RECURSIVE
+ *                        - PTHREAD_MUTEX_ERRORCHECK
  */
 int32_t edge_mutex_init(edge_mutex_t *mutex, int32_t type);
 

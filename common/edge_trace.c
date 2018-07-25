@@ -17,9 +17,6 @@
  * limitations under the License.
  * ----------------------------------------------------------------------------
  */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <unistd.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -55,7 +52,7 @@ EDGE_LOCAL void trace_mutex_init()
 {
     /* The mutex needs to be recursive, because there are trace calls like
        ```tr_dbg("Something: %s", tr_arr(funny));```. */
-    int32_t result = edge_mutex_init(&trace_mutex, PTHREAD_MUTEX_RECURSIVE_NP);
+    int32_t result = edge_mutex_init(&trace_mutex, PTHREAD_MUTEX_RECURSIVE);
     assert(0 == result);
 }
 

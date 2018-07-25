@@ -24,6 +24,7 @@
 #include "libwebsockets.h"
 
 #include "edge-client/edge_client.h"
+#include "edge-client/edge_client_byoc.h"
 #include "edge-core/protocol_api.h"
 #include "edge-core/server.h"
 #include "edge-core/srv_comm.h"
@@ -518,7 +519,10 @@ int testable_main(int argc, char **argv)
         edgeclient_create_params.handle_register_cb = register_cb;
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
         edgeclient_create_params.handle_error_cb = error_cb;
-        edgeclient_create(&edgeclient_create_params);
+
+        byoc_data_t *byoc_data = edgeclient_create_byoc_data(args.cbor_conf);
+
+        edgeclient_create(&edgeclient_create_params, byoc_data);
         rfs_add_factory_reset_resource();
 
         // Connect client

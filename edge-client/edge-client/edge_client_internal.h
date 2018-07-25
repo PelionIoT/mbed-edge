@@ -27,6 +27,7 @@
 #include "m2mresourceinstance.h"
 #include "edge-client/edge_client.h"
 #include "edge-client/execute_cb_params_base.h"
+#include "edge-client/edge_client_byoc.h"
 #include <event2/event.h>
 
 typedef struct {
@@ -113,7 +114,7 @@ EDGE_LOCAL void edgeclient_on_unregistered_callback(void);
 EDGE_LOCAL void edgeclient_on_registered_callback(void);
 EDGE_LOCAL void edgeclient_set_update_register_needed(edgeclient_mutex_action_e mutex_action);
 EDGE_LOCAL bool edgeclient_is_registration_needed();
-EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage);
+EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *byoc_data);
 EDGE_LOCAL M2MEndpoint *edgeclient_get_endpoint_with_index(const char *endpoint_name, M2MBaseList **found_list, int *found_index);
 EDGE_LOCAL M2MEndpoint *edgeclient_get_endpoint(const char *endpoint_name);
 EDGE_LOCAL M2MObject *edgeclient_get_object(const char *endpoint_name, const uint16_t object_id);

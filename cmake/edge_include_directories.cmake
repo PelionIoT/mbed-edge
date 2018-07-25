@@ -54,6 +54,7 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-trace)
 
 # factory configuration headers
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/factory-configurator-client/factory-configurator-client)
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/fcc-bundle-handler/fcc-bundle-handler)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/fcc-output-info-handler/fcc-output-info-handler)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/key-config-manager/key-config-manager)
 

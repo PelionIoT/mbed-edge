@@ -21,7 +21,9 @@
 #ifndef EDGE_CLIENT_IMPL_H_
 #define EDGE_CLIENT_IMPL_H_
 
+#ifndef TRACE_GROUP
 #define TRACE_GROUP "edgecc"
+#endif
 
 #include <stdio.h>
 #include "MbedCloudClient.h"

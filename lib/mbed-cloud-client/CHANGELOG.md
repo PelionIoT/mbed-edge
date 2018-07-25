@@ -1,23 +1,64 @@
 ## Changelog for Mbed Cloud Client
 
-### Release 1.3.3 (Next release)
+### Release 1.4.0 (16.07.2018)
+* Fixed a timer initialization bug under connection handler.
+* Linux: Updated mbed-coap to 4.5.0.
+* This version of Cloud Client has been tested with Mbed OS 5.9.2.
 
-#### Mbed Cloud Client
+#### Platform Adaptation Layer (PAL)
 
-* Fixed issue: Wrong CoAP ping message. CoAP ping must be send as empty confirmable message.
-* Earlier client in Queue mode was going to sleep while it was in reconnection mode, now it will complete econnection before going to sleep.
+* Introduced support for ARIA cipher suite introduced in mbedTLS 2.10.0.
+* Introduced MbedTLS configuration support for non-TRNG boards like NUCLEO-F411RE.
+* Hook-up point for allowing application to provide its own reboot function.
+  * Defining `PAL_USE_APPLICATION_REBOOT` activates this feature.
+  * You must define the function `void pal_plat_osApplicationReboot(void)` in your application to provide the required functionality.
+* Introduced the feature flag `PAL_USE_APPLICATION_REBOOT` for application to override generic reboot functionality, which is useful for different Linux flavors.
+* New asynchronous DNS API (activated in application mbed_app.json via `mbed-client-pal.pal-dns-api-version : 2`) with Mbed OS 5.9.x.
 
 #### Factory configurator client
 
-* Full support for "device generated keys" mode. Can be activated via factory configurator utility or via direct KCM APIs.
-* Certificate signed request that is generated on device, can be created with Extended key usage extension.
-* A new KCM API introduced: 
-  * `kcm_certificate_verify_with_private_key` - a self-generated certificate can checked against stored private key
+* Chain verification failure will result in `KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED` error instead of `FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED`.
+* Improved robustness of factory serial communication layer.
+* Define `KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN` was renamed to `KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN`.
+
+#### Mbed Cloud Update
+
+* Improved Linux shell scripts for compatibility and robustness.
+* Fixed an issue in `ARM_UC_HUB_Initialize()` and `ARM_UC_HUB_Uninitialize()` to prevent these functions being called when Update client is in the wrong state.
+* Fixed compiler warnings.
+* Removed designated initialisers from C++ code.
+* Update results are now sent synchronously to ensure that the Update Client hub is in the correct state if several LWM2M operations are performed in rapid succession.
+* Added error messages for missing commands in `arm_update_activate.sh`.
+* Added error reporting when there is not enough space on the device to store the firmware image candidate.
+* Added registration for the scheduler error handler.
+
+#### PAL Platform
+
+* Introducing mbedTLS 2.10.0 support for ARIA cipher suite.
+
+### Release 1.3.3 (08.06.2018)
+
+#### Mbed Cloud Client
+
+* Fixed issue: Wrong CoAP ping message. CoAP ping must be sent as an empty confirmable message.
+* In the previous versions, the client in queue mode went to sleep while in reconnection mode. Now, it completes the connection before going to sleep.
+* This version of Cloud Client supports Mbed OS 5.8.5 and onwards patch releases.
+* Improvements for connection handler, removed usage of static pointer to class. There is now possible to allocate more than one class M2MConnectionSecurityPimpl pareller.
+* Support for new asynchronous DNS API ("mbed-client-pal.pal-dns-api-version : 2") with Mbed OS 5.9.x. 
+
+#### Factory configurator client
+
+* Full support for the `device generated keys` mode. You can activate the mode using the factory configurator utility (FCU) or the KCM APIs.
+
+    <span class="notes">**Note:** Cloud Client and Mbed Cloud do not yet support this mode.</span>
+* A certificate signed request (CSR) that is generated on the device, can be created with the `Extended key usage` extension.
+* A new KCM API introduced:
+  * `kcm_certificate_verify_with_private_key` - a self-generated certificate can be checked against a stored private key.
 * Fixed the `FtcdCommBase::wait_for_message` function to receive multiple messages.
 
 #### Platform Adaptation Layer (PAL)
 
-* Ublox Odin-W2 now requires support for RSA crypto from mbedTLS. Enabled RSA crypto by default for target `MODULE_UBLOX_ODIN_W2`. Enabling RSA crypto increases flash-size by 20KB.
+* The u-blox ODIN-W2 board now requires support for RSA crypto from Mbed TLS. RSA crypto has been enabled by default for the target `MODULE_UBLOX_ODIN_W2`. Enabling RSA crypto increases the flash size by 20KB. More details in Mbed OS PR [#6963](https://github.com/ARMmbed/mbed-os/pull/6963).
 
 ### Release 1.3.2 (22.05.2018)
 
