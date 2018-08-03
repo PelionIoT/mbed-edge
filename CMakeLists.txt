@@ -1,5 +1,13 @@
+
+if (NOT DEFINED TARGET_TOOLCHAIN)
+    SET (TARGET_TOOLCHAIN "mcc-linux-x86")
+endif()
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/toolchains/${TARGET_TOOLCHAIN}.cmake")
+#message ("CMAKE_TOOLCHAIN_FILE ${CMAKE_TOOLCHAIN_FILE}")
+
 project ("mbed-edge" C)
 cmake_minimum_required (VERSION 2.8)
+
 
 SET (EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
