@@ -76,10 +76,6 @@ if (NOT DEFINED TARGET_DEVICE)
 endif()
 include ("cmake/targets/${TARGET_DEVICE}.cmake")
 
-if (NOT DEFINED TARGET_TOOLCHAIN)
-    SET (TARGET_TOOLCHAIN "mcc-linux-x86")
-endif()
-include ("cmake/toolchains/${TARGET_TOOLCHAIN}.cmake")
 
 if (${FIRMWARE_UPDATE})
   MESSAGE ("Enabling firmware update for Mbed Edge")
