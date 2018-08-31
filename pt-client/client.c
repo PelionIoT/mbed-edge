@@ -175,12 +175,23 @@ int callback_edge_client_protocol_translator(struct lws *wsi,
 
         case LWS_CALLBACK_CLIENT_RECEIVE: {
             tr_debug("lws_callback_client_receive: len(%zu), msg(%.*s)", len, (int) len, (char *) in);
-            conn = websock_conn->conn;
-            int ret = pt_client_read_data(conn, (char *) in, len);
-            if (ret == 1) {
-                tr_err("Protocol error happened when receiving data from edge-core. Closing connection!");
+            if (websocket_add_msg_fragment(websock_conn, in, len) != 0) {
+                tr_err("lws_callback_client_receive: Message payload fragment concatenation failed. Closing connection.");
                 trigger_close_connection();
-                lws_callback_on_writable(wsi);
+            }
+
+            const size_t remaining_bytes = lws_remaining_packet_payload(wsi);
+            if (remaining_bytes && !lws_is_final_fragment(wsi)) {
+                tr_debug("lws_callback_client_receive: Message fragmented, wait for more content.");
+            } else {
+                tr_debug("lws_callback_client_receice: Final fragment and no remaining bytes. Message: (%.*s)", websock_conn->msg_len, websock_conn->msg);
+                int ret = pt_client_read_data(websock_conn->conn, websock_conn->msg, websock_conn->msg_len);
+                websocket_reset_message(websock_conn);
+                if (ret == 1) {
+                    tr_err("Protocol error happened when receiving data from edge-core. Closing connection!");
+                    trigger_close_connection();
+                    lws_callback_on_writable(wsi);
+                }
             }
             break;
         }

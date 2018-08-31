@@ -40,6 +40,8 @@ typedef struct websocket_connection {
     struct lws *wsi;
     struct lws_context *lws_context;
     struct connection *conn;
+    size_t msg_len;
+    uint8_t *msg;
     bool to_close;
 } websocket_connection_t;
 
@@ -57,4 +59,7 @@ const char *websocket_lws_callback_reason(enum lws_callback_reasons reason);
 
 void websocket_set_log_emit_function(int level, const char *line);
 
+int websocket_add_msg_fragment(websocket_connection_t *websocket_conn, uint8_t *fragment, size_t len);
+
+void websocket_reset_message(websocket_connection_t *websocket_conn);
 #endif

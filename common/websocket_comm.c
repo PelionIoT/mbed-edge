@@ -178,3 +178,29 @@ void websocket_set_log_emit_function(int level, const char *line)
     }
 }
 
+int websocket_add_msg_fragment(websocket_connection_t *websocket_conn, uint8_t *fragment, size_t len)
+{
+    uint8_t *msg;
+    if (!websocket_conn->msg) {
+        msg = malloc(len);
+    } else {
+        msg = realloc(websocket_conn->msg, websocket_conn->msg_len + len);
+    }
+
+    if (!msg) {
+        tr_err("Could not malloc/realloc memory for fragmented message.");
+        free(websocket_conn->msg);
+        return 1;
+    }
+    memcpy(msg + websocket_conn->msg_len, fragment, len);
+    websocket_conn->msg = msg;
+    websocket_conn->msg_len += len;
+    return 0;
+}
+
+void websocket_reset_message(websocket_connection_t *websocket_conn)
+{
+    free(websocket_conn->msg);
+    websocket_conn->msg = NULL;
+    websocket_conn->msg_len = 0;
+}

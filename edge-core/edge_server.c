@@ -194,23 +194,36 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
         }
 
         case LWS_CALLBACK_RECEIVE: {
-            tr_info("lws_callback_server_receive: wsi %p len(%zu), msg(%.*s)", wsi, len, (int) len, (char *) in);
-            bool protocol_error;
-            if (websocket_connection) {
-                connection = (struct connection*) websocket_connection->conn;
+            tr_debug("lws_callback_server_receive: wsi %p len(%zu), msg(%.*s)", wsi, len, (int) len, (char *) in);
+
+            if (websocket_add_msg_fragment(websocket_connection, in, len) != 0) {
+                tr_err("lws_callback_server_receive: wsi %p. Message payload fragment concatenation failed. Closing connection.", wsi);
+                return 1;
             }
 
-            if (connection) {
-                edge_core_process_data_frame_websocket(connection, &protocol_error, len, (const char*) in);
-                if (protocol_error || !connection->connected) {
-                    tr_err("Protocol error happened when receiving data from client!");
-                    websocket_connection->to_close = true;
-                    lws_callback_on_writable(wsi);
-                }
+            const size_t remaining_bytes = lws_remaining_packet_payload(wsi);
+            if (remaining_bytes && !lws_is_final_fragment(wsi)) {
+                tr_debug("lws_callback_server_receive: wsi %p. Message fragmented, wait for more content.", wsi);
+                // Return control and wait for more bytes to arrive.
+                break;
             } else {
-                tr_err("lws_callback_receive: error");
+                tr_debug("lws_callback_server_receive: wsi %p. Final fragment and no remaining bytes. Message: (%.*s)", wsi, websocket_connection->msg_len, websocket_connection->msg);
+                if (websocket_connection && websocket_connection->conn) {
+                    bool protocol_error;
+                    connection = (struct connection*) websocket_connection->conn;
+                    edge_core_process_data_frame_websocket(connection, &protocol_error,
+                                                           websocket_connection->msg_len,
+                                                           (const char*) websocket_connection->msg);
+                    websocket_reset_message(websocket_connection);
+                    if (protocol_error || !connection->connected) {
+                        tr_err("Protocol error happened when receiving data from client! wsi %p", wsi);
+                        websocket_connection->to_close = true;
+                        lws_callback_on_writable(wsi);
+                    }
+                } else {
+                    tr_err("lws_callback_server_receive: error. wsi: %p", wsi);
+                }
             }
-
             break;
         }
         case LWS_CALLBACK_FILTER_PROTOCOL_CONNECTION: {

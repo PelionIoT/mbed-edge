@@ -1,5 +1,11 @@
 # Changelog for Mbed Edge
 
+## Release 0.5.2 (2018-08-31)
+
+### Bugfixes
+
+ * Implemented fragmented JSONRPC message handling. There was no check if message was fragmented. Fragmentation happened when request payload was exceeding 2048 bytes.
+
 ## Release 0.5.1 (2018-07-25)
 
  * Added CBOR configuration file injection mechanism for `BYOC_MODE`.

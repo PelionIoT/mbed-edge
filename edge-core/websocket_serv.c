@@ -42,6 +42,8 @@ websocket_connection_t *websocket_server_connection_initialize(websocket_connect
     ns_list_init(sent);
     websocket_connection->to_close = false;
     websocket_connection->sent = sent;
+    websocket_connection->msg_len = 0;
+    websocket_connection->msg = NULL;
     return websocket_connection;
 }
 
