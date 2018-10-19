@@ -1,16 +1,16 @@
-[submodule "lib/jansson"]
-	path = lib/jansson
-	url = https://github.com/akheron/jansson
-	branch = 2.11
-[submodule "lib/libevent"]
-	path = lib/libevent
-	url = https://github.com/libevent/libevent
-	branch = patches-2.1
-[submodule "lib/libwebsockets"]
-	path = lib/libwebsockets
-	url = https://github.com/ARMmbed/libwebsockets.git
-	branch = v3.0-arm
 [submodule "lib/mbedtls"]
 	path = lib/mbedtls
 	url = https://github.com/ARMmbed/mbedtls
 	branch = mbedtls-2.4
+[submodule "lib/jansson/jansson"]
+	path = lib/jansson/jansson
+	url = https://github.com/akheron/jansson
+	branch = 2.11
+[submodule "lib/libevent/libevent"]
+	path = lib/libevent/libevent
+	url = https://github.com/libevent/libevent
+	branch = patches-2.1
+[submodule "lib/libwebsockets/libwebsockets"]
+	path = lib/libwebsockets/libwebsockets
+	url = https://github.com/ARMmbed/libwebsockets.git
+	branch = v3.0-arm
