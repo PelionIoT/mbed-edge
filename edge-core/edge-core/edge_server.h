@@ -76,8 +76,9 @@ void edgeserver_set_number_registered_endpoints_limit(int32_t limit);
 void create_program_context_and_data();
 struct lws_context *initialize_libwebsocket_context(struct event_base *ev_base,
                                                     const char *edge_pt_socket,
-                                                    struct lws_protocols protocols[]);
-void clean_resources(struct lws_context *lwsc, const char *edge_pt_socket);
+                                                    struct lws_protocols protocols[],
+                                                    int *lock_fd);
+void clean_resources(struct lws_context *lwsc, const char *edge_pt_socket, int lock_fd);
 void free_program_context_and_data();
 
 #endif // end BUILD_TYPE_TEST

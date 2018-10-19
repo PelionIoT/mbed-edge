@@ -26,6 +26,7 @@
 
 #include "fcc_status.h"
 #include "fcc_bundle_handler.h"
+#include "factory_configurator_client.h"
 
 byoc_data_t *edgeclient_create_byoc_data(char *cbor_file)
 {
@@ -36,6 +37,12 @@ byoc_data_t *edgeclient_create_byoc_data(char *cbor_file)
     }
     byoc_data->cbor_file = cbor_file;
     return byoc_data;
+}
+
+void edgeclient_destroy_byoc_data(byoc_data_t *byoc_data)
+{
+    free(byoc_data);
+    byoc_data = NULL;
 }
 
 int edgeclient_inject_byoc(byoc_data_t *byoc_data)
@@ -68,6 +75,9 @@ int edgeclient_inject_byoc(byoc_data_t *byoc_data)
     response_protocol_message = NULL;
     response_protocol_message_size = 0;
     status = fcc_bundle_handler(cbor_data, cbor_size, &response_protocol_message, &response_protocol_message_size);
+
+    free(response_protocol_message);
+    free(cbor_data);
     if (status == FCC_STATUS_SUCCESS) {
         tr_info("BYOC loaded successfully");
     }

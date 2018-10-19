@@ -777,8 +777,7 @@ INPUT                  = @PROJECT_SOURCE_DIR@/doxygen_frontpage.md \
                          @PROJECT_SOURCE_DIR@/edge-core \
                          @PROJECT_SOURCE_DIR@/edge-rpc \
                          @PROJECT_SOURCE_DIR@/include \
-                         @PROJECT_SOURCE_DIR@/pt-client \
-                         @PROJECT_SOURCE_DIR@/pt-example
+                         @PROJECT_SOURCE_DIR@/pt-client
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses

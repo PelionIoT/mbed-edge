@@ -28,8 +28,9 @@
 static void msg_api_add_event_from_thread(struct event *ev)
 {
     /* 1 microsecond timer is needed, because if we just pass NULL timeval, the message will not be received */
-    struct timeval micro_sec = {0, 1};
+    const struct timeval micro_sec = {0, 1};
     int ev_add_result = event_add(ev, &micro_sec);
+    (void) ev_add_result;
     tr_debug("event_add returned %d", ev_add_result);
 }
 

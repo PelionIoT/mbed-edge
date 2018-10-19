@@ -5,6 +5,7 @@ if (TARGET_GROUP STREQUAL test)
   add_definitions(-DBUILD_TYPE_TEST)
 else ()
   list(APPEND SOURCES ../common/edge-mutex/edge_mutex.c)
+  list(APPEND SOURCES ../common/edge-io-lib/edge_io_lib.c)
   add_executable (edge-core ${SOURCES})
 endif ()
 

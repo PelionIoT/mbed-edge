@@ -1,3 +1,15 @@
+#For Cmake system, if we want to compile all projects with cross toolchain. Then we should set the CMAKE_TOOLCHAIN_FILE as the 1st step.
+#More information could be refered to here:
+#https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/CrossCompiling
+if (NOT DEFINED TARGET_TOOLCHAIN)
+    SET (TARGET_TOOLCHAIN "mcc-linux-x86")
+endif()
+# Yocto build defines CMAKE_TOOLCHAIN_FILE to set the tool chain.
+# We must not override it.
+if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    SET(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/toolchains/${TARGET_TOOLCHAIN}.cmake")
+endif()
+
 project ("mbed-edge" C)
 cmake_minimum_required (VERSION 2.8)
 
@@ -40,21 +52,13 @@ else ()
   endif ()
 endif ()
 
+add_subdirectory (nano-stack)
+add_subdirectory (mbed-trace-edge)
 add_subdirectory (edge-client)
 add_subdirectory (lib)
 add_subdirectory (edge-core)
 add_subdirectory (edge-rpc)
 add_subdirectory (pt-client)
-add_subdirectory (pt-example)
-
-# Conditionally build lora-pt if mosquitto is available
-unset(MOSQUITTO_LIB CACHE)
-find_library(MOSQUITTO_LIB mosquitto)
-if (SKIP_LIB_CHECK OR MOSQUITTO_LIB)
-  add_subdirectory (lorapt-example)
-else ()
-  message("Not building the mqtt protocol translator since mosquitto library was not found!")
-endif ()
 
 # Add doc target for building documentation with Doxygen
 # add a target to generate API documentation with Doxygen

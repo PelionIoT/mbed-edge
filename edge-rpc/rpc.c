@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include "ns_list.h"
+#include <jansson.h>
 
 #include "mbed-trace/mbed_trace.h"
 #include "common/edge_time.h"
@@ -39,7 +40,6 @@
  */
 #define WARN_CALLBACK_RUNTIME 500
 
-struct jsonrpc_method_entry_t *_method_table;
 generate_msg_id g_generate_msg_id;
 
 typedef struct message {
@@ -120,7 +120,16 @@ void rpc_dealloc_message_entry(void *message_entry)
 struct json_message_t* alloc_json_message_t(const char* data, size_t len, struct connection *connection)
 {
     struct json_message_t *msg = malloc(sizeof(struct json_message_t));
+    if (NULL == msg) {
+        tr_err("Cannot allocate msg in allloc_json_message_t");
+        return NULL;
+    }
     msg->data = strndup(data, len);
+    if (NULL == msg->data) {
+        tr_err("Cannot allocate msg->data in allloc_json_message_t");
+        free(msg);
+        return NULL;
+    }
     msg->len = len;
     msg->connection = connection;
     return msg;
@@ -137,11 +146,6 @@ void deallocate_json_message_t(struct json_message_t *msg)
 void rpc_set_generate_msg_id(generate_msg_id generate_msg_id)
 {
     g_generate_msg_id = generate_msg_id;
-}
-
-void rpc_init(struct jsonrpc_method_entry_t method_table[])
-{
-    _method_table = method_table;
 }
 
 int rpc_construct_message(json_t *message,
@@ -170,18 +174,51 @@ int rpc_construct_message(json_t *message,
 
     *data_len = json_dumpb(message, NULL, 0, JSON_COMPACT | JSON_SORT_KEYS);
 
-    *data = (char*) malloc(*data_len);
-    *data_len = json_dumpb(message, *data, *data_len, JSON_COMPACT | JSON_SORT_KEYS);
+    *data = (char *) malloc(*data_len);
 
     if (*data != NULL) {
+        *data_len = json_dumpb(message, *data, *data_len, JSON_COMPACT | JSON_SORT_KEYS);
         message_t *msg_entry = alloc_message(message, success_handler, failure_handler, free_func, request_context);
+        if (NULL == msg_entry) {
+            // FIXME: handle error
+            tr_err("Error in adding the request to the request list.");
+            free(*data);
+            *data = NULL;
+            *data_len = 0;
+            return 1;
+        }
         *returned_msg_entry = msg_entry;
         return 0;
     } else {
+        *data_len = 0;
         // FIXME: handle error
-        tr_err("Error in adding the request to request list.");
+        tr_err("Error allocating buffer for the RPC message.");
         return 1;
     }
+}
+
+int rpc_construct_response(json_t *response, char **data, size_t *data_len)
+{
+    if (response == NULL) {
+        tr_warn("A null response pointer was passed to rpc_construct_response.");
+        return 1;
+    }
+    const char *message_id = json_string_value(json_object_get(response, "id"));
+
+    if (data == NULL || message_id == NULL) {
+        tr_warn("A null data or response id output param was passed to rpc_construct_response.");
+        return 1;
+    }
+
+    *data_len = json_dumpb(response, NULL, 0, JSON_COMPACT | JSON_SORT_KEYS);
+
+    *data = (char *) malloc(*data_len);
+    if (NULL == *data) {
+        tr_err("Cannot allocate *data in rpc_construct_response");
+        return 1;
+    }
+    *data_len = json_dumpb(response, *data, *data_len, JSON_COMPACT | JSON_SORT_KEYS);
+    return 0;
 }
 
 int32_t rpc_construct_and_send_message(struct connection *connection,
@@ -216,6 +253,30 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
     free(message_id);
 
     return 0;
+}
+
+int32_t rpc_construct_and_send_response(struct connection *connection,
+                                        json_t *response,
+                                        rpc_free_func free_func,
+                                        void *customer_callback_ctx,
+                                        write_func write_function)
+{
+    char *data;
+    size_t data_len;
+    int32_t return_code = 0;
+    int rc = rpc_construct_response(response, &data, &data_len);
+    json_decref(response);
+
+    if (rc == 1 || data == NULL) {
+        return_code = -1;
+    } else if (0 != write_function(connection, data, data_len)) {
+        return_code = -2;
+    }
+    if (free_func) {
+        free_func(customer_callback_ctx);
+    }
+
+    return return_code;
 }
 
 void rpc_add_message_entry_to_list(void *message_entry)
@@ -297,9 +358,8 @@ int handle_response(json_t *response)
         }
 
     } else {
-        // FIXME: response not matched with id, handle as failure
         tr_warn("Did not find any matching request for the response with id: %s.", response_id);
-        rc = 0;
+        rc = 1;
     }
     if (found) {
         rpc_dealloc_message_entry(found);
@@ -310,12 +370,18 @@ int handle_response(json_t *response)
 int rpc_handle_message(const char *data,
                        size_t len,
                        struct connection *connection,
+                       struct jsonrpc_method_entry_t *method_table,
                        write_func write_function,
                        bool *protocol_error)
 {
     *protocol_error = false;
     struct json_message_t *json_message = alloc_json_message_t(data, len, connection);
-    char *response = jsonrpc_handler(data, len, _method_table, handle_response, json_message, protocol_error);
+    if (!json_message) {
+        tr_err("Cannot allocate json_message in rpc_handle_message");
+        return 1;
+    }
+
+    char *response = jsonrpc_handler(data, len, method_table, handle_response, json_message, protocol_error);
 
     deallocate_json_message_t(json_message);
     if (response == NULL) {

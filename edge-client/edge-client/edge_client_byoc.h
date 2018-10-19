@@ -22,10 +22,11 @@
 #define EDGE_CLIENT_BYOC_H_
 
 typedef struct {
-    char *cbor_file;
+    const char *cbor_file; // Passed value must be in stack.
 } byoc_data_t;
 
 byoc_data_t *edgeclient_create_byoc_data(char *cbor_file);
+void edgeclient_destroy_byoc_data(byoc_data_t *byoc_data);
 int edgeclient_inject_byoc(byoc_data_t *byoc_data);
 
 #endif /* EDGE_CLIENT_BYOC_H_ */

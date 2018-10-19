@@ -96,6 +96,24 @@ public:
         }
     }
 
+    const char *get_account_id() {
+        const ConnectorClientEndpointInfo *endpoint_info = _cloud_client.endpoint_info();
+        if (endpoint_info) {
+            return endpoint_info->account_id.c_str();
+        } else {
+            return "";
+        }
+    }
+
+    const char *get_lwm2m_server_uri() {
+        const ConnectorClientEndpointInfo *endpoint_info = _cloud_client.endpoint_info();
+        if (endpoint_info) {
+            return endpoint_info->lwm2m_server_uri.c_str();
+        }else {
+            return "";
+        }
+
+    }
     const char *get_endpoint_name() {
         const ConnectorClientEndpointInfo *endpoint_info = _cloud_client.endpoint_info();
         if (endpoint_info) {
@@ -116,6 +134,11 @@ public:
         _cloud_client.remove_object(object);
     }
 
+    const M2MBaseList *get_object_list()
+    {
+        return _cloud_client.get_object_list();
+    }
+
     void start_registration()
     {
         _cloud_client.setup((void *) _network_interface);
@@ -130,11 +153,13 @@ public:
     void client_registered()
     {
         _registered = true;
-        tr_debug("Client registered\n");
+        mbed_tracef(TRACE_LEVEL_INFO, TRACE_GROUP, "%s", "Edge-core got registered to the cloud\n");
         const ConnectorClientEndpointInfo *epinfo = _cloud_client.endpoint_info();
         if (epinfo) {
-            tr_debug("Client external name: %s", epinfo->endpoint_name.c_str());
-            tr_debug("Client internal name: %s", epinfo->internal_endpoint_name.c_str());
+            mbed_tracef(TRACE_LEVEL_INFO, TRACE_GROUP,
+                        "Endpoint id : %s, name : %s \n",
+                             epinfo->internal_endpoint_name.c_str(),
+                             epinfo->endpoint_name.c_str());
         }
         if (_on_registered_cb) {
             _on_registered_cb();

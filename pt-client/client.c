@@ -21,6 +21,8 @@
 #include <pthread.h>
 
 #include "event2/event.h"
+#include "event2/thread.h"
+
 #include "libwebsockets.h"
 
 #include "common/default_message_id_generator.h"
@@ -44,7 +46,7 @@ bool default_check_close_condition(bool client_close)
 pt_f_close_condition close_condition_impl = default_check_close_condition;
 
 connection_t *connection_init(struct context *ctx,
-                              protocol_translator_t *protocol_translator,
+                              client_data_t *client_data,
                               const protocol_translator_callbacks_t *pt_cbs,
                               void *userdata)
 {
@@ -56,7 +58,7 @@ connection_t *connection_init(struct context *ctx,
     }
 
     connection->ctx = ctx;
-    connection->protocol_translator = protocol_translator;
+    connection->client_data = client_data;
     connection->protocol_translator_callbacks = pt_cbs;
     connection->userdata = userdata;
 
@@ -109,7 +111,7 @@ static int check_protocol_translator_callbacks(const protocol_translator_callbac
 int pt_client_write_data(connection_t *connection, char *data, size_t len)
 {
     websocket_connection_t *websocket_connection = (websocket_connection_t*) connection->transport_connection->transport;
-    if (send_to_websocket(data, len, websocket_connection)) {
+    if (send_to_websocket((uint8_t *) data, len, websocket_connection)) {
         return 0;
     } else {
         return 1;
@@ -121,6 +123,7 @@ int pt_client_read_data(connection_t *connection, char *data, size_t len)
     tr_debug("Reading data from connection.");
     bool protocol_error;
     int rc = rpc_handle_message(data, len, connection,
+                                (struct jsonrpc_method_entry_t*) connection->client_data->method_table,
                                 connection->transport_connection->write_function,
                                 &protocol_error);
     if (protocol_error) {
@@ -163,7 +166,6 @@ int callback_edge_client_protocol_translator(struct lws *wsi,
                 pt_client_set_msg_id_generator(NULL);
             }
             rpc_set_generate_msg_id(g_generate_msg_id);
-            pt_init_service_api();
             conn->protocol_translator_callbacks->connection_ready_cb(conn, conn->userdata);
             break;
         }
@@ -184,8 +186,8 @@ int callback_edge_client_protocol_translator(struct lws *wsi,
             if (remaining_bytes && !lws_is_final_fragment(wsi)) {
                 tr_debug("lws_callback_client_receive: Message fragmented, wait for more content.");
             } else {
-                tr_debug("lws_callback_client_receice: Final fragment and no remaining bytes. Message: (%.*s)", websock_conn->msg_len, websock_conn->msg);
-                int ret = pt_client_read_data(websock_conn->conn, websock_conn->msg, websock_conn->msg_len);
+                tr_debug("lws_callback_client_receive: Final fragment and no remaining bytes. Message: (%.*s)", (uint32_t) websock_conn->msg_len, websock_conn->msg);
+                int ret = pt_client_read_data(websock_conn->conn, (char *) websock_conn->msg, websock_conn->msg_len);
                 websocket_reset_message(websock_conn);
                 if (ret == 1) {
                     tr_err("Protocol error happened when receiving data from edge-core. Closing connection!");
@@ -198,45 +200,9 @@ int callback_edge_client_protocol_translator(struct lws *wsi,
 
         case LWS_CALLBACK_CLIENT_CONNECTION_ERROR: {
             websock_conn->conn->connected = false;
-            websock_conn->conn->protocol_translator->registered = false;
+            websock_conn->conn->client_data->registered = false;
             tr_err("lws_callback_client_connection_error");
             tr_err("client_connection_error: %s: %s", which, in ? (char *) in : "(null)");
-            break;
-        }
-
-        case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP: {
-            tr_debug("lws_http_client_http_response %d", lws_http_client_http_response(wsi));
-            break;
-        }
-
-        /* chunked content */
-        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ: {
-            tr_debug("lws_callback_receive_client_http_read: %zu", len);
-            break;
-        }
-
-        /* unchunked content */
-        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP: {
-            tr_debug("lws_callback_receive_client_http");
-            char buffer[1024 + LWS_PRE];
-            char *px = buffer + LWS_PRE;
-            int lenx = sizeof(buffer) - LWS_PRE;
-
-            /*
-             * Often you need to flow control this by something
-             * else being writable.  In that case call the api
-             * to get a callback when writable here, and do the
-             * pending client read in the writeable callback of
-             * the output.
-             *
-             * In the case of chunked content, this will call back
-             * LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ once per
-             * chunk or partial chunk in the buffer, and report
-             * zero length back here.
-             */
-            if (lws_http_client_read(wsi, &px, &lenx) < 0) {
-                return -1;
-            }
             break;
         }
 
@@ -337,7 +303,7 @@ static void websocket_connection_t_destroy(websocket_connection_t **wct)
     *wct = NULL;
 }
 
-static protocol_translator_t *initialize_protocol_translator(const protocol_translator_callbacks_t *pt_cbs, const char *name)
+static client_data_t *initialize_protocol_translator(const protocol_translator_callbacks_t *pt_cbs, const char *name)
 {
     if (check_protocol_translator_callbacks(pt_cbs)) {
         tr_err("Protocol translator callbacks not set.");
@@ -459,7 +425,7 @@ int pt_client_start(const char *socket_path,
     int backoff_time = 1;
     int tries = 0;
     websocket_connection_t *websocket_conn = NULL;
-    protocol_translator_t *protocol_translator = NULL;
+    client_data_t *client_data = NULL;
     transport_connection_t *transport_connection = NULL;
     struct event_base *ev_base = NULL;
 
@@ -485,10 +451,10 @@ int pt_client_start(const char *socket_path,
     }
     program_context->ev_base = ev_base;
 
-    protocol_translator = initialize_protocol_translator(pt_cbs, name);
+    client_data = initialize_protocol_translator(pt_cbs, name);
     // Set up connection for client code to track.
-    *connection = connection_init(program_context, protocol_translator, pt_cbs, userdata);
-    lws_set_log_level(LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG, websocket_set_log_emit_function);
+    *connection = connection_init(program_context, client_data, pt_cbs, userdata);
+    websocket_set_log_level_and_emit_function();
 
     while(!close_client) {
         tr_debug("Connecting to Edge Core.");
@@ -530,7 +496,7 @@ int pt_client_start(const char *socket_path,
                 sleep(backoff_time);
             }
         } else {
-            tr_err("Connection has been destroyed. Breaking loop in pt_client_start.");
+            tr_err("Connection %p has been destroyed. Breaking loop in pt_client_start.", *connection);
             break;
         }
     }
@@ -540,14 +506,14 @@ cleanup:
     clean(connection);
     websocket_connection_t_destroy(&websocket_conn);
     transport_connection_t_destroy(&transport_connection);
-    pt_client_protocol_translator_destroy(&protocol_translator);
+    pt_client_protocol_translator_destroy(&client_data);
     event_base_free(ev_base);
     free(program_context);
     program_context = NULL;
     if((*connection) != NULL) {
         (*connection)->ctx = NULL;
     }
-    mbed_trace_free();
+    libevent_global_shutdown();
     return rc;
 }
 

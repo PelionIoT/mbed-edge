@@ -108,8 +108,6 @@ size_t value_to_text_format(Lwm2mResourceType resource_type, const uint8_t* valu
 
 extern edgeclient_data_t *client_data;
 EDGE_LOCAL void edgeclient_update_register_msg_cb(evutil_socket_t fd, short what, void *arg);
-EDGE_LOCAL void edgeclient_execute_success(edgeclient_request_context_t *ctx);
-EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx);
 EDGE_LOCAL void edgeclient_on_unregistered_callback(void);
 EDGE_LOCAL void edgeclient_on_registered_callback(void);
 EDGE_LOCAL void edgeclient_set_update_register_needed(edgeclient_mutex_action_e mutex_action);

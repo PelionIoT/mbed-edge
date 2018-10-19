@@ -28,7 +28,7 @@ struct connection;
 
 typedef struct websocket_message {
     ns_list_link_t link;
-    char *bytes;
+    uint8_t *bytes;
     size_t len;
 } websocket_message_t;
 
@@ -51,13 +51,15 @@ void websocket_message_t_destroy(websocket_message_t *message);
 
 int create_websocket_context(struct lws_context *lwsc);
 
-int send_to_websocket(char *bytes, size_t len, websocket_connection_t *websocket_conn);
+int send_to_websocket(uint8_t *bytes, size_t len, websocket_connection_t *websocket_conn);
 
 void websocket_close_connection_trigger(struct websocket_connection *websocket_conn);
 
 const char *websocket_lws_callback_reason(enum lws_callback_reasons reason);
 
 void websocket_set_log_emit_function(int level, const char *line);
+
+void websocket_set_log_level_and_emit_function();
 
 int websocket_add_msg_fragment(websocket_connection_t *websocket_conn, uint8_t *fragment, size_t len);
 

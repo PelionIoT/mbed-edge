@@ -34,7 +34,6 @@ struct context {
     struct ctx_data *ctx_data;
 };
 
-
 struct pt_customer_callback {
     struct connection *connection;
     pt_response_handler success_handler;
@@ -58,7 +57,7 @@ typedef struct transport_connection {
 struct connection {
     bool connected;
     struct context *ctx;
-    protocol_translator_t *protocol_translator;
+    client_data_t *client_data;
     const protocol_translator_callbacks_t *protocol_translator_callbacks;
     // Move to websocket_connection_t
     struct lws_context *lws_context;
@@ -72,12 +71,14 @@ struct connection {
  */
 void pt_client_connection_destroy(struct connection **connection);
 
-protocol_translator_t *pt_client_create_protocol_translator(char *name);
-void pt_client_protocol_translator_destroy(protocol_translator_t **pt);
+client_data_t *pt_client_create_protocol_translator(char *name);
+void pt_client_protocol_translator_destroy(client_data_t **pt);
 
 int pt_client_read_data(connection_t *connection, char *data, size_t len);
 
 typedef bool (*pt_f_close_condition)(bool client_close);
+
+extern struct jsonrpc_method_entry_t pt_service_method_table[];
 
 #ifdef BUILD_TYPE_TEST
 void pt_reset_api();
@@ -125,6 +126,8 @@ void device_customer_callback_free_func(void* callback_data);
 void customer_callback_free_func(void *callback_data);
 
 void pt_init_check_close_condition_function(pt_f_close_condition func);
+
+extern struct jsonrpc_method_entry_t pt_service_method_table[];
 
 #endif
 

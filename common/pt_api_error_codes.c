@@ -33,10 +33,13 @@ struct error_message_entry_t ERROR_MESSAGES[] =
          {PT_API_PROTOCOL_TRANSLATOR_NAME_RESERVED, "Protocol translator name reserved."},
          {PT_API_PROTOCOL_TRANSLATOR_CLIENT_WRITE_ERROR, "Protocol translator client write error."},
          {PT_API_REGISTERED_ENDPOINT_LIMIT_REACHED, "The maximum number of registered endpoints is already in use."},
-         {PT_API_RESOURCE_NOT_FOUND, "Resource not found"},
+         {PT_API_RESOURCE_NOT_FOUND, "Resource not found."},
+         {PT_API_RESOURCE_NOT_READABLE, "Resource not readable."},
+         {PT_API_RESOURCE_NOT_WRITABLE, "Resource not writable."},
          {PT_API_ILLEGAL_VALUE, "Illegal value."},
          {PT_API_INVALID_JSON_STRUCTURE, "Invalid json structure."},
          {PT_API_ENDPOINT_ALREADY_REGISTERED, "Cannot register endpoint, because it's already registered."},
+         {PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED, "Write request to protocol translator failed."},
          {PT_API_EDGE_CORE_SHUTTING_DOWN, "Edge Core is shutting down."},
          {PT_API_UNKNOWN_ERROR, NULL}};
 

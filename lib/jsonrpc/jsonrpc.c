@@ -4,12 +4,41 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include "mbed-trace/mbed_trace.h"
+#define TRACE_GROUP "jsonrpc"
 
 #include <jansson.h>
 
+int jsonrpc_has_id(const json_t *r)
+{
+    if (json_object_get(r, "id") != NULL) {
+        return 1;
+    }
+    return 0;
+}
+
 int jsonrpc_is_request(const json_t *r)
 {
-    if (json_object_get(r, "method") != NULL) {
+    if (jsonrpc_has_id(r)
+        && json_object_get(r, "method") != NULL) {
+        return 1;
+    }
+    return 0;
+}
+
+int jsonrpc_is_response(const json_t *r)
+{
+    if (jsonrpc_has_id(r)
+        && (json_object_get(r, "result") != NULL
+            || json_object_get(r, "error") != NULL)) {
+        return 1;
+    }
+    return 0;
+}
+
+int jsonrpc_is_notification(const json_t *r)
+{
+    if (json_object_get(r, "id") == NULL) {
         return 1;
     }
     return 0;
@@ -211,14 +240,14 @@ json_t *jsonrpc_handle_request_single(json_t *json_request, struct jsonrpc_metho
 
     json_response = NULL;
     json_result = NULL;
-    rc = entry->funcptr(json_params, &json_result, userdata);
+    rc = entry->funcptr(json_request, json_params, &json_result, userdata);
     if (is_notification) {
         json_decref(json_result);
         json_result = NULL;
     } else {
         if (rc == 0) {
             json_response = jsonrpc_result_response(json_id, json_result);
-        } else {
+        } else if (rc == 1) {
             if (!json_result) {
                 /* method did not set a jsonrpc_error_object, create a generic error */
                 json_result = jsonrpc_error_object_predefined(JSONRPC_INTERNAL_ERROR, NULL);
@@ -238,7 +267,7 @@ char *jsonrpc_handler(const char *input,
                       size_t input_len,
                       struct jsonrpc_method_entry_t method_table[],
                       jsonrpc_response_handler response_handler,
-                      void *userdata,
+                      void *userdata, // json_message_t *
                       bool *protocol_error)
 {
     *protocol_error = false;
@@ -267,18 +296,33 @@ char *jsonrpc_handler(const char *input,
                         json_response = json_array();
                         json_array_append_new(json_response, rep);
                     }
+                } else if (jsonrpc_is_notification(req) == 1) {
+                    tr_warn("Notifications are not supported. No response given.");
+                } else if (jsonrpc_is_response(req) == 1) {
+                    if (!response_handler(req) == 0) {
+                        json_t *rep = jsonrpc_error_response(NULL,
+                                                             jsonrpc_error_object_predefined(JSONRPC_INVALID_REQUEST,
+                                                                                             NULL));
+                        json_array_append_new(json_response, rep);
+                    }
                 } else {
-                    response_handler(req);
+                    tr_warn("Payload is not a request, notification or response. Not handled at all.");
                 }
             }
         }
     } else {
         if (jsonrpc_is_request(json_request) == 1) {
-            // request is request
+            // request is request or notification
             json_response = jsonrpc_handle_request_single(json_request, method_table, userdata);
+        } else if (jsonrpc_is_notification(json_request) == 1) {
+            tr_warn("Notifications are not supported. No response given.");
+        } else if (jsonrpc_is_response(json_request) == 1) {
+            // payload is response
+            if (!response_handler(json_request) == 0) {
+                tr_warn("Response handler failed to handle payload. No response given.");
+            }
         } else {
-            // request is response or error
-            response_handler(json_request);
+            tr_warn("Payload is not a request, notification or response. Not handled at all.");
         }
     }
 

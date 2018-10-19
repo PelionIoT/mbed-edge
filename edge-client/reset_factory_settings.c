@@ -108,7 +108,9 @@ EDGE_LOCAL void rfs_reset_factory_settings_response_cb(evutil_socket_t fd, short
     tr_debug("Sending response to Mbed Cloud");
     pt_api_result_code_e status =
             edgeclient_send_delayed_response(NULL, EDGE_DEVICE_OBJECT_ID, 0, EDGE_FACTORY_RESET_RESOURCE_ID);
-    tr_debug("  got status %d", status);
+    if (status != PT_API_SUCCESS) {
+        tr_err("edgeclient_send_delayed_response failed! returned status: %d", status);
+    }
     void *result;
     int join_status = pthread_join(*rfs_thread_result->thread, &result);
     free(rfs_thread_result->thread);

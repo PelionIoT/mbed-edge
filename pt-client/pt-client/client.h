@@ -23,6 +23,8 @@
 
 #include "pt-client/pt_api.h"
 
+struct context;
+
 /**
  * \brief Initializes the connection structure between Mbed Cloud Edge and the connected
  * protocol translator.
@@ -32,7 +34,7 @@
  * \return The connection structure containing the connection-related data.
  */
 struct connection* connection_init(struct context *ctx,
-                                   protocol_translator_t *protocol_translator,
+                                   client_data_t *client_data,
                                    const protocol_translator_callbacks_t *pt_cbs,
                                    void *userdata);
 void connection_free(struct connection *connection);

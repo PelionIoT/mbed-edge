@@ -22,6 +22,7 @@
 #define SERVER_H_
 
 #include "ns_list.h"
+#include "edge-core/client_type.h"
 
 /**
  * \defgroup EDGE_SERVER Mbed Edge functionality and RPC API.
@@ -101,9 +102,10 @@ struct ctx_data {
  * \brief Initializes the connection structure between Mbed Edge and the connected
  * protocol translator.
  * \param ctx The program context.
+ * \param client_data the client data.
  * \return The connection structure containing the connection related data.
  */
-struct connection* connection_init(struct context *ctx);
+struct connection* connection_init(struct context *ctx, client_data_t *client_data);
 
 /**
  * \brief Deallocate the connection structure reserved memory.

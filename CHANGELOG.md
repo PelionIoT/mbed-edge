@@ -1,5 +1,34 @@
 # Changelog for Mbed Edge
 
+## Release 0.6.0 (2018-10-19)
+
+ * WISE-3160 content removed.
+ * Device Management Edge Local Management API introduced.
+ * New command line argument for Edge Core.
+   * It is now possible to control the log coloring using the `--color-log` argument.
+   * Without the argument, a plain text log is produced.
+   * When giving the argument `--color-log` to `edge-core` binary, an ANSI colored log is produced.
+ * Added support for setting user data to the `pt_device_t` structure. See `pt_create_device_with_userdata` in
+   `pt_api.h.`
+ * Removed the duplicate configuration file of Device Management Client.
+   * `mbed_client_user_config.h` removed.
+   * Moved the TCP keepalive configuration to `mbed_cloud_client_user_config.h`.
+ * Renamed LoRa example to MQTT example.
+ * Updated the version of Yocto in the Raspberry Pi 3 reference implementation from `morty` to `sumo`.
+ * Updated Device Management Client to version 2.0.1.1.
+ * Added new fields `account-id` and `lwm2m-server-uri` to Edge status REST API.
+
+### Bugfixes
+
+ * Removed the protocol translator examples from the `edge-core` repository.
+   * The examples are now in the [Mbed Edge protocol translator examples repository](https://github.com/ARMmbed/mbed-edge-examples).
+ * Added the `libevent_global_shutdown` function to the cleanup stage to prevent occasional memory leaks during shutdown.
+ * Fixed issues in JSONRPC message handling on broken messages.
+
+### Known issues
+
+Firmware update from `morty` version of Yocto to `sumo` does not work and makes devices unusable. The differences in the device trees of different versions cause problems when starting the kernel after the update.
+
 ## Release 0.5.2 (2018-08-31)
 
 ### Bugfixes

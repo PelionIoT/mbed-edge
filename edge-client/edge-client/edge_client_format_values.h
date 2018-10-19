@@ -70,67 +70,14 @@ size_t value_to_text_format(Lwm2mResourceType resource_type,
                             const uint32_t value_length,
                             char** buffer);
 
-
-inline size_t integer_to_text_format(int32_t value, char *buffer, size_t buffer_len)
-{
-    return snprintf(buffer, buffer_len, "%d", value);
-}
-
-inline size_t long_integer_to_text_format(int64_t value, char *buffer, size_t buffer_len)
-{
-    return snprintf(buffer, buffer_len, "%" PRId64 "", value);
-}
-
-inline size_t float_to_text_format(float value, char *buffer, size_t buffer_len)
-{
-    return snprintf(buffer, buffer_len, "%6.9f", value);
-}
-
-inline size_t double_to_text_format(double value, char *buffer, size_t buffer_len)
-{
-    return snprintf(buffer, buffer_len, "%10.17f", value);
-}
-
-inline size_t bool_to_text_format(bool value, char *buffer, size_t buffer_len)
-{
-    return snprintf(buffer, buffer_len, "%d", value);
-}
-
-inline void convert_to_int32_t(const uint8_t *value, const size_t value_length, int32_t *number)
-{
-    if (value_length == sizeof(int8_t)) {
-        int8_t temp = 0;
-        memcpy(&temp, value, value_length);
-        *number = temp;
-    } else if (value_length == sizeof(int16_t)) {
-        int16_t temp = 0;
-        memcpy(&temp, value, value_length);
-        temp = ntohs(temp);
-        *number = temp;
-    } else {
-        *number = common_read_32_bit(value);
-    }
-}
-
-inline void convert_to_int64_t(const uint8_t *value, const size_t value_length, int64_t *number)
-{
-    if (value_length == sizeof(int64_t)) {
-        *number = common_read_64_bit(value);
-    }
-}
-
-inline void convert_to_float(const uint8_t* value, const size_t value_length, float *number)
-{
-    uint32_t temp = common_read_32_bit(value);
-    memcpy(number, &temp, sizeof(float));
-}
-
-inline void convert_to_double(const uint8_t* value, const size_t value_length, double *number)
-{
-    if (value_length == sizeof(double)) {
-        uint64_t temp = common_read_64_bit(value);
-        memcpy(number, &temp, sizeof(double));
-    }
-}
+size_t integer_to_text_format(int32_t value, char *buffer, size_t buffer_len);
+size_t long_integer_to_text_format(int64_t value, char *buffer, size_t buffer_len);
+size_t float_to_text_format(float value, char *buffer, size_t buffer_len);
+size_t double_to_text_format(double value, char *buffer, size_t buffer_len);
+size_t bool_to_text_format(bool value, char *buffer, size_t buffer_len);
+void convert_to_int32_t(const uint8_t *value, const size_t value_length, int32_t *number);
+void convert_to_int64_t(const uint8_t *value, const size_t value_length, int64_t *number);
+void convert_to_float(const uint8_t *value, const size_t value_length, float *number);
+void convert_to_double(const uint8_t *value, const size_t value_length, double *number);
 
 #endif //  EDGE_CLIENT_FORMAT_VALUES_H_

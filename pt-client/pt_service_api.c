@@ -31,15 +31,10 @@
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "clnt"
 
-struct jsonrpc_method_entry_t method_table[] = {
+struct jsonrpc_method_entry_t pt_service_method_table[] = {
   { "write", pt_receive_write_value, "o" },
   { NULL, NULL, "o" }
 };
-
-void pt_init_service_api()
-{
-    rpc_init(method_table);
-}
 
 static bool check_request_id(struct json_message_t *jt, json_t **result)
 {
@@ -51,7 +46,7 @@ static bool check_request_id(struct json_message_t *jt, json_t **result)
     if (id_obj == NULL) {
         tr_err("No id_obj on protocol translator registration request: \"%s\"", jt->data);
         *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
-                                       "Invalid params. Missing `id`-field from request.",
+                                       "Invalid params. Missing 'id'-field from request.",
                                        NULL);
         return false;
     }
@@ -62,10 +57,10 @@ json_t* get_handle(json_t* parent, json_t **result, const char* field_name)
 {
     json_t* handle = json_object_get(parent, field_name);
     if (!handle) {
-        char *err_msg = (char*) malloc(strlen(field_name) +
-                               /* error msg template */
-                               strlen("Invalid params. Missing ``-field.") + 1);
-        sprintf(err_msg, "Invalid params. Missing `%s`-field.", field_name);
+        char *err_msg = (char *) malloc(strlen(field_name) +
+                                        /* error msg template */
+                                        strlen("Invalid params. Missing ''-field.") + 1);
+        sprintf(err_msg, "Invalid params. Missing '%s'-field.", field_name);
         *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
                                        err_msg,
                                        NULL);
@@ -80,7 +75,7 @@ int update_device_values_from_json(struct connection *connection,
 {
     if (!params) {
         *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
-                                       "Invalid params. Missing `params`-field from request.",
+                                       "Invalid params. Missing 'params'-field from request.",
                                        NULL);
         tr_error("No parameters element");
         return 1;
@@ -145,6 +140,9 @@ int update_device_values_from_json(struct connection *connection,
     }
     uint32_t decoded_len = apr_base64_decode_len(encoded_value);
     uint8_t *resource_value = malloc(decoded_len);
+    if (NULL == resource_value) {
+        return 1;
+    }
     uint32_t decoded_len2 = apr_base64_decode_binary(resource_value, encoded_value);
     assert(decoded_len >= decoded_len2);
 
@@ -169,7 +167,7 @@ int update_device_values_from_json(struct connection *connection,
     return success;
 }
 
-int pt_receive_write_value(json_t *json_params, json_t **result, void *userdata)
+int pt_receive_write_value(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
     struct json_message_t *jt = (struct json_message_t*) userdata;
     tr_debug("Write value to protocol translator.");

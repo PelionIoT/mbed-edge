@@ -105,7 +105,7 @@ EDGE_LOCAL void pt_handle_pt_register_success(json_t *response, void *callback_d
     tr_debug("Handling register success.");
     struct pt_device_customer_callback *customer_callback = (struct pt_device_customer_callback *) callback_data;
     connection_t *connection = customer_callback->connection;
-    connection->protocol_translator->registered = true;
+    connection->client_data->registered = true;
 
     if (callback_data) {
         struct pt_customer_callback *customer_callback = (struct pt_customer_callback*) callback_data;
@@ -118,7 +118,7 @@ EDGE_LOCAL void pt_handle_pt_register_failure(json_t *response, void *callback_d
     tr_debug("Handling register failure.");
     struct pt_device_customer_callback *customer_callback = (struct pt_device_customer_callback *) callback_data;
     connection_t *connection = customer_callback->connection;
-    connection->protocol_translator->registered = false;
+    connection->client_data->registered = false;
     // FIXME: handle registration failure connection close gracefully elsewhere
     //edge_common_write_stop_frame(connection);
 
@@ -201,23 +201,23 @@ pt_status_t pt_register_protocol_translator(connection_t *connection,
                                             pt_response_handler failure_handler,
                                             void *userdata)
 {
-    if (connection == NULL || connection->protocol_translator == NULL) {
+    if (connection == NULL || connection->client_data == NULL) {
         tr_warn("No connection or protocol translator instantiated.");
         return PT_STATUS_ERROR;
     }
-    if (!connection->protocol_translator->name || strlen(connection->protocol_translator->name) == 0) {
+    if (!connection->client_data->name || strlen(connection->client_data->name) == 0) {
         tr_warn("No protocol translator name set.");
         return PT_STATUS_ERROR;
     }
 
-    if (connection->protocol_translator->registered) {
+    if (connection->client_data->registered) {
         tr_warn("Already registered, not able to do duplicate registration.");
         return PT_STATUS_ERROR;
     }
-    tr_info("Registering protocol translator '%s' in pt_api.", connection->protocol_translator->name);
+    tr_info("Registering protocol translator '%s' in pt_api.", connection->client_data->name);
     json_t *register_msg = allocate_base_request("protocol_translator_register");
     json_t *params = json_object_get(register_msg, "params");
-    json_t *name = json_string(connection->protocol_translator->name);
+    json_t *name = json_string(connection->client_data->name);
     struct pt_customer_callback *customer_callback =
         allocate_customer_callback(connection, success_handler, failure_handler, userdata);
     if (register_msg == NULL || params == NULL || name == NULL || customer_callback == NULL) {
@@ -302,12 +302,12 @@ static void parse_objects(pt_object_list_t *objects, json_t *j_objects){
 EDGE_LOCAL pt_status_t check_device_registration_preconditions(connection_t *connection,
                                                                pt_device_t *device, const char *action, const char *message)
 {
-    if (connection == NULL || connection->protocol_translator == NULL) {
+    if (connection == NULL || connection->client_data == NULL) {
         tr_warn("Device %s - no connection or protocol translator instantiated.", action);
         return PT_STATUS_ERROR;
     }
 
-    if (!connection->protocol_translator->registered) {
+    if (!connection->client_data->registered) {
         tr_warn("Device %s -  protocol translator not registered, %s", action, message);
         return PT_STATUS_ERROR;
     }
@@ -429,7 +429,32 @@ pt_status_t pt_unregister_device(connection_t *connection,
                             customer_callback);
 }
 
-pt_device_t *pt_create_device(char* device_id, const uint32_t lifetime, const queuemode_t queuemode, pt_status_t *status)
+pt_device_userdata_t *pt_api_create_device_userdata(void *data, pt_device_free_userdata_cb_t free_userdata_cb)
+{
+    pt_device_userdata_t *userdata = malloc(sizeof(pt_device_userdata_t));
+    if (NULL == userdata && data && free_userdata_cb) {
+        (*free_userdata_cb)(data);
+    }
+    userdata->data = data;
+    userdata->pt_device_free_userdata = free_userdata_cb;
+    return userdata;
+}
+
+static void call_device_free_userdata_conditional(pt_device_userdata_t *userdata)
+{
+    if (userdata) {
+        if (userdata->pt_device_free_userdata && userdata->data) {
+            (*(userdata->pt_device_free_userdata))(userdata->data);
+        }
+        free(userdata);
+    }
+}
+
+pt_device_t *pt_create_device_with_userdata(char *device_id,
+                                            const uint32_t lifetime,
+                                            const queuemode_t queuemode,
+                                            pt_status_t *status,
+                                            pt_device_userdata_t *userdata)
 {
     pt_device_t *device = (pt_device_t*) malloc(sizeof(pt_device_t));
     if (device == NULL) {
@@ -440,17 +465,24 @@ pt_device_t *pt_create_device(char* device_id, const uint32_t lifetime, const qu
     device->device_id = (char *) device_id;
     device->lifetime = lifetime;
     device->queuemode = queuemode;
+    device->userdata = userdata;
 
     pt_object_list_t *objects = (pt_object_list_t *) calloc(1, sizeof(pt_object_list_t));
     if (objects == NULL) {
         *status = PT_STATUS_ALLOCATION_FAIL;
-        pt_device_free(device);
+        call_device_free_userdata_conditional(device->userdata);
+        free(device);
         return NULL;
     }
     ns_list_init(objects);
     device->objects = objects;
     *status = PT_STATUS_SUCCESS;
     return device;
+}
+
+pt_device_t *pt_create_device(char* device_id, const uint32_t lifetime, const queuemode_t queuemode, pt_status_t *status)
+{
+    return pt_create_device_with_userdata(device_id, lifetime, queuemode, status, NULL);
 }
 
 void pt_device_free(pt_device_t *device)
@@ -479,6 +511,7 @@ void pt_device_free(pt_device_t *device)
         }
         free(device->objects);
         free(device->device_id);
+        call_device_free_userdata_conditional(device->userdata);
         free(device);
     }
 }
@@ -736,27 +769,28 @@ void pt_client_connection_destroy(connection_t **connection)
     }
 }
 
-protocol_translator_t *pt_client_create_protocol_translator(char* name)
+client_data_t *pt_client_create_protocol_translator(char* name)
 {
-    protocol_translator_t *pt = calloc(1, sizeof(protocol_translator_t));
-    if (!pt) {
+    client_data_t *client_data = calloc(1, sizeof(client_data_t));
+    if (!client_data) {
         tr_err("Could not allocate memory for protocol translator structure.");
         return NULL;
     }
     // Set the id to invalid
-    if (NULL != pt) {
-        pt->id = -1;
+    if (NULL != client_data) {
+        client_data->id = -1;
     }
-    pt->name = name;
-    pt->registered = false;
-    return pt;
+    client_data->name = name;
+    client_data->registered = false;
+    client_data->method_table = pt_service_method_table;
+    return client_data;
 }
 
-void pt_client_protocol_translator_destroy(protocol_translator_t **pt)
+void pt_client_protocol_translator_destroy(client_data_t **client_data)
 {
-    if (pt && *pt) {
-        free((*pt)->name);
-        free((*pt));
-        *pt = NULL;
+    if (client_data && *client_data) {
+        free((*client_data)->name);
+        free((*client_data));
+        *client_data = NULL;
     }
 }

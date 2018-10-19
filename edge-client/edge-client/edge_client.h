@@ -31,6 +31,7 @@ extern "C" {
 #include "common/constants.h"
 #include "common/pt_api_error_codes.h"
 #include "edge-client/edge_client_byoc.h"
+#include "edge-client/request_context.h"
 
 /**
  * \brief Used to specify if mutex should be reserved during calling a function.
@@ -41,55 +42,12 @@ typedef enum {
 } edgeclient_mutex_action_e;
 
 /**
- * \brief Request context for the Edge client.
+ * \brief Used to read resource attributes
  */
-typedef struct edgeclient_request_context edgeclient_request_context_t;
-
-/**
- * \brief Handler to call when response is available for Edge clients initiated requets.
- * \param ctx Request context which was passed in the original request.
- */
-typedef void (*edgeclient_response_handler)(edgeclient_request_context_t *ctx);
-
-typedef struct edgeclient_request_context {
-    char *device_id; /**< The device id. */
-    uint16_t object_id; /**< The object id. */
-    uint16_t object_instance_id; /**< The object instance id. */
-    uint16_t resource_id; /**< The resource id. */
-    Lwm2mResourceType resource_type; /**< The resource type. */
-    uint8_t *value; /**< The pointer to bytes resulting from decoding text format value to the correct data type. This will be passed to protocol translator. */
-    uint32_t value_len; /**< The size of value buffer. */
-    uint8_t operation; /**< The operation done to the resource. */
-    edgeclient_response_handler success_handler; /**< The success handler to call on success response */
-    edgeclient_response_handler failure_handler; /**< The failure handler to call on failure response */
-    void *connection; /**< The connection context */
-} edgeclient_request_context_t;
-
-/**
- * \brief The request context deallocation function.
- * \param request_context The context to deallocate.
- */
-void edgeclient_deallocate_request_context(edgeclient_request_context_t *request_context);
-
-/**
- * \brief The request context allocation function.
- * \param uri The resource uri of the request.
- * \param value The value for performed action.
- * \param value_len The amount of bytes in the value.
- * \param operation The performed operation
- *        #OPERATION_WRITE or #OPERATION_EXECUTE
- * \param resource_type Data type of the resource.
- * \param success_handler The handler function to call on success response.
- * \param failure_handler The handler function to call on failure response.
- * \param connection The supplied connection context.
- */
-edgeclient_request_context_t *edgeclient_allocate_request_context(
-    const char *uri, const uint8_t *value,
-    uint32_t value_len, uint8_t operation,
-    Lwm2mResourceType resource_type,
-    edgeclient_response_handler success_handler,
-    edgeclient_response_handler failure_handler,
-    void *connection);
+typedef struct edgeclient_resource_attributes_s {
+    Lwm2mResourceType type;
+    uint32_t operations_allowed;
+} edgeclient_resource_attributes_t;
 
 /**
  * \brief callback for handling request writes to protocol translator
@@ -127,6 +85,13 @@ typedef struct {
     handle_error_cb handle_error_cb;
     bool reset_storage;
 } edgeclient_create_parameters_t;
+
+/**
+ * \brief Calls Edge Client's Protocol Translator handle write call-back function.
+ * \param request_context current request context data
+ * \param ctx Endpoint context data.
+ */
+void edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
 
 /**
  * \brief Loads the Mbed Cloud Client credentials (either your own CA or a developer certificate) and sets up the
@@ -259,6 +224,70 @@ bool edgeclient_add_resource(const char *endpoint_name,
 bool edgeclient_verify_value(const uint8_t *value, const uint32_t value_length, Lwm2mResourceType resource_type);
 
 /**
+ * \brief Checks the type of existing resource.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a
+ *        resource under Mbed Edge itself.
+ * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
+ *        integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param attributes_out Pointer to the variable where the resource attributes are written.
+ *                       See ::edgeclient_resource_attributes_t.
+ * \return true  if the resource was found.
+ *         false if the resource wasn't found.
+ */
+bool edgeclient_get_resource_attributes(const char *endpoint_name,
+                                        const uint16_t object_id,
+                                        const uint16_t object_instance_id,
+                                        const uint16_t resource_id,
+                                        edgeclient_resource_attributes_t *attributes_out);
+
+/**
+ * \brief Returns the context (or connection) for the endpoint
+ * \param endpoint_name Name of the endpoint
+ * \param context_out pointer to the variable where the context pointer will be written
+ * \return true  if endpoint was found. context_out pointer will be updated.
+ *         false if endpoint was not found. context_out_pointer is set to NULL.
+ */
+bool edgeclient_get_endpoint_context(const char *endpoint_name, void **context_out);
+
+/**
+ * \brief Update a value to a resource with given path, consisting of endpoint_name (optional), object_id,
+ *        object_instance_id and resource_id.
+ *        If any of the path elements are missing, updating the resource value will fail.
+ *        Using this method, it's not possible to set the type or the allowed operations of the resource.
+ *        See also, `edgeclient_set_resource_value` which has less limitations.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It cannot be NULL.
+ * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
+ *        integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param value The const uint8_t* pointing to a new value buffer.
+ *        For different LWM2M data types there are byte-order restrictions:
+ *        String: UTF-8
+ *        Integer: binary signed integer in network byte-order (8, 16, 32 or 64 bits).
+ *        Float: IEEE 754-2008 floating point value in network byte-order (32 or 64 bits).
+ *        Boolean: 8 bit unsigned integer with value 0 or 1.
+ *        Opaque: sequence of binary data.
+ *        Time: Same representation as Integer.
+ *        Objlnk: Two 16 bit unsigned integers one beside the other.
+ *                First is the Object ID and second is the Object Instance ID.
+ *
+ *        Refer to: OMA Lightweight Machine to Machine Technical Specification
+ *        for data type specifications.
+ * \param value_length The length of the new value.
+ * \return #PT_API_SUCCESS on success
+ *         #PT_API_RESOURCE_NOT_FOUND - The resource was not found
+ *         #PT_API_RESOURCE_NOT_WRITABLE - Write value failed, because the write operation is not allowed.
+ *         #PT_API_INTERNAL_ERROR - The resource exists and is writable, but the writing failed anyway.
+ */
+pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
+                                                      const uint16_t object_id,
+                                                      const uint16_t object_instance_id,
+                                                      const uint16_t resource_id,
+                                                      const uint8_t *value,
+                                                      uint32_t value_length);
+/**
  * \brief Set a value to a resource with given path, consisting of endpoint_name (optional), object_id, object_instance_id and resource_id.
  * If any of the path elements are missing, they will be created before setting the value.
  * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Mbed Edge itself.
@@ -337,7 +366,7 @@ pt_api_result_code_e edgeclient_send_delayed_response(const char *endpoint_name,
  * \param object_id The ID of the object under which the resource is located, a 16- bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
- * \param value_out A pointer to uint8_t*. After a successful call, this will point to the value buffer with the resource value.
+ * \param value_out A pointer to uint8_t*. After a successful call, this will point to the value buffer with the resource value. Client is responsible to free it.
  * \param value_length_out A pointer to the variable where the value length is stored.
  * \return true when the resource was found - value_out and value_length are updated.
  *         false when the resource was not found - value_out and value_length are not updated.
@@ -350,10 +379,47 @@ bool edgeclient_get_resource_value(const char *endpoint_name,
                                    uint32_t *value_length_out);
 
 /**
+ * \brief Get a pointer to the resource value buffer with given path, consisting of endpoint_name (optional),
+ *        object_id, object_instance_id and resource_id.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a
+ *        resource under Mbed Edge itself.
+ * \param object_id The ID of the object under which the resource is located, a 16- bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
+ *        integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param value_out A pointer to uint8_t*. After a successful call, this will point to the value buffer with the
+ *                  resource value. Client is responsible to free it.
+ * \param value_length_out A pointer to the variable where the value length is stored.
+ * \param attributes Pointer to a data structure where attributes are written. See ::edgeclient_resource_attributes_t.
+ *                   Can be used to read for example, operations allowed and resource type.
+ * \return true when the resource was found - value_out and value_length are updated.
+ *         false when the resource was not found - value_out and value_length are not updated.
+ */
+bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
+                                                  const uint16_t object_id,
+                                                  const uint16_t object_instance_id,
+                                                  const uint16_t resource_id,
+                                                  uint8_t **value_out,
+                                                  uint32_t *value_length_out,
+                                                  edgeclient_resource_attributes_t *attributes);
+
+/**
  * \brief Get the internal id assigned to Edge Core device from Mbed Cloud.
  * \return The internal id string. The returned data pointer is borrowed to caller.
  */
 const char* edgeclient_get_internal_id();
+
+/**
+ * \brief Get the account id assigned to Edge Core device from Mbed Cloud.
+ * \return The account id string. The returned data pointer is borrowed to caller.
+ */
+const char* edgeclient_get_account_id();
+
+/**
+ * \brief Get the Lwm2m server URI assigned to Edge Core device from Mbed Cloud.
+ * \return The Lwm2m server URI string. The returned data pointer is borrowed to caller.
+ */
+const char* edgeclient_get_lwm2m_server_uri();
 
 /**
  * \brief Get the endpoint name assigned to Edge Core device.

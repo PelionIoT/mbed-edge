@@ -282,19 +282,40 @@ typedef struct pt_object {
 
 typedef NS_LIST_HEAD(pt_object_t, link) pt_object_list_t;
 
+struct pt_device_userdata_s;
+
+typedef void (*pt_device_free_userdata_cb_t)(void *data);
+
+/**
+ * \brief Contains fields for client user data.
+ *
+ * If the client wants to associate data with the device, this structure may be used.
+ * Create this structure using pt_api_create_device_userdata.
+ * The PT API will deallocate this structure and call the pt_device_free_userdata call-back when the pt_device_t
+ * structure is destroyed. However the client is responsible to free the pt_device_userdata_t#data using the
+ * pt_device_userdata_t#pt_device_free_userdata call-back or in some other way.
+ */
+typedef struct pt_device_userdata_s {
+    void *data; /**< Pointer to client's data that may be associated with the device. */
+    pt_device_free_userdata_cb_t
+            pt_device_free_userdata; /**< Points to customer implementation to free the userdata. */
+} pt_device_userdata_t;
+
 typedef struct pt_device {
     ns_list_link_t link;
     char* device_id;
     uint32_t lifetime;
     queuemode_t queuemode;
+    pt_device_userdata_t *userdata;
     pt_object_list_t *objects;
 } pt_device_t;
 
-typedef struct protocol_translator {
+typedef struct client_data_s {
     char* name;
     bool registered;
     int id;
-} protocol_translator_t;
+    void* method_table;
+} client_data_t;
 
 /**
  * \brief A structure to hold the callbacks of the protocol translator
@@ -398,6 +419,41 @@ pt_status_t pt_unregister_device(connection_t *connection,
                                  pt_device_response_handler success_handler,
                                  pt_device_response_handler failure_handler,
                                  void *userdata);
+
+/**
+ * \brief Used to create the pt_device_userdata_s structure.
+ * \param data Pointer to client's data to associate with the device.
+ * \param free_userdata_cb Pointer to function which will be called to free the data.
+ *                         NULL value is allowed. In this case no user data free
+ *                         function will be called. It's possible that there is no need
+ *                         to deallocate the data.
+ * \return pointer to `pt_device_userdata_t` if memory allocation succeeds.
+ *         NULL if memory allocation fails. In this case calls `free_userdata_cb` immediately if applicable.
+ */
+pt_device_userdata_t *pt_api_create_device_userdata(void *data, pt_device_free_userdata_cb_t free_userdata_cb);
+
+/**
+ * \brief Creates the device structure.
+ *
+ * \param device_id The unique device identifier. The ownership of the
+ * `device_id` is transferred to returned `pt_device_t`
+ * \param lifetime The expected lifetime for the device. The device
+ * registrations must be updated. This parameter is reserved and currently not used.
+ * The translated endpoints are tracked withing the parent Edge device lifetime.
+ * \param queuemode The queue mode before the time is elapsed.
+ * \param status A pointer to user provided variable for the operation status
+ * output. If a device was created, the status will be set to `PT_STATUS_SUCCESS`.
+ * \param userdata The user data to add to the `pt_device_t` structure. Create this structure with
+ *                 `pt_api_create_device_userdata`.
+ *                 Note! If memory allocation fails in this function, userdata free function call-back will be called
+ *                 immediately.
+ * \return The allocated structure.\n The caller will have the ownership of the reserved memory.
+ */
+pt_device_t *pt_create_device_with_userdata(char *device_id,
+                                            const uint32_t lifetime,
+                                            const queuemode_t queuemode,
+                                            pt_status_t *status,
+                                            pt_device_userdata_t *userdata);
 
 /**
  * \brief Creates the device structure.
@@ -583,13 +639,14 @@ pt_status_t pt_write_value(connection_t *connection,
 /**
  * \brief The function to handle the received write calls from Mbed Edge Core.
  *
+ * \param request The request object.
  * \param json_params The params object from JSON request.
  * \param result The output parameter to return the result of the function.
  * \param userdata The internal RPC supplied context.
  * \return 0 is returned for the successful handling of the write request.\n
  *         1 is returned for failure.
  */
-int pt_receive_write_value(json_t *json_params, json_t **result, void *userdata);
+int pt_receive_write_value(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief The function to handle the received close call from Mbed Edge Core.

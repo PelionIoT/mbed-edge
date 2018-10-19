@@ -7,17 +7,17 @@ include_directories (include)
 include_directories (lib/jsonrpc)
 
 # Jansson include, include generated headers too
-include_directories (lib/jansson/src)
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/jansson/include)
+include_directories (lib/jansson/jansson/src)
+include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/jansson/jansson/include)
 
 # Libevent include, include generated headers too
-include_directories (lib/libevent/include)
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libevent/include)
+include_directories (lib/libevent/libevent/include)
+include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libevent/libevent/include)
 
 # Libwebsockets include
-include_directories (lib/libwebsockets/lib)
-include_directories (${CMAKE_BINARY_DIR}/lib/libwebsockets)
-include_directories (${CMAKE_BINARY_DIR}/lib/libwebsockets/include)
+include_directories (lib/libwebsockets/libwebsockets/lib)
+include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets)
+include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets/include)
 
 # mbedtls
 include_directories (lib/mbedtls/include)
@@ -46,6 +46,7 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-coap/mbed-coap
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/ns-hal-pal)
 
 # nanostack library
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/nanostack-libservice/)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/nanostack-libservice/mbed-client-libservice)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/sal-stack-nanostack-eventloop/nanostack-event-loop)
 

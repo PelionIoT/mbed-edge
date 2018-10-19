@@ -1,0 +1,5 @@
+set (JANSSON_EXAMPLES OFF CACHE BOOL "Disable example from jansson.")
+set (JANSSON_BUILD_DOCS OFF CACHE BOOL "Disable documentation generation for jansson.")
+set (JANSSON_WITHOUT_TESTS ON CACHE BOOL "Disable tests from jansson.")
+set (JANSSON_INSTALL OFF CACHE BOOL "Disable install target from jansson.")
+add_subdirectory (jansson)

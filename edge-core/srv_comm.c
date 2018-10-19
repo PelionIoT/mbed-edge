@@ -121,7 +121,7 @@ int edge_core_write_data_frame_websocket(struct connection *connection, char *da
         tr_info("Protocol translator is closing down, dropping message: %.*s", (int) len, data);
         return -1;
     }
-    return send_to_websocket(data, len, connection->transport_connection->transport);
+    return send_to_websocket((uint8_t *) data, len, connection->transport_connection->transport);
 }
 
 void edge_core_process_data_frame_websocket(struct connection *connection,
@@ -129,5 +129,6 @@ void edge_core_process_data_frame_websocket(struct connection *connection,
                                             size_t len,
                                             const char *data)
 {
-    (void) rpc_handle_message(data, len, connection, edge_core_write_data_frame_websocket, protocol_error);
+    (void) rpc_handle_message(data, len, connection, connection->client_data->method_table,
+                              edge_core_write_data_frame_websocket, protocol_error);
 }

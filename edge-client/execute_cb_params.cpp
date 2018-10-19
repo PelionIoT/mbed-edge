@@ -27,11 +27,11 @@ extern "C" {
 #include <stdlib.h>
 #include "mbed-trace/mbed_trace.h"
 #include <common/test_support.h>
+#include <assert.h>
 }
 #include "edge-client/edge_client.h"
 #include "m2mresource.h"
 #include "edge-client/execute_cb_params.h"
-#include "edge-client/edge_client_internal.h"
 
 EDGE_LOCAL void edgeclient_execute_success(edgeclient_request_context_t *ctx)
 {
@@ -58,6 +58,13 @@ ExecuteCallbackParams::ExecuteCallbackParams(void *endpoint_context) : ctx(endpo
 bool ExecuteCallbackParams::set_uri(const char *device_name, uint16_t object_id,
                           uint16_t object_instance_id, uint16_t resource_id)
 {
+    if (uri) {
+        // CppCheck finding, this might leak memory. Could free() but it was 
+        // decided to go with log & assert route instead
+        tr_error("\"Not supposed to happen\"-branch of code just happened");
+        assert(0);
+    }
+
     uri = (char *) calloc(2 + strlen(device_name) + 1 + edge_int_length(object_id) + 1 +
                                   edge_int_length(object_instance_id) + 1 + edge_int_length(resource_id) + 1,
                           1);
@@ -91,11 +98,18 @@ void ExecuteCallbackParams::execute(void *params)
 
     tr_info("resource executed: url=%s, data length=%d", uri, length);
 
-    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(
-        uri, buffer, length, OPERATION_EXECUTE, LWM2M_OPAQUE, edgeclient_execute_success, edgeclient_execute_failure, ctx);
+    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
+                                                                                    buffer,
+                                                                                    length,
+                                                                                    EDGECLIENT_VALUE_IN_BINARY,
+                                                                                    OPERATION_EXECUTE,
+                                                                                    LWM2M_OPAQUE,
+                                                                                    edgeclient_execute_success,
+                                                                                    edgeclient_execute_failure,
+                                                                                    ctx);
 
     if (request_ctx) {
-        client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
+        edgeclient_write_to_pt_cb(request_ctx, ctx);
     } else {
         tr_err("Could not write execution to protocol translator.");
     }

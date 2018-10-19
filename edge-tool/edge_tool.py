@@ -19,6 +19,7 @@
 # ----------------------------------------------------------------------------
 
 """Observe and manipulate Mbed Edge device values.
+   Convert developer certificates to CBOR for runtime injection.
 
 Usage:
   edge_tool.py observe --device-id=<device-id> --resource-path=<resource-path>
@@ -26,7 +27,7 @@ Usage:
   edge_tool.py read    --device-id=<device-id> --resource-path=<resource-path>
   edge_tool.py write   --device-id=<device-id> --resource-path=<resource-path> --new-resource-value=<value>
   edge_tool.py filter  (--host-edge=<device-id> | --edge-devices) [--connected]
-  edge_tool.py convert-dev-cert (--development-certificate <path> --cbor <path>)
+  edge_tool.py convert-dev-cert (--development-certificate <path> --cbor <path>) --update-resource <path>
   edge_tool.py --help
 
 Options:
@@ -37,6 +38,7 @@ Options:
   --edge-devices                   Filter and list all Edge devices.
   --connected                      Filter only currently connected devices.
   --development-certificate path>  The path to Mbed Cloud development certificate C source file.
+  --update-resource <path>         The path to `update_default_resources.c` source file.
   --cbor <path>                    The CBOR output file path.
 """
 
@@ -76,7 +78,9 @@ def main():
         elif args["--host-edge"]:
             filter_edge_hosted_devices(args["--host-edge"], args["--connected"])
     if (args["convert-dev-cert"]):
-        converter = CBORConverter(args["--development-certificate"], args["--cbor"])
+        converter = CBORConverter(args["--development-certificate"],
+                                  args["--update-resource"],
+                                  args["--cbor"])
         converter.convert_to_cbor()
 
 

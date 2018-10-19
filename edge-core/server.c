@@ -29,6 +29,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include "edge-core/client_type.h"
 #include "edge-core/protocol_api.h"
 #include "edge-core/protocol_api_internal.h"
 #include "edge-core/http_server.h"
@@ -41,12 +42,11 @@
 struct context;
 struct connection;
 
-struct connection* connection_init(struct context *ctx)
+struct connection* connection_init(struct context *ctx, client_data_t *client_data)
 {
     struct connection *connection = (struct connection *)calloc(1, sizeof(struct connection));
-    protocol_translator_t *pt = edge_core_create_protocol_translator();
 
-    connection->protocol_translator = pt;
+    connection->client_data = client_data;
     connection->ctx = ctx;
     return connection;
 }
@@ -65,7 +65,7 @@ uint32_t connection_free(struct connection *connection)
     edgeclient_remove_resources_owned_by_client((void *) connection);
     uint32_t num_endpoints_removed = edgeclient_remove_objects_owned_by_client((void *) connection);
 
-    edge_core_protocol_translator_destroy(&connection->protocol_translator);
+    edge_core_client_data_destroy(&connection->client_data);
 
     connection_destroy(&connection);
     return num_endpoints_removed;

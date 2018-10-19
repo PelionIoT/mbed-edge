@@ -21,6 +21,10 @@
 #include "mbed-client/m2mconfig.h"
 #include "mbed-client/functionpointer.h"
 
+#include "sn_coap_protocol.h"
+#include "nsdl-c/sn_nsdl_lib.h"
+
+
 //FORWARD DECLARATION
 class M2MSecurity;
 class M2MObject;
@@ -31,10 +35,10 @@ typedef Vector<M2MObject*> M2MObjectList;
 typedef Vector<M2MBase*> M2MBaseList;
 typedef FP callback_handler;
 
-// TODO! Add more errors
 typedef enum request_error_e {
-    FAILED_TO_SEND_MSG = 0,
-    FAILED_TO_ALLOCATE_MEMORY = 1
+    FAILED_TO_SEND_MSG = 0, // Message sending has failed
+    FAILED_TO_ALLOCATE_MEMORY = 1, // Can't allocate memory for the request
+    ERROR_NOT_REGISTERED = 2 // Not registered, request will NOT to be stored for resending purposes
 } request_error_t;
 
 typedef request_error_e get_data_req_error_e;
@@ -48,11 +52,13 @@ typedef request_error_t get_data_req_error_t;
  * @param buffer_size Size of the payload.
  * @param total_size Total size of the package. This information is available only in first package.
  *                   Caller must store this information to detect when the download has completed.
+ * @param last_block True when this is the last block received, false if more blocks will come.
  * @param context Application context
 */
 typedef void (*request_data_cb)(const uint8_t *buffer,
                                 size_t buffer_size,
                                 size_t total_size,
+                                bool last_block,
                                 void *context);
 typedef request_data_cb get_data_cb; // For backward compatibility
 
@@ -276,13 +282,13 @@ public:
      * @brief Updates the endpoint name.
      * @param name New endpoint name
      */
-    virtual void update_endpoint(String &name) = 0;
+    virtual void update_endpoint(const String &name) = 0;
 
     /**
      * @brief Updates the domain name.
      * @param domain New domain name
      */
-    virtual void update_domain(String &domain) = 0;
+    virtual void update_domain(const String &domain) = 0;
 
 
     /**
@@ -299,6 +305,7 @@ public:
 
     /**
      * @brief Sends the CoAP GET request to the server.
+     * @type Download type.
      * @uri Uri path to the data.
      * @offset Data offset.
      * @async In async mode application must call this API again with the updated offset.
@@ -306,7 +313,8 @@ public:
      * @get_data_cb Callback which is triggered once there is data available.
      * @get_data_error_cb Callback which is trigged in case of any error.
     */
-    virtual void get_data_request(const char *uri,
+    virtual void get_data_request(DownloadType type,
+                                  const char *uri,
                                   const size_t offset,
                                   const bool async,
                                   get_data_cb,

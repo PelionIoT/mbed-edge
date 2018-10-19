@@ -106,8 +106,13 @@ EDGE_LOCAL char *edge_trace_prefix(size_t size)
     return trace_prefix;
 }
 
-void edge_trace_init()
+void edge_trace_init(int color_mode)
 {
+    if (!color_mode) {
+        // Remove color mode and clean the log from ANSI color code clutter.
+        mbed_trace_config_set(mbed_trace_config_get() & ~TRACE_MODE_COLOR);
+    }
+
     mbed_trace_init();
     trace_mutex_init();
 // enabling following will require to expecting wait mutexes for every trace during the tests
@@ -131,4 +136,5 @@ void edge_trace_destroy()
     mbed_trace_mutex_release_function_set(NULL);
 #endif
     trace_mutex_destroy();
+    mbed_trace_free();
 }

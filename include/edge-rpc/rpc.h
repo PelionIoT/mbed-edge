@@ -22,6 +22,7 @@
 #define RPC_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "jsonrpc/jsonrpc.h"
 #include "common/default_message_id_generator.h"
@@ -92,7 +93,7 @@ typedef void (*rpc_free_func)(void* userdata);
  * \brief The function prototype for the underlying transport mechanism of the write function.
  *
  * \param connection The connection to which to write the data.
- * \param data The byte data to write.
+ * \param data The byte data to write. Ownership of this data is transferred to write_func.
  * \param len The length of the data to write.
  * \return 0 if the write was successful.\n
  *         Non-zero if the write failed.
@@ -122,13 +123,6 @@ bool rpc_message_list_is_empty();
 void rpc_set_generate_msg_id(generate_msg_id generate_msg_id);
 
 /**
- * \brief Register the json RPC handler methods.
- *
- * \param method_table[] The `json_rpc_method_entry_t` entries for RPC.
- */
-void rpc_init(struct jsonrpc_method_entry_t method_table[]);
-
-/**
  * \brief Handles the sending of a json-rpc message and generates an ID for the message.
  *
  * \param message The json message to deserialize.
@@ -154,6 +148,17 @@ int rpc_construct_message(json_t *message,
                           char **message_id);
 
 /**
+ * \brief Used to create the json-rpc response.
+ *
+ * \param response The json message to serialize.
+ * \param data The serialized JSON message.
+ * \param data_len The size of the serialized JSON message.
+ * \return 0 for success.\n
+ *         1 for failure.
+ */
+int rpc_construct_response(json_t *response, char **data, size_t *data_len);
+
+/**
  * \brief Constructs and sends the message. If successfully sent, adds the message entry
  * to RPC message entry list which is used to match the requests to response messages.
  *
@@ -176,10 +181,29 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
                                        write_func write_function);
 
 /**
+ * \brief Constructs and sends the response.
+ *
+ * \param connection The connection to write the data for.
+ * \param response The json response to serialize.
+ * \param free_func The internal free function to be called after success or failure of this function call.
+ * \param customer_callback_ctx The user-supplied customer callback context data pointer that is passed to the
+ *        free_func.
+ * \return 0 if the response was successfully sent.\n
+ *        -1 if the response couldn't be allocated.\n
+ *        -2 if the response couldn't be sent.
+ */ int32_t
+rpc_construct_and_send_response(struct connection *connection,
+                                json_t *response,
+                                rpc_free_func free_func,
+                                void *customer_callback_ctx,
+                                write_func write_function);
+
+/**
  * \brief Handles the incoming raw json-rpc string from the connection.
  * \param data The byte data buffer of the received data.
  * \param len The length of the byte data buffer.
  * \param connection The connection to which the data belongs.
+ * \param method_table The method array for JSONRPC API.
  * \param write_func The function to use for writing data back.
  * \param protocol_error The flag is set to true if the frame data cannot be parsed. Otherwise it is set to false.
  * \return 0 for success.\n
@@ -188,6 +212,7 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
 int rpc_handle_message(const char *data,
                        size_t len,
                        struct connection *connection,
+                       struct jsonrpc_method_entry_t *method_table,
                        write_func write_function,
                        bool *protocol_error);
 

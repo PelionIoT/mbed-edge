@@ -2,7 +2,7 @@
 
 This document contains the instructions for using and developing Mbed Edge.
 
-The full Mbed Edge documentation is [part of our Mbed Cloud documentation site](https://cloud.mbed.com/docs/current/connecting/mbed-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+The full Mbed Edge documentation is [part of our Mbed Cloud documentation site](https://cloud.mbed.com/docs/current/connecting/device-management-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
 
 ## License
 
@@ -23,13 +23,9 @@ The contents of the repository.
 | `edge-core`           | Edge Core server process.
 | `edge-rpc`            | Common RPC functionality of edge-core and pt-client.
 | `edge-tool`           | A helper tool to observe and manipulate Edge mediated resources.
-| `examples`            | Examples for Mbed Edge.
 | `include`             | Header files for Mbed Edge.
 | `lib`                 | Mbed Edge library dependencies
-| `lorapt-example`      | Protocol translator example for WISE-3610 Lora GW.
 | `pt-client`           | Protocol translator client stub.
-| `pt-example`          | Protocol translator example implementation.
-| `WISE-3610-SDK`       | WISE-3610 SDK integration files
 
 ### Files
 
@@ -38,7 +34,6 @@ The contents of the repository.
 | `CMakeLists.txt`                  | The root CMakeLists file.
 | `git_details.cmake`               | CMake file used for generating the version information.
 | `config/mbed_cloud_client_user_config.h` | A configuration file for the Mbed Cloud Client settings.
-| `config/mbed_client_user_config.h`       | A configuration file for the Mbed Client settings.
 | `config/mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
 
 ## Dependencies
@@ -47,7 +42,6 @@ Currently, there are a few dependencies in the build system:
 
 * librt
 * libstdc++
-* OPTIONAL: libmosquitto (for lorapt-example)
 
 Install these in Ubuntu 16.04:
 
@@ -91,7 +85,7 @@ $ cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=OFF ..
 $ make
 ```
 
-In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-tool` to generate the `update_default_resources.c`, 
+In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-tool` to generate the `update_default_resources.c`,
 see the documentation on [getting the update resources](#getting-the-update-resources).
 
 With the `BYOC_MODE` it is possible to inject the Mbed Cloud Client configuration as CBOR file. The `--cbor-conf` argument takes the path to CBOR file. The `edge-tool` can be used to convert the C source file Mbed Cloud developer credentials file to CBOR format. See the instructions in [`edge-tool/README.md`](./edge-tool/README.md)
@@ -204,6 +198,17 @@ correct interface ID for example for the UDP/server like functionality to get th
 correct IP address of the interface. Setting this value helps to select the best
 network interface if there are several available.
 
+## Configuring the log messages
+
+You change the verbosity of the log messages (useful for debugging) by giving `-DTRACE_LEVEL=DEBUG` when creating the CMake build:
+
+```
+$ mkdir build
+$ cd build
+$ cmake -D[MODE] -DTRACE_LEVEL=[DEBUG|INFO|WARN|ERROR] ..
+$ make
+```
+
 ### Root of Trust device key generation
 
 The Mbed Edge versions before `CR-0.4.1` contained a Mbed Cloud Client versions
@@ -234,7 +239,7 @@ Edge build options, whereas the `toolchains`-folder is used for setting the buil
 environment variables. After creating the custom cmake file, the `./cmake/edge_configure.cmake`
 needs to be edited to include the new targets.
 
-### Building executables
+### Building the Mbed Edge Core server
 
 You can use the following commands to do a developer build:
 
@@ -246,14 +251,7 @@ $ cmake -DDEVELOPER_MODE=ON ..
 $ make
 ```
 
-The built binaries are in `build/bin`.
-
-The following executables will be in the folder:
-
-- `edge-core` - The Mbed Edge Core server.
-- `pt-example` - The protocol translator application (example).
-- `lorapt-example` - The LoRa protocol translator (example).
-(Only built if `libmosquitto` is installed)
+The built `edge-core` binary will be in `build/bin`-folder.
 
 ### Building Mbed Edge Doxygen API
 
@@ -269,8 +267,7 @@ $ make edge-doc
 The generated documentation can be found from the `build-doc/doxygen`-folder.
 
 ### General info for running the binaries
-
-To run the Mbed Edge example, start Edge Core first:
+Before running any Protocol Translator clients, start Edge Core first, for example like following:
 
 ```
 $ ./edge-core --edge-pt-domain-socket <domain-socket> -o <http-port>
@@ -297,7 +294,7 @@ when starting the server. This does not remove the devices and settings in the c
 You need to remove them manually, for example using the Mbed Cloud Portal.
 
 You can set the location of the configuration directory in your Edge target configuration file,
-for example: `cmake/targets/wise3610.cmake` by changing the values of
+for example: `cmake/targets/yocto.cmake` by changing the values of
 `PAL_FS_MOUNT_POINT_PRIMARY` and `PAL_FS_MOUNT_POINT_SECONDARY`.
 
 <span class="notes">**Note:** Do not add trailing `/` to the paths.
@@ -314,16 +311,8 @@ If the secondary mount point is different than the primary mount point, it will 
 After starting Edge Core, you can start the protocol translator. It connects
 then to Edge Core:
 
-```
-$ ./pt-example --edge-domain-socket <domain-socket> --protocol-translator-name <protocol-translator-name>
-```
+### Protocol translator examples
 
-In the pt-example, `edge-domain-socket` is the domain socket path  where edge-core is waiting for the connection. The `protocol-translator-name` is the name of the protocol
-translator connection to Mbed Edge. The default domain socket path  to connect the
-protocol translator is `/tmp/edge.sock`.
-
-To see other command-line options, write:
-
-```
-$ ./pt-example --help
-```
+Some protocol translator example implementations exist. These can be found from their own
+[Github repository](https://github.com/ARMmbed/mbed-edge-examples). The repository contains
+instructions on building and running the examples.

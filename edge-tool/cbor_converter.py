@@ -18,14 +18,21 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 
+import os
 import cbor2
 import struct
 from pyclibrary import CParser
 from collections import namedtuple
 
 CERTIFICATE_KEYS = ('MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE',
-                    'MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE')
+                    'MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE',
+                    'arm_uc_default_certificate')
+
 KEY_KEYS = ('MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY')
+
+UPDATE_KEYS = ('arm_uc_default_certificate',
+               'arm_uc_class_id',
+               'arm_uc_vendor_id')
 
 KEY_MAP = {
     'MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE': 'mbed.BootstrapDeviceCert',
@@ -40,7 +47,10 @@ KEY_MAP = {
     'MBED_CLOUD_DEV_DEVICE_TYPE': 'mbed.DeviceType',
     'MBED_CLOUD_DEV_HARDWARE_VERSION': 'mbed.HardwareVersion',
     'MBED_CLOUD_DEV_MEMORY_TOTAL_KB': 'mbed.MemoryTotalKB',
-    }
+    'arm_uc_default_certificate': 'mbed.UpdateAuthCert',
+    'arm_uc_class_id': 'mbed.ClassId',
+    'arm_uc_vendor_id': 'mbed.VendorId'
+}
 
 ConfigParam = namedtuple('ConfigParam', ['Data', 'Name'])
 Certificate = namedtuple('Certificate', ['Data', 'Format', 'Name'])
@@ -48,14 +58,31 @@ Key = namedtuple('Key', ['Data', 'Format', 'Name', 'Type'])
 
 class CBORConverter():
 
-    def __init__(self, development_certificate, cbor_file):
+    def __init__(self, development_certificate, update_resource, cbor_file):
         self.development_certificate = development_certificate
+        self.update_resource = update_resource
         self.cbor_file = cbor_file
 
 
+    def __check_file_exists(self, path):
+        if not os.path.isfile(path):
+            print("File '%s' does not exist.")
+            return False
+        return True
+
     def parse_c_file(self):
-        parser = CParser([self.development_certificate])
-        return parser.defs.get('values')
+        if not self.__check_file_exists(self.development_certificate) or \
+           not self.__check_file_exists(self.update_resource):
+            return None
+
+        values = {}
+        values.update(CParser([self.development_certificate]).defs.get('values'))
+        values.update(CParser([self.update_resource],
+                              macros={
+                                  'MBED_CLOUD_DEV_UPDATE_ID' : 1,
+                                  'MBED_CLOUD_DEV_UPDATE_CERT' : 1
+                            }).defs.get('values'))
+        return values
 
 
     def create_cbor_data(self, vars):
@@ -79,6 +106,10 @@ class CBORConverter():
                     byte_data = struct.pack('%sB' % len(var), *var);
                     private_key = Key(byte_data, 'der', cbor_var_key, 'ECCPrivate')._asdict()
                     cbor_data['Keys'].append(private_key)
+                elif key in UPDATE_KEYS:
+                    byte_data = struct.pack('%sB' % len(var), *var)
+                    config_param = ConfigParam(byte_data, cbor_var_key)._asdict()
+                    cbor_data['ConfigParams'].append(config_param)
                 else:
                     config_param = ConfigParam(var, cbor_var_key)._asdict()
                     cbor_data['ConfigParams'].append(config_param)
@@ -90,6 +121,9 @@ class CBORConverter():
 
     def convert_to_cbor(self):
         vars = self.parse_c_file()
-        cbor_data = self.create_cbor_data(vars)
-        with open(self.cbor_file, 'wb') as out_file:
-            cbor2.dump(cbor_data, out_file)
+        if not vars:
+            print("No variables parsed.")
+        else:
+            cbor_data = self.create_cbor_data(vars)
+            with open(self.cbor_file, 'wb') as out_file:
+                cbor2.dump(cbor_data, out_file)

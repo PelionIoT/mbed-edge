@@ -37,4 +37,9 @@
 /* set download buffer size in bytes (min. 1024 bytes) */
 #define MBED_CLOUD_CLIENT_UPDATE_BUFFER          (2 * 1024 * 1024)
 
-#endif /* MBED_CLOUD_CLIENT_USER_CONFIG_H */
+/* set the TCP KEEPALIVE values */
+#define MBED_CLIENT_TCP_KEEPALIVE_INTERVAL 60
+#define MBED_CLIENT_TCP_KEEPALIVE_TIME 60
+
+#endif /* MBED_CLIENT_USER_CONFIG_H */
+

@@ -6,7 +6,7 @@ The API documentation should be used together with the
 
 The Mbed Edge APIs allow the developers to create protocol translators to adapt
 devices to be managed with Mbed Cloud that use non-IP based protocols.
-These can use for example BacNET, Zigbee, BLE or LoRa protocols. Also devices that have
+These can use for example BacNET, Zigbee, BLE, LoRa or MQTT protocols. Also devices that have
 IP connectivity but cannot host full Mbed Cloud Client can be adapted with Mbed
 Edge API trough the protocol translator.
 

@@ -40,7 +40,9 @@ extern "C" {
 #include "common/constants.h"
 #include "common/test_support.h"
 #include "edge-client/edge_client.h"
+extern "C" {
 #include "edge-client/edge_client_format_values.h"
+}
 #include "edge-client/edge_client_impl.h"
 #include "edge-client/edge_client_internal.h"
 #include "edge-client/edge_client_byoc.h"
@@ -48,6 +50,8 @@ extern "C" {
 #include "edge-client/execute_cb_params.h"
 #include "edge-client/execute_cb_params_base.h"
 #include "edge-client/eventloop_tracing.h"
+#include "edge-client/edge_client_mgmt.h"
+#include "edge-client/request_context.h"
 #include "mbed-trace/mbed_trace.h"
 #include "mbed-client/m2mstring.h"
 #include "mbed-client/m2minterfacefactory.h"
@@ -100,151 +104,6 @@ edgeclient_data_s::~edgeclient_data_s()
     destroy_resource_list(resource_list);
 }
 
-void edgeclient_deallocate_request_context(edgeclient_request_context *request_context)
-{
-    if (request_context->value != NULL) {
-        free(request_context->value);
-    }
-    free(request_context->device_id);
-    free(request_context);
-}
-
-edgeclient_request_context_t *edgeclient_allocate_request_context(
-    const char *original_uri, const uint8_t *value,
-    uint32_t value_len, uint8_t operation,
-    Lwm2mResourceType resource_type,
-    edgeclient_response_handler success_handler,
-    edgeclient_response_handler failure_handler,
-    void *connection)
-{
-    uint8_t *value_bytes_buf = NULL;
-    size_t value_bytes_len = 0;
-    char* uri = NULL;
-    char *saveptr;
-    char *device_id = NULL;
-    char* str_object_id = NULL;
-    char* str_object_instance_id = NULL;
-    char* str_resource_id = NULL;
-    int rc = 0;
-
-    if (!original_uri || strlen(original_uri) == 0) {
-        tr_err("NULL or empty uri passed to write context allocation.");
-        return NULL;
-    }
-
-    edgeclient_request_context_t *ctx =
-        (edgeclient_request_context_t*) malloc(sizeof(edgeclient_request_context_t));
-    if (!ctx) {
-        tr_err("Could not allocate request context structure.");
-        return NULL;
-    }
-
-    // Our code is expecting that the buffer is null terminated. So let's add a null termination!
-    const uint8_t *orig_value = value;
-    uint8_t *copied_value = NULL;
-    if (value) {
-        value = (uint8_t *) malloc(value_len + 1);
-        if (!value) {
-            tr_err("edgeclient_endpoint_value_set_handler - cannot duplicate value to null terminate it!");
-            free(ctx);
-            return NULL;
-        }
-        copied_value = (uint8_t *) value;
-        memcpy(copied_value, orig_value, value_len);
-        copied_value[value_len] = '\0';
-    }
-
-    /*
-     * Decode the text format value from cloud client into bytebuffer in correct
-     * data type for protocol translator
-     */
-    if (operation == OPERATION_WRITE) {
-        value_bytes_len = text_format_to_value(resource_type, value, value_len, &value_bytes_buf);
-        if (value_bytes_buf == NULL) {
-            tr_err("Could not decode resource value to correct type");
-            goto cleanup;
-        }
-    }
-
-    /*
-     * Must copy the original uri to new buffer, the strok function will modify the data
-     */
-    uri = strndup(original_uri, strlen(original_uri));
-    if (uri == NULL) {
-        tr_err("Could not allocate copy of original uri for request context.");
-        goto cleanup;
-    }
-    /*
-     * Split the URI to ids
-     * 1) For URIs starting with `d/` , the `uri + 2` skips the starting `d/` from translated endpoint uris,
-     *    Example: `d/device_name/5432/0/0`.
-     * 2) For URIs that don't start with `d/` assume the device id is NULL.
-     *    Example: 3/0/5
-     */
-    if (strncmp(uri, "d/", 2) == 0) {
-        char* tokenized = strtok_r(uri + 2, "/", &saveptr);
-        if (tokenized) {
-            device_id = strdup(tokenized);
-            if (device_id == NULL) {
-                tr_err("Could not duplicate device id string");
-                goto cleanup;
-            }
-        }
-        else {
-            tr_err("Could not tokenize the URI string");
-            goto cleanup;
-        }
-    } else {
-        saveptr = uri;
-    }
-    str_object_id = strtok_r(NULL, "/", &saveptr);
-    str_object_instance_id = strtok_r(NULL, "/", &saveptr);
-    str_resource_id = strtok_r(NULL, "/", &saveptr);
-
-    uint16_t object_id;
-    uint16_t object_instance_id;
-    uint16_t resource_id;
-    rc = edge_str_to_uint16_t(str_object_id, &object_id);
-    rc = rc | edge_str_to_uint16_t(str_object_instance_id, &object_instance_id);
-    rc = rc | edge_str_to_uint16_t(str_resource_id, &resource_id);
-
-    if (rc == 1) {
-        tr_err("Could not parse valid url for resource.");
-        goto cleanup;
-    }
-
-    ctx->device_id = device_id;
-    ctx->object_id = object_id;
-    ctx->object_instance_id = object_instance_id;
-    ctx->resource_id = resource_id;
-    if (operation == OPERATION_WRITE) {
-        ctx->value = value_bytes_buf;
-        ctx->value_len = value_bytes_len;
-    }
-    else {
-        ctx->value = (uint8_t *) malloc(value_len);
-        memcpy(ctx->value, value, value_len);
-        ctx->value_len = value_len;
-    }
-    ctx->resource_type = resource_type;
-    ctx->operation = operation;
-    ctx->success_handler = success_handler;
-    ctx->failure_handler = failure_handler;
-    ctx->connection = connection;
-
-    free(uri);
-    free(copied_value);
-    return ctx;
-
-    cleanup:
-        free(copied_value);
-        free(device_id);
-        free(uri);
-        free(value_bytes_buf);
-        free(ctx);
-
-    return NULL;
-}
 
 EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list)
 {
@@ -326,14 +185,16 @@ EDGE_LOCAL void edgeclient_endpoint_value_set_handler(const M2MResourceBase *res
             if (ctx != NULL) {
                 tr_info("Value write initiated to protocol translator for %s with size %u", uri_path, value_length);
 
-                edgeclient_request_context_t *request_ctx =
-                    edgeclient_allocate_request_context(uri_path,
-                                                        value, value_length,
-                                                        OPERATION_WRITE,
-                                                        resource_type,
-                                                        edgeclient_write_success,
-                                                        edgeclient_write_failure,
-                                                        ctx);
+                edgeclient_request_context_t
+                        *request_ctx = edgeclient_allocate_request_context(uri_path,
+                                                                           value,
+                                                                           value_length,
+                                                                           EDGECLIENT_VALUE_IN_TEXT,
+                                                                           OPERATION_WRITE,
+                                                                           resource_type,
+                                                                           edgeclient_write_success,
+                                                                           edgeclient_write_failure,
+                                                                           ctx);
                 if (request_ctx) {
                     client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
                 } else {
@@ -473,13 +334,7 @@ EDGE_LOCAL uint32_t edgeclient_remove_objects_from_list(M2MBaseList &list, void 
     while (index < list.size()) {
         M2MBase *base = list[index];
         assert(base != NULL);
-        /*
-         * Must call the function `name()`, tests expect that it gets called.
-         * This causes compiler warning when debug logs are disabled,
-         * the preprocessor drops out the `tr_debug()`.
-         */
-        const char* name = base->name();
-        tr_debug("[%d]  iterating %p %s", index, base, name);
+        tr_debug("[%d]  iterating %p %s", index, base, base->name());
         M2MEndpoint *endpoint = NULL;
         M2MObject *object = NULL;
         if (base->base_type() == M2MBase::ObjectDirectory) {
@@ -1089,6 +944,21 @@ bool edgeclient_create_resource_structure(const char *endpoint_name,
     return true;
 }
 
+bool edgeclient_get_resource_attributes(const char *endpoint_name,
+                                        const uint16_t object_id,
+                                        const uint16_t object_instance_id,
+                                        const uint16_t resource_id,
+                                        edgeclient_resource_attributes_t *attributes)
+{
+    M2MResource *res = edgelient_get_resource(endpoint_name, object_id, object_instance_id, resource_id);
+    if (res == NULL) {
+        return false;
+    }
+    attributes->type = resolve_m2mresource_type(res->resource_instance_type());
+    attributes->operations_allowed = res->operation();
+    return true;
+}
+
 bool edgeclient_verify_value(const uint8_t *value, const uint32_t value_length, Lwm2mResourceType resource_type)
 {
     if (value != NULL && value_length > 0) {
@@ -1098,6 +968,46 @@ bool edgeclient_verify_value(const uint8_t *value, const uint32_t value_length, 
         }
     }
     return true;
+}
+
+bool edgeclient_get_endpoint_context(const char *endpoint_name, void **context_out)
+{
+    M2MEndpoint *endpoint = edgeclient_get_endpoint(endpoint_name);
+    if (endpoint) {
+        *context_out = endpoint->get_context();
+        return true;
+    }
+    *context_out = NULL;
+    return false;
+}
+
+pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
+                                                      const uint16_t object_id,
+                                                      const uint16_t object_instance_id,
+                                                      const uint16_t resource_id,
+                                                      const uint8_t *value,
+                                                      uint32_t value_length)
+{
+    M2MResource *res = edgelient_get_resource(endpoint_name, object_id, object_instance_id, resource_id);
+    if (res == NULL) {
+        return PT_API_RESOURCE_NOT_FOUND;
+    }
+    Lwm2mResourceType resource_type = resolve_m2mresource_type(res->resource_instance_type());
+    bool value_ok = edgeclient_verify_value(value, value_length, resource_type);
+    if (!value_ok) {
+        return PT_API_ILLEGAL_VALUE;
+    }
+    if (!(res->operation() & OPERATION_WRITE)) {
+        return PT_API_RESOURCE_NOT_WRITABLE;
+    }
+    char *text_format;
+    size_t text_format_length = value_to_text_format(resource_type, value, value_length, &text_format);
+    if (text_format_length > 0 && text_format != NULL) {
+        res->update_value((uint8_t *) text_format, text_format_length);
+    } else {
+        return PT_API_INTERNAL_ERROR;
+    }
+    return PT_API_SUCCESS;
 }
 
 pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, const uint16_t object_id,
@@ -1131,12 +1041,13 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, co
     return PT_API_SUCCESS;
 }
 
-bool edgeclient_get_resource_value(const char *endpoint_name,
-                                   const uint16_t object_id,
-                                   const uint16_t object_instance_id,
-                                   const uint16_t resource_id,
-                                   uint8_t **value_out,
-                                   uint32_t *value_length_out)
+bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
+                                                  const uint16_t object_id,
+                                                  const uint16_t object_instance_id,
+                                                  const uint16_t resource_id,
+                                                  uint8_t **value_out,
+                                                  uint32_t *value_length_out,
+                                                  edgeclient_resource_attributes_t *attributes)
 {
     if (value_out == NULL || value_length_out == NULL) {
         return false;
@@ -1146,7 +1057,27 @@ bool edgeclient_get_resource_value(const char *endpoint_name,
         return false;
     }
     res->get_value(*value_out, *value_length_out);
+    if (attributes) {
+        attributes->type = resolve_m2mresource_type(res->resource_instance_type());
+        attributes->operations_allowed = res->operation();
+    }
     return true;
+}
+
+bool edgeclient_get_resource_value(const char *endpoint_name,
+                                   const uint16_t object_id,
+                                   const uint16_t object_instance_id,
+                                   const uint16_t resource_id,
+                                   uint8_t **value_out,
+                                   uint32_t *value_length_out)
+{
+    return edgeclient_get_resource_value_and_attributes(endpoint_name,
+                                                        object_id,
+                                                        object_instance_id,
+                                                        resource_id,
+                                                        value_out,
+                                                        value_length_out,
+                                                        NULL);
 }
 
 EDGE_LOCAL void create_root_folder(pal_fsStorageID_t partition_id, const char *folder_path)
@@ -1213,6 +1144,7 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *by
         tr_error("Failed to load certificate credentials - exit");
     }
 #endif
+    edgeclient_destroy_byoc_data(byoc_data);
     status = fcc_verify_device_configured_4mbed_cloud();
     if (status != FCC_STATUS_SUCCESS) {
         tr_error("Device not configured for mbed Cloud - exit");
@@ -1416,9 +1348,24 @@ EDGE_LOCAL void edgeclient_set_update_register_needed(edgeclient_mutex_action_e 
     }
 }
 
+void edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx)
+{
+    client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
+}
+
 const char* edgeclient_get_internal_id()
 {
     return client->get_internal_id();
+}
+
+const char* edgeclient_get_account_id()
+{
+    return client->get_account_id();
+}
+
+const char* edgeclient_get_lwm2m_server_uri()
+{
+    return client->get_lwm2m_server_uri();
 }
 
 const char* edgeclient_get_endpoint_name()
@@ -1429,4 +1376,117 @@ const char* edgeclient_get_endpoint_name()
 bool edgeclient_is_shutting_down()
 {
     return client->is_interrupt_received();
+}
+
+/*
+ * Edge management data functions
+ */
+
+void edgeclient_destroy_device_list(edge_device_list_t *devices)
+{
+    ns_list_foreach_safe(edge_device_entry_t, device, devices) {
+        ns_list_foreach_safe(edge_device_resource_entry_t, resource, device->resources) {
+            ns_list_remove(device->resources, resource);
+            free(resource->uri);
+            free(resource);
+        }
+        ns_list_remove(devices, device);
+        free(device->resources);
+        free(device->name);
+        free(device);
+    }
+    free(devices);
+}
+
+edge_device_list_t *edgeclient_devices()
+{
+    edge_device_list_t *devices = (edge_device_list_t*) malloc(sizeof(edge_device_list_t));
+    if (!devices) {
+        tr_err("Could not allocate devices list.");
+        return NULL;
+    }
+    ns_list_init(devices);
+
+    const M2MBaseList *objects = client->get_object_list();
+    if (!objects) {
+        return devices;
+    }
+
+    M2MBaseList::const_iterator it = objects->begin();
+    for (; it != objects->end(); it++) {
+        if ((*it)->base_type() == M2MBase::ObjectDirectory) {
+            M2MEndpoint *endpoint = (M2MEndpoint*)*it;
+            edge_device_entry_t *entry = (edge_device_entry_t*) malloc(sizeof(edge_device_entry_t));
+            edge_device_resource_list_t *resources = (edge_device_resource_list_t*) malloc(sizeof(edge_device_resource_list_t));
+            char *name = strdup(endpoint->name());
+
+            if (!entry || !resources || !name) {
+                free(entry);
+                free(resources);
+                free(name);
+                tr_err("Could not allocate device entry for device listing.");
+                // Destroy the possibly created device list content.
+                goto clean_device_list;
+            }
+
+            ns_list_init(resources);
+            entry->resources = resources;
+            entry->name = name;
+            ns_list_add_to_end(devices, entry);
+
+            M2MObjectList objects = endpoint->objects();
+            if (objects.empty()) {
+                continue;
+            }
+
+            M2MObjectList::const_iterator obj_it = objects.begin();
+            M2MObjectInstanceList::const_iterator ins_it;
+            M2MResourceList::const_iterator res_it;
+            for (; obj_it != objects.end(); obj_it++) {
+                M2MObject *obj = (M2MObject*)*obj_it;
+                M2MObjectInstanceList instances = obj->instances();
+
+                if (instances.empty()) {
+                    continue;
+                }
+
+                for (ins_it = instances.begin(); ins_it != instances.end(); ins_it++) {
+                    M2MObjectInstance *ins = (M2MObjectInstance*)*ins_it;
+                    M2MResourceList resources = ins->resources();
+
+                    if (resources.empty()) {
+                        continue;
+                    }
+
+                    for (res_it = resources.begin(); res_it != resources.end(); res_it++) {
+                        M2MResource *res = (M2MResource*)*res_it;
+                        edge_device_resource_entry_t *resource_entry = (edge_device_resource_entry_t*) malloc(sizeof(edge_device_resource_entry_t));
+
+                        if (!resource_entry) {
+                            tr_err("Could not allocate resource entry for device listing.");
+                            goto clean_device_list;
+                        }
+
+                        char uri[64];
+                        // Mbed Cloud Client stores the identifier as string for
+                        // object and resource. The object instance has uint16_t as identifier.
+                        sprintf(uri, "/%s/%d/%s", obj->name(), ins->instance_id(), res->name());
+                        resource_entry->uri = strdup(uri);
+                        Lwm2mResourceType resource_type = resolve_m2mresource_type(res->resource_instance_type());
+                        resource_entry->type = resource_type;
+                        resource_entry->operation = res->operation();
+                        ns_list_add_to_end(entry->resources, resource_entry);
+                    }
+                }
+            }
+        }
+    }
+
+    return devices;
+clean_device_list:
+    tr_err("Device list request failed.");
+    if (devices) {
+        edgeclient_destroy_device_list(devices);
+    }
+    return NULL;
 }

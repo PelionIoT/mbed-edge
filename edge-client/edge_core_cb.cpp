@@ -29,6 +29,7 @@ extern "C" {
 #include "edge-client/reset_factory_settings.h"
 }
 #include "edge-client/edge_client.h"
+#include "edge-client/request_context.h"
 #include "m2mresource.h"
 #include "mbed-trace/mbed_trace.h"
 #include "edge-client/edge_core_cb.h"
@@ -102,8 +103,15 @@ void EdgeCoreCallbackParams::execute(void *params)
     uint16_t length = parameters->get_argument_value_length();
 
     tr_info("resource executed: url=%s, data length=%d", uri, length);
-    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(
-        uri, buffer, length, OPERATION_EXECUTE, LWM2M_OPAQUE, edgecore_execute_success, edgecore_execute_failure, NULL);
+    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
+                                                                                    buffer,
+                                                                                    length,
+                                                                                    EDGECLIENT_VALUE_IN_BINARY,
+                                                                                    OPERATION_EXECUTE,
+                                                                                    LWM2M_OPAQUE,
+                                                                                    edgecore_execute_success,
+                                                                                    edgecore_execute_failure,
+                                                                                    NULL);
     if (request_ctx) {
         // direct the callback to Edge Core:
         edgeserver_execute_resource(request_ctx);

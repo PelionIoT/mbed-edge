@@ -20,11 +20,13 @@
 
 #include <signal.h>
 #include <unistd.h>
+#include <errno.h>
 #include <assert.h>
 #include "libwebsockets.h"
 
 #include "edge-client/edge_client.h"
 #include "edge-client/edge_client_byoc.h"
+#include "edge-core/client_type.h"
 #include "edge-core/protocol_api.h"
 #include "edge-core/server.h"
 #include "edge-core/srv_comm.h"
@@ -34,6 +36,7 @@
 #include "common/edge_mutex.h"
 #include "common/edge_trace.h"
 #include "edge-core/websocket_serv.h"
+#include "common/edge_io_lib.h"
 
 // Cloud client
 #include "ns_list.h"
@@ -45,7 +48,8 @@
 #define TRACE_GROUP "serv"
 
 // current protocol API version
-#define SERVER_JSONRPC_WEBSOCKET_VERSION_PATH "/1/pt"
+#define SERVER_PT_WEBSOCKET_VERSION_PATH "/1/pt"
+#define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
 
 EDGE_LOCAL struct context *g_program_context = NULL;
 EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data);
@@ -72,13 +76,13 @@ EDGE_LOCAL const char *cloud_connection_status_in_string(struct context *ctx)
     return ret;
 }
 
-static struct connection *initialize_client_connection(protocol_translator_t *pt)
+static struct connection *initialize_client_connection(client_data_t *client_data)
 {
     struct connection *connection = (struct connection *)calloc(1, sizeof(struct connection));
     if (!connection) {
         tr_err("Could not allocate connection structure.");
     }
-    connection->protocol_translator = pt;
+    connection->client_data = client_data;
     connection->ctx = g_program_context;
     return connection;
 }
@@ -119,15 +123,32 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
 
     switch (reason) {
         case LWS_CALLBACK_ESTABLISHED: {
-            tr_info("lws_callback_established: initializing protocol translator connection: server wsi %p", wsi);
-            protocol_translator_t *pt = edge_core_create_protocol_translator();
+
+            int uri_length = lws_hdr_total_length(wsi, WSI_TOKEN_GET_URI);
+            char *get_uri = calloc(1, uri_length + 1);
+            int header_ok = lws_hdr_copy(wsi, get_uri, uri_length + 1, WSI_TOKEN_GET_URI);
+
+            client_data_t *client_data;
+            if (header_ok && strcmp(get_uri, SERVER_PT_WEBSOCKET_VERSION_PATH) == 0) {
+                client_data = edge_core_create_client(PT);
+            } else if (header_ok && strcmp(get_uri, SERVER_MGMT_WEBSOCKET_VERSION_PATH) == 0) {
+                client_data = edge_core_create_client(MGMT);
+            } else {
+                tr_err("Could not select client type from \"%s\".", get_uri);
+                free(get_uri);
+                return 1;
+            }
+            free(get_uri);
+
+            tr_info("lws_callback_established: initializing client connection: server wsi %p.", wsi);
+
             websocket_connection = websocket_server_connection_initialize(websocket_connection);
-            connection = initialize_client_connection(pt);
+            connection = initialize_client_connection(client_data);
             transport_connection_t *transport_connection = initialize_transport_connection(websocket_connection);
 
-            if (!pt || !websocket_connection || !connection || !transport_connection) {
-                tr_err("lws_callback_established: could not allocate memory for protocol translator connection");
-                edge_core_protocol_translator_destroy(&pt);
+            if (!client_data || !websocket_connection || !connection || !transport_connection) {
+                tr_err("lws_callback_established: could not allocate memory for client connection.");
+                edge_core_client_data_destroy(&client_data);
                 websocket_server_connection_destroy(websocket_connection);
                 transport_connection_t_destroy(&transport_connection);
                 connection_destroy(&connection);
@@ -142,7 +163,7 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
             transport_connection->transport = websocket_connection;
             connection->transport_connection = transport_connection;
 
-            tr_info("lws_callback_established: connection initialized for protocol translator");
+            tr_info("lws_callback_established: connection initialized for client.");
             break;
         }
 
@@ -207,8 +228,11 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
                 // Return control and wait for more bytes to arrive.
                 break;
             } else {
-                tr_debug("lws_callback_server_receive: wsi %p. Final fragment and no remaining bytes. Message: (%.*s)", wsi, websocket_connection->msg_len, websocket_connection->msg);
                 if (websocket_connection && websocket_connection->conn) {
+                    tr_debug("lws_callback_server_receive: wsi %p. Final fragment and no remaining bytes. Message: (%.*s)",
+                             wsi,
+                             (int32_t) websocket_connection->msg_len,
+                             websocket_connection->msg);
                     bool protocol_error;
                     connection = (struct connection*) websocket_connection->conn;
                     edge_core_process_data_frame_websocket(connection, &protocol_error,
@@ -233,8 +257,11 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
             char *get_uri = calloc(1, uri_length + 1);
 
             int header_ok = lws_hdr_copy(wsi, get_uri, uri_length + 1, WSI_TOKEN_GET_URI);
-            tr_debug("URI in header: \"%s\" (len: %d)", get_uri, strlen(get_uri));
-            if (header_ok <= 0 && strcmp(get_uri, SERVER_JSONRPC_WEBSOCKET_VERSION_PATH)) {
+            tr_debug("URI in header: \"%s\" (len: %d)", get_uri, (int32_t) strlen(get_uri));
+
+            if (header_ok <= 0 &&
+                strcmp(get_uri, SERVER_PT_WEBSOCKET_VERSION_PATH) &&
+                strcmp(get_uri, SERVER_MGMT_WEBSOCKET_VERSION_PATH)) {
                 tr_err("No matching uri is found for '%s'. Reject connection!", get_uri);
                 reject_connection = true;
             }
@@ -270,6 +297,8 @@ json_t *http_state_in_json(struct context *ctx)
     json_object_set_new(res, "internal-id", json_string(edgeclient_get_internal_id()));
     json_object_set_new(res, "endpoint-name", json_string(edgeclient_get_endpoint_name()));
     json_object_set_new(res, "edge-version", json_string(VERSION_STRING));
+    json_object_set_new(res, "account-id", json_string(edgeclient_get_account_id()));
+    json_object_set_new(res, "lwm2m-server-uri", json_string(edgeclient_get_lwm2m_server_uri()));
 
     if (ctx->ctx_data->cloud_connection_status  == EDGE_STATE_ERROR) {
         json_object_set_new(res, "error_code", json_integer(ctx->ctx_data->cloud_error->error_code));
@@ -299,7 +328,7 @@ bool edgeserver_remove_protocol_translator_nodes()
 
     ns_list_foreach_safe(struct connection_list_elem, cur, &ctx_data->registered_translators) {
         struct connection *connection = cur->conn;
-        edge_core_protocol_translator_destroy(&connection->protocol_translator);
+        edge_core_client_data_destroy(&connection->client_data);
         connections_removed = true;
     }
     return connections_removed;
@@ -452,12 +481,31 @@ void edgeserver_rfs_customer_code_succeeded()
 
 EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base *ev_base,
                                                                const char *edge_pt_socket,
-                                                               struct lws_protocols protocols[])
+                                                               struct lws_protocols protocols[],
+                                                               int *lock_fd)
 {
     void *foreign_loops[1];
 
     struct lws_context *lwsc = NULL;
     struct lws_context_creation_info info;
+
+    // If the Protocol Translator socket lock file already exists, Edge Core should not start,
+    // because there's probably another Edge Core already running.
+    if (!edge_io_acquire_lock_for_socket(edge_pt_socket, lock_fd)) {
+        return NULL;
+    }
+
+    // Remove the old Unix domain socket file if it exists.
+    if (edge_io_file_exists(edge_pt_socket)) {
+        int ret = edge_io_unlink(edge_pt_socket);
+        if (ret != 0) {
+            tr_err("Unable to remove the dangling %s file. Error code: %d (%s)",
+                   edge_pt_socket,
+                   errno,
+                   strerror(errno));
+            return NULL;
+        }
+    }
     memset(&info, 0, sizeof (struct lws_context_creation_info));
     int opts = 0;
     info.port = 7681;
@@ -482,13 +530,17 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
     return lwsc;
 }
 
-EDGE_LOCAL void clean_resources(struct lws_context *lwsc, const char *edge_pt_socket)
+EDGE_LOCAL void clean_resources(struct lws_context *lwsc, const char *edge_pt_socket, int lock_fd)
 {
     tr_info("Edge server cleaning resources");
     if (lwsc) {
         lws_context_destroy(lwsc);
     }
-    unlink(edge_pt_socket);
+    // Only remove the socket and locks if we were able acquire the socket lock.
+    if (lock_fd != -1) {
+        edge_io_release_lock_for_socket(edge_pt_socket, lock_fd);
+        edge_io_unlink(edge_pt_socket);
+    }
     clean(g_program_context);
     free_program_context_and_data();
 }
@@ -511,10 +563,11 @@ int testable_main(int argc, char **argv)
 
     char* edge_pt_socket = args.edge_pt_domain_socket;
     int http_port = atoi(args.http_port);
+    int lock_fd = -1;
 
     for (counter = 0; counter < 1; counter ++) {
         // Initialize trace and trace mutex
-        edge_trace_init();
+        edge_trace_init(args.color_log);
         create_program_context_and_data();
         struct ctx_data *ctx_data = g_program_context->ctx_data;
         ns_list_init(&ctx_data->registered_translators);
@@ -533,6 +586,14 @@ int testable_main(int argc, char **argv)
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
         edgeclient_create_params.handle_error_cb = error_cb;
 
+        // args.cbor_conf is in stack
+        #ifdef DEVELOPER_MODE
+        if (args.cbor_conf) {
+           tr_err("developer mode, cannot give cbor conf.");
+           rc = 1;
+           break;
+        }
+        #endif
         byoc_data_t *byoc_data = edgeclient_create_byoc_data(args.cbor_conf);
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
@@ -548,16 +609,19 @@ int testable_main(int argc, char **argv)
             break;
         }
 #endif
-        lws_set_log_level(LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG, websocket_set_log_emit_function);
-
-        lwsc = initialize_libwebsocket_context(g_program_context->ev_base, edge_pt_socket, edge_server_protocols);
-        if (event_base_dispatch(g_program_context->ev_base) != 0) {
+        websocket_set_log_level_and_emit_function();
+        lwsc = initialize_libwebsocket_context(g_program_context->ev_base,
+                                               edge_pt_socket,
+                                               edge_server_protocols,
+                                               &lock_fd);
+        if (lwsc && event_base_dispatch(g_program_context->ev_base) != 0) {
             tr_err("Failed to start event loop.");
             rc = 1;
             break;
         }
     }
-    clean_resources(lwsc, edge_pt_socket);
+    clean_resources(lwsc, edge_pt_socket, lock_fd);
+    libevent_global_shutdown();
     edge_trace_destroy();
     return rc;
 }

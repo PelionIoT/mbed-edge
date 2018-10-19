@@ -49,28 +49,31 @@ void init_protocol();
 /**
  * \brief Register the protocol translator to Mbed Edge.
  *
+ * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
  * \return 0 if the protocol translator registration succeeded.\n
  *         1 if an error occurred. Details are in the result parameter.
  */
-int protocol_translator_register(json_t *json_params, json_t **result, void *userdata);
+int protocol_translator_register(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Register an endpoint device to Mbed Edge.
  *
+ * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
  * \return 0 if the device registration succeeded.\n
  *         1 if an error occurred. Details are in the result parameter.
  */
-int device_register(json_t *json_params, json_t **result, void *userdata);
+int device_register(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Unregister an endpoint device from Mbed Edge.
  *
+ * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
@@ -78,18 +81,19 @@ int device_register(json_t *json_params, json_t **result, void *userdata);
  *         1 if an error occurred.\n
  *         Details are in the result parameter of the function call.
  */
-int device_unregister(json_t *json_params, json_t **result, void *userdata);
+int device_unregister(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief Write endpoint device values.
  *
+ * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
  * \return 0 if the write value succeeded.\n
  *         1 if an error occurred. Details are in the result parameter.
  */
-int write_value(json_t *json_params, json_t **result, void *userdata);
+int write_value(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief The edgeclient request context data.

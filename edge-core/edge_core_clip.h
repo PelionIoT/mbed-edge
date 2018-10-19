@@ -32,6 +32,7 @@
 
 typedef struct {
     /* options without arguments */
+    int color_log;
     int help;
     int reset_storage;
     int version;
@@ -55,6 +56,7 @@ const char help_message[] =
 "Options:\n"
 "  -h --help                            Show this screen.\n"
 "  -v --version                         Show the version number\n"
+"  --color-log                          Use ANSI colors in log.\n"
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
 "  -o --http-port <int>                 HTTP port number [default: 8080].\n"
 "  -r --reset-storage                   Before starting the server, clean old Mbed Cloud Client configuration.\n"
@@ -148,7 +150,7 @@ int parse_long(Tokens *ts, Elements *elements) {
     int len_prefix;
     int n_options = elements->n_options;
     char *eq = strchr(ts->current, '=');
-    Option *option;
+    Option *option = NULL;
     Option *options = elements->options;
 
     len_prefix = (eq-(ts->current))/sizeof(char);
@@ -157,7 +159,7 @@ int parse_long(Tokens *ts, Elements *elements) {
         if (!strncmp(ts->current, option->olong, len_prefix))
             break;
     }
-    if (i == n_options) {
+    if ((i == n_options) || (option == NULL)) {
         // TODO '%s is not a unique prefix
         fprintf(stderr, "%s is not recognized\n", ts->current);
         return 1;
@@ -188,7 +190,7 @@ int parse_shorts(Tokens *ts, Elements *elements) {
     char *raw;
     int i;
     int n_options = elements->n_options;
-    Option *option;
+    Option *option = NULL;
     Option *options = elements->options;
 
     raw = &ts->current[1];
@@ -199,7 +201,7 @@ int parse_shorts(Tokens *ts, Elements *elements) {
             if (option->oshort != NULL && option->oshort[1] == raw[0])
                 break;
         }
-        if (i == n_options) {
+        if ((i == n_options) || (option == NULL)) {
             // TODO -%s is specified ambiguously %d times
             fprintf(stderr, "-%c is not recognized\n", raw[0]);
             return 1;
@@ -289,6 +291,8 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
                    !strcmp(option->olong, "--version")) {
             printf("%s\n", version);
             return 1;
+        } else if (!strcmp(option->olong, "--color-log")) {
+            args->color_log = option->value;
         } else if (!strcmp(option->olong, "--help")) {
             args->help = option->value;
         } else if (!strcmp(option->olong, "--reset-storage")) {
@@ -324,7 +328,7 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
-        0, 0, 0, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
+        0, 0, 0, 0, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
         usage_pattern, help_message
     };
     Tokens ts;
@@ -333,6 +337,7 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     Argument arguments[] = {
     };
     Option options[] = {
+        {NULL, "--color-log", 0, 0, NULL},
         {"-h", "--help", 0, 0, NULL},
         {"-r", "--reset-storage", 0, 0, NULL},
         {"-v", "--version", 0, 0, NULL},
@@ -340,7 +345,7 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
         {"-o", "--http-port", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 6, commands, arguments, options};
+    Elements elements = {0, 0, 7, commands, arguments, options};
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))

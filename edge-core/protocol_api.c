@@ -42,11 +42,11 @@
 
 
 struct jsonrpc_method_entry_t method_table[] = {
-  { "protocol_translator_register", protocol_translator_register, "o" },
-  { "device_register", device_register, "o" },
-  { "device_unregister", device_unregister, "o" },
-  { "write", write_value, "o" },
-  { NULL, NULL, "o" }
+    { "protocol_translator_register", protocol_translator_register, "o" },
+    { "device_register", device_register, "o" },
+    { "device_unregister", device_unregister, "o" },
+    { "write", write_value, "o" },
+    { NULL, NULL, "o" }
 };
 
 static bool check_service_availability(json_t **result);
@@ -74,14 +74,13 @@ static int update_device_values_from_json(json_t *structure,
 void init_protocol()
 {
     rpc_set_generate_msg_id(edge_default_generate_msg_id);
-    rpc_init(method_table);
 }
 
 static pt_translator_registration_status_e get_protocol_translator_registration_status(struct connection *connection)
 {
     tr_debug("get_protocol_translator_registration_status");
 
-    if (connection->protocol_translator->registered) {
+    if (connection->client_data->registered) {
         return PT_TRANSLATOR_ALREADY_REGISTERED;
     }
     return PT_TRANSLATOR_NOT_REGISTERED;
@@ -90,7 +89,7 @@ static pt_translator_registration_status_e get_protocol_translator_registration_
 static bool is_protocol_translator_registered(const char* name_val, const struct ctx_data *ctx_data)
 {
     ns_list_foreach(const struct connection_list_elem, cur, &ctx_data->registered_translators) {
-        if (strcmp(cur->conn->protocol_translator->name, name_val) == 0) {
+        if (strcmp(cur->conn->client_data->name, name_val) == 0) {
             return true;
         }
     }
@@ -129,34 +128,12 @@ static void initialize_pt_resources(char *name, int pt_id){
                                   LWM2M_INTEGER, OPERATION_READ /*GET_ALLOWED*/, /* userdata */ NULL);
 }
 
-protocol_translator_t *edge_core_create_protocol_translator()
+void edge_core_protocol_api_client_data_destroy(client_data_t *client_data)
 {
-    protocol_translator_t *pt = calloc(1, sizeof(protocol_translator_t));
-    if (!pt) {
-        tr_err("Could not allocate memory for protocol translator structure.");
-        return NULL;
-    }
-    // Set the id to invalid
-    if (NULL != pt) {
-        pt->id = -1;
-    }
-    pt->name = NULL;
-    pt->registered = false;
-    return pt;
-}
-
-void edge_core_protocol_translator_destroy(protocol_translator_t **protocol_translator)
-{
-    if(*protocol_translator == NULL)
-        return;
-
-    int pt_id = (*protocol_translator)->id;
+    int pt_id = client_data->id;
     if (pt_id != -1) {
         edgeclient_remove_object_instance(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id);
     }
-    free((*protocol_translator)->name);
-    free(*protocol_translator);
-    *protocol_translator = NULL;
 }
 
 static bool check_service_availability(json_t **result)
@@ -174,7 +151,7 @@ static bool check_service_availability(json_t **result)
     return true;
 }
 
-int protocol_translator_register(json_t *json_params, json_t **result, void *userdata)
+int protocol_translator_register(json_t *request, json_t *json_params, json_t **result, void *userdata)
 /** \return 0 - success
  *          1 - failure
  */
@@ -219,14 +196,14 @@ int protocol_translator_register(json_t *json_params, json_t **result, void *use
             int new_pt_id = 0;
 
             strncpy(name, name_val, strlen(name_val) + 1);
-            connection->protocol_translator->name = name;
-            connection->protocol_translator->registered = true;
+            connection->client_data->name = name;
+            connection->client_data->registered = true;
             if (ns_list_count(&ctx_data->registered_translators) > 0) {
                 struct connection_list_elem *last_pt = ns_list_get_last(&ctx_data->registered_translators);
-                int last_pt_id = last_pt->conn->protocol_translator->id;
+                int last_pt_id = last_pt->conn->client_data->id;
                 new_pt_id = last_pt_id + 1;
             }
-            connection->protocol_translator->id = new_pt_id;
+            connection->client_data->id = new_pt_id;
             initialize_pt_resources(name, new_pt_id);
 
             struct connection_list_elem *new_translator = calloc(1, sizeof(struct connection_list_elem));
@@ -269,7 +246,7 @@ static void update_device_amount_resource_by_delta(struct connection* connection
 
     if (edgeclient_get_resource_value(NULL,
                                       PROTOCOL_TRANSLATOR_OBJECT_ID,
-                                      connection->protocol_translator->id,
+                                      connection->client_data->id,
                                       PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID,
                                       (uint8_t**) &pt_device_amount_text_format,
                                       &value_len)) {
@@ -279,14 +256,14 @@ static void update_device_amount_resource_by_delta(struct connection* connection
         pt_device_amount = htons(pt_device_amount);
         pt_api_result_code_e ret =  edgeclient_set_resource_value(
             NULL, PROTOCOL_TRANSLATOR_OBJECT_ID,
-            connection->protocol_translator->id,
+            connection->client_data->id,
             PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID,
             (uint8_t*) &pt_device_amount, sizeof(int16_t),
             LWM2M_INTEGER,
             /* operations = allow read */ OPERATION_READ,
             connection);
         if (PT_API_SUCCESS == ret) {
-            tr_debug("Updated the device amount for %s to %d", connection->protocol_translator->name, ntohs(pt_device_amount));
+            tr_debug("Updated the device amount for %s to %d", connection->client_data->name, ntohs(pt_device_amount));
         } else {
             tr_warn("Could not update device amount for protocol translator");
         }
@@ -301,14 +278,13 @@ const char* check_device_id(json_t *json_params, json_t **result)
 {
     json_t *device_id_obj = json_object_get(json_params, "deviceId");
     if (device_id_obj == NULL) {
-        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
-                                       json_string("Missing `deviceId` field."));
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS, json_string("Missing 'deviceId' field."));
         return NULL;
     }
     const char* device_id = json_string_value(device_id_obj);
     if (!device_id || strlen(device_id) == 0) {
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
-                                       json_string("Invalid `deviceId` field value."));
+                                                  json_string("Invalid 'deviceId' field value."));
         return NULL;
     }
     return device_id;
@@ -341,7 +317,7 @@ static json_t *create_detailed_error_object(pt_api_result_code_e error_id, const
     return result;
 }
 
-int device_register(json_t *json_params, json_t **result, void *userdata)
+int device_register(json_t *request, json_t *json_params, json_t **result, void *userdata)
 /** \return 0 - success
  *          1 - failure
  */
@@ -357,6 +333,24 @@ int device_register(json_t *json_params, json_t **result, void *userdata)
         return 1;
     }
 
+    if (!check_service_availability(result)) {
+        return 1;
+    }
+
+    const char* device_id = check_device_id(json_params, result);
+    if(!device_id) {
+        tr_error("Device register failed. Field 'deviceId' was missing or value was either null or empty string");
+        return 1;
+    }
+
+    if (edgeclient_endpoint_exists(device_id)) {
+        tr_warn("Device registration failed. Device already registered..");
+        *result = jsonrpc_error_object(PT_API_ENDPOINT_ALREADY_REGISTERED,
+                                       pt_api_get_error_message(PT_API_ENDPOINT_ALREADY_REGISTERED),
+                                       json_string("Device already registered."));
+        return 1;
+    }
+
     if (edgeserver_get_number_registered_endpoints_count() >= edgeserver_get_number_registered_endpoints_limit()) {
         tr_warn("Device registration failed. The maximum number of registered endpoints is already in use.");
         *result = jsonrpc_error_object(PT_API_REGISTERED_ENDPOINT_LIMIT_REACHED,
@@ -365,9 +359,6 @@ int device_register(json_t *json_params, json_t **result, void *userdata)
         return 1;
     }
 
-    if (!check_service_availability(result)) {
-        return 1;
-    }
     // Not registered
     if (get_protocol_translator_registration_status(connection) !=
             PT_TRANSLATOR_ALREADY_REGISTERED) {
@@ -376,11 +367,7 @@ int device_register(json_t *json_params, json_t **result, void *userdata)
                                        json_string("Failed to register device."));
         return 1;
     }
-    const char* device_id = check_device_id(json_params, result);
-    if(!device_id) {
-        tr_error("Device register failed. Field 'deviceId' was missing or value was either null or empty string");
-        return 1;
-    }
+
     const char *error_detail = NULL;
     pt_api_result_code_e result_code = update_device_values_from_json(json_params,
                                                                       connection,
@@ -404,7 +391,7 @@ int device_register(json_t *json_params, json_t **result, void *userdata)
  *  \return 0 - success
  *          1 - failure
  */
-int device_unregister(json_t *json_params, json_t **result, void *userdata)
+int device_unregister(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
     struct json_message_t *jt = (struct json_message_t*) userdata;
     struct connection* connection = jt->connection;
@@ -447,7 +434,7 @@ int device_unregister(json_t *json_params, json_t **result, void *userdata)
     return 0;
 }
 
-int write_value(json_t *json_params, json_t **result, void *userdata)
+int write_value(json_t *request, json_t *json_params, json_t **result, void *userdata)
 /** \return 0 - success
  *          1 - failure
  */

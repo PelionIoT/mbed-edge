@@ -35,8 +35,7 @@ MACRO(SUBDIRLIST result curdir)
 ENDMACRO()
 
 MACRO(ADD_GLOBALDIR dirname)
-	include_directories(${dirname})
-	file(APPEND ${INCLUDE_FILE_NAME} "-I${dirname} ")
+  include_directories(${dirname})
 ENDMACRO()
 
 

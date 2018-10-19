@@ -25,6 +25,7 @@
 #include "common/websocket_comm.h"
 #include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
+#include <string.h>
 #define TRACE_GROUP "webs"
 
 typedef struct {
@@ -131,7 +132,7 @@ void websocket_message_t_destroy(websocket_message_t *message)
  * \brief send passed data to websocket connection and writes to socket.
  * Note: Guard the call to this function by checking that the connection is available.
  */
-int send_to_websocket(char *bytes, size_t len, websocket_connection_t *websocket_conn)
+int send_to_websocket(uint8_t *bytes, size_t len, websocket_connection_t *websocket_conn)
 {
     websocket_message_t *message = (websocket_message_t *) calloc(1, sizeof(websocket_message_t));
     message->bytes = bytes;
@@ -176,6 +177,25 @@ void websocket_set_log_emit_function(int level, const char *line)
         }
         i++;
     }
+}
+
+void websocket_set_log_level_and_emit_function()
+{
+    int level = 0;
+#if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_DEBUG
+    level |= LLL_DEBUG;
+#endif
+#if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_INFO
+    level |= LLL_INFO;
+#endif
+#if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_WARN
+    level |= LLL_WARN | LLL_NOTICE;
+#endif
+#if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_ERROR
+    level |= LLL_ERR;
+#endif
+
+    lws_set_log_level(level, websocket_set_log_emit_function);
 }
 
 int websocket_add_msg_fragment(websocket_connection_t *websocket_conn, uint8_t *fragment, size_t len)

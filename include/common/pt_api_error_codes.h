@@ -88,7 +88,6 @@ typedef enum {
      */
     PT_API_EDGE_CORE_SHUTTING_DOWN = -30006,
 
-
     /*
      * Error codes related to client state.
      */
@@ -110,8 +109,22 @@ typedef enum {
     /**
      * \brief the JSON structure is not according to specification.
      */
-    PT_API_INVALID_JSON_STRUCTURE = -30103
+    PT_API_INVALID_JSON_STRUCTURE = -30103,
 
+    /**
+     * \brief The resource was not readable.
+     */
+    PT_API_RESOURCE_NOT_READABLE = -30104,
+
+    /**
+     * \brief The resource was not writable.
+     */
+    PT_API_RESOURCE_NOT_WRITABLE = -30105,
+
+    /**
+     * \brief Write to protocol translator failed.
+     */
+    PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED = -30106
 } pt_api_result_code_e;
 
 /**

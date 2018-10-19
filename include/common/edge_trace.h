@@ -24,8 +24,9 @@
 
 /**
  * \brief The function may be used to initialize the Edge Trace API.
+ * \param color_mode Set to true if ANSI color coded logging is needed. By setting false the plain text log is written.
  */
-void edge_trace_init();
+void edge_trace_init(int color_mode);
 
 /**
  * \brief The function destroys the Edge Trace API and frees the related resources.

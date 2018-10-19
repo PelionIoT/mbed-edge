@@ -126,6 +126,29 @@ public:
         GET_PUT_POST_DELETE_ALLOWED = 0x0F
     }Operation;
 
+    /**
+     * Enum defining an status codes that can happen when
+     * sending confirmable message.
+    */
+    typedef enum {
+        MESSAGE_STATUS_INIT = 0,           // Initial state.
+        MESSAGE_STATUS_BUILD_ERROR,        // CoAP message building fails.
+        MESSAGE_STATUS_RESEND_QUEUE_FULL,  // CoAP resend queue full.
+        MESSAGE_STATUS_SENT,               // Message sent to the server but ACK not yet received.
+        MESSAGE_STATUS_DELIVERED,          // Received ACK from server.
+        MESSAGE_STATUS_SEND_FAILED,        // Message sending failed.
+        MESSAGE_STATUS_SUBSCRIBED,         // Server has started the observation
+        MESSAGE_STATUS_UNSUBSCRIBED,       // Server has stopped the observation (RESET message or GET with observe 1)
+        MESSAGE_STATUS_REJECTED            // Server has rejected the response
+    } MessageDeliveryStatus;
+
+    typedef enum {
+        NOTIFICATION,
+        DELAYED_POST_RESPONSE,
+        BLOCK_SUBSCRIBE
+    } MessageType;
+
+
     enum MaxPathSize {
         MAX_NAME_SIZE = 64,
         MAX_INSTANCE_SIZE = 5,
@@ -136,9 +159,18 @@ public:
         MAX_PATH_SIZE_4 = (MAX_NAME_SIZE + MAX_INSTANCE_SIZE + 1 + 1)
     };
 
+    // The setter for this callback (set_notification_delivery_status_cb()) is in m2m_deprecated
+    // category, but it can not be used here as then the GCC will scream for the declaration of
+    // setter, not just from references of it.
     typedef void(*notification_delivery_status_cb) (const M2MBase& base,
                                                     const NotificationDeliveryStatus status,
                                                     void *client_args);
+
+    typedef void(*message_delivery_status_cb) (const M2MBase& base,
+                                               const MessageDeliveryStatus status,
+                                               const MessageType type,
+                                               void *client_args);
+
 
     typedef struct lwm2m_parameters {
         //add multiple_instances
@@ -364,6 +396,12 @@ public:
     bool is_observable() const;
 
     /**
+     * \brief Returns the auto observation status of the object.
+     * \return True if observable, else false.
+     */
+    bool is_auto_observable() const;
+
+    /**
      * \brief Returns the observation level of the object.
      * \return The observation level of the object.
      */
@@ -437,8 +475,16 @@ public:
 
     /**
      * \brief Executes the function that is set in "set_notification_delivery_status_cb".
+     * Note: the setter for this callback is marked as m2m_deprecated, but there is no point
+     * having it here, as then the code will always give warnings. This simply must be there
+     * until the set_notification_delivery_status_cb() is removed.
      */
     void send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status);
+
+    /**
+     * \brief Executes the function that is set in "set_message_delivery_status_cb".
+     */
+    void send_message_delivery_status(const M2MBase& object, const MessageDeliveryStatus status, const MessageType type);
 
     /**
      * \brief Sets whether this resource is published to server or not.
@@ -508,21 +554,29 @@ public:
      * @brief Returns the notification message id.
      * @return Message id.
      */
-    uint16_t get_notification_msgid() const;
+    uint16_t get_notification_msgid() const m2m_deprecated;
 
     /**
      * @brief Sets the notification message id.
      * This is used to map RESET and EMPTY ACK messages.
      * @param msgid The message id.
      */
-    void set_notification_msgid(uint16_t msgid);
+    void set_notification_msgid(uint16_t msgid) m2m_deprecated;
 
     /**
      * @brief Sets the function that is executed when notification message state changes.
      * @param callback The function pointer that is called.
      * @param client_args The argument which is passed to the callback function.
      */
-    bool set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args);
+    bool set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args) m2m_deprecated;
+
+    /**
+     * @brief Sets the function that is executed when message state changes.
+     * Currently this is used to track notifications and delayed response delivery statuses.
+     * @param callback The function pointer that is called.
+     * @param client_args The argument which is passed to the callback function.
+     */
+    bool set_message_delivery_status_cb(message_delivery_status_cb callback, void *client_args);
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     static char* create_path(const M2MEndpoint &parent, const char *name);
@@ -619,12 +673,12 @@ protected:
      * \brief Returns notification send status.
      * \return Notification status.
      */
-    NotificationDeliveryStatus get_notification_delivery_status() const;
+    NotificationDeliveryStatus get_notification_delivery_status() const m2m_deprecated;
 
     /**
      * \brief Clears the notification send status to initial state.
      */
-    void clear_notification_delivery_status();
+    void clear_notification_delivery_status() m2m_deprecated;
 
     /**
      * \brief Provides the observation token of the object.
@@ -641,7 +695,7 @@ protected:
     void set_observation_token(const uint8_t *token,
                                const uint8_t length);
 
-    /*
+    /**
      * \brief The data has changed and it needs to be updated into Mbed Cloud.
      *        Current implementation maintains the changed state only in M2MEndpoint. If any of the changes in an
      *        object changes the M2M registration structure, the information is propagated to M2MEndpoint using
@@ -649,10 +703,32 @@ protected:
      */
     virtual void set_changed();
 
-    /*
+    /**
      * \brief Returns the owner object. Can return NULL if the object has no parent.
      */
     virtual M2MBase *get_parent() const;
+
+    /**
+     * \brief Checks whether blockwise is needed to send resource value to server.
+     * \param nsdl An NSDL handler for the CoAP library.
+     * \param payload_len Length of the CoAP payload.
+     * \return True if blockwise transfer is needed, else false.
+     */
+    static bool is_blockwise_needed(const nsdl_s *nsdl, uint32_t payload_len);
+
+    /**
+     * \brief Handles subscription request.
+     * \param nsdl An NSDL handler for the CoAP library.
+     * \param received_coap_header The received CoAP message from the server.
+     * \param coap_response CoAP response to be sent to server.
+     * \param observation_handler A handler object for sending
+     * observation callbacks.
+     */
+    void handle_observation(nsdl_s *nsdl,
+                            const sn_coap_hdr_s &received_coap_header,
+                            sn_coap_hdr_s &coap_response,
+                            M2MObservationHandler *observation_handler,
+                            sn_coap_msg_code_e &response_code);
 
   private:
     static bool is_integer(const String &value);
