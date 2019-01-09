@@ -1,33 +1,32 @@
-## Mbed Edge API
+## Device Management Edge API
 
-This is the Doxygen generated API documentation of Mbed Edge.
+This is the Doxygen generated API documentation of Device Management Edge.
 The API documentation should be used together with the
-[Mbed Cloud documentation](https://cloud.mbed.com/docs/latest).
+[Device Management documentation](https://cloud.mbed.com/docs/latest).
 
-The Mbed Edge APIs allow the developers to create protocol translators to adapt
-devices to be managed with Mbed Cloud that use non-IP based protocols.
+The Device Management Edge APIs allow the developers to create protocol translators to adapt
+devices that use non-IP based protocols to be managed with Device Management.
 These can use for example BacNET, Zigbee, BLE, LoRa or MQTT protocols. Also devices that have
-IP connectivity but cannot host full Mbed Cloud Client can be adapted with Mbed
-Edge API trough the protocol translator.
+IP connectivity but cannot host full Device Management Client can be adapted with Device Management
+Edge API through the protocol translator.
 
-The APIs are implemented in C and an example protocol translator is contained
-within the Mbed Edge repository.
+The APIs are implemented in C and some protocol translator examples are in the [mbed-edge-examples repository](https://github.com/ARMmbed/mbed-edge-examples).
 
-The requirements to connect to Mbed Cloud are similar between Mbed Edge and 
-Mbed Cloud Client. Please read the Mbed Cloud Client documentation to understand
-the connectivity of Mbed Edge.
+The requirements to connect to Device Management are similar between Device Management Edge and
+Device Management Client. Please read the [Device Management Client documentation](https://cloud.mbed.com/docs/current/connecting/index.html) to understand
+the connectivity of Device Management Edge.
 
-### Mbed Edge components
+### Device Management Edge components
 
-The main components of the Mbed Edge are:
- * Mbed Cloud Client
- * Mbed Edge core
+The main components of the Device Management Edge are:
+ * Device Management Client
+ * Device Management Edge core
  * Protocol translator API
- 
-Mbed Cloud Client provides the connectivity to Mbed Cloud which Edge core
-is extending. Mbed Edge Core implements the specific gateway functionality
-and logic. The protocol translator API is used to implement the specific protocol
-translator implementation to adapt devices to be managed with Mbed Cloud.
 
-The protocol translator communicates with Mbed Edge Core and these components
+Device Management Client provides the connectivity to Device Management which Edge core
+is extending. Device Management Edge Core implements the specific gateway functionality
+and logic. The protocol translator API is used to implement the specific protocol
+translator implementation to adapt devices to be managed with Device Management.
+
+The protocol translator communicates with Device Management Edge Core and these components
 implements the full adaptation of the devices to be managed.

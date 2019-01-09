@@ -27,8 +27,8 @@
 extern "C" {
 #endif
 
-void rfs_reset_factory_settings_request_cb(evutil_socket_t fd, short what, void *arg);
-void rfs_reset_factory_settings_response_cb(evutil_socket_t fd, short what, void *arg);
+void rfs_reset_factory_settings_request_cb(void *arg);
+void rfs_reset_factory_settings_response_cb(void *arg);
 #ifdef __cplusplus
 }
 #endif

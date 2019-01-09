@@ -60,23 +60,23 @@ typedef struct edgeclient_resource_attributes_s {
 typedef int(*handle_write_to_pt_cb) (edgeclient_request_context_t *request_ctx, void *connection);
 
 /**
- * \brief callback for handling the registration of the Mbed Edge
+ * \brief callback for handling the registration of the Edge
  */
 typedef void(*handle_register_cb) (void);
 
 /**
- * \brief callback for handling the unregistration of the Mbed Edge
+ * \brief callback for handling the unregistration of the Edge
  */
 typedef void(*handle_unregister_cb) (void);
 
 /**
- * \brief callback for handling errors of the Mbed Edge
+ * \brief callback for handling errors of the Edge
  */
 typedef void(*handle_error_cb) (int error_code, const char *error_description);
 
 /**
  * \brief Parameters required for edgeclient_create.
- * \param reset_storage specifies if Edge Client should remove and recreate the Mbed Cloud Client configuration data.
+ * \param reset_storage specifies if Edge Client should remove and recreate the Device Management Client configuration data.
  */
 typedef struct {
     handle_write_to_pt_cb handle_write_to_pt_cb;
@@ -94,34 +94,33 @@ typedef struct {
 void edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
 
 /**
- * \brief Loads the Mbed Cloud Client credentials (either your own CA or a developer certificate) and sets up the
+ * \brief Loads the Device Management Client credentials (either your own CA or a developer certificate) and sets up the
  *        callback handlers.
  */
 void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t *byoc_data);
 
 /**
- * \brief Shutdown and destroy the Mbed Cloud Client instance.
+ * \brief Shutdown and destroy the Device Management Client instance.
  */
 void edgeclient_destroy();
 
 /**
- * \brief Starts the Cloud Client registration flow and publishes the readily created resources. If you want to add some Mbed Edge resources, you can add them before
+ * \brief Starts the Device Management Client registration flow and publishes the readily created resources. If you want to add some Edge resources, you can add them before
  * this call so that they will be available when registration is complete.
  */
 void edgeclient_connect();
 
 /**
- * \brief Starts the Cloud Client registration update flow and publishes the resources created since the last update/registration.
+ * \brief Starts the Device Management Client registration update flow and publishes the resources created since the last update/registration.
  * \param mutex_action May be used to lock the mutex to avoid race condition.
  */
 void edgeclient_update_register(edgeclient_mutex_action_e mutex_action);
 
 /**
- * \brief Starts the Cloud Client registration update flow only if it's necessary. See
+ * \brief Starts the Device Management Client registration update flow only if it's necessary. See
  * set_update_register_client_needed().
- * \param mutex_action May be used to lock the mutex to avoid race condition.
  */
-void edgeclient_update_register_conditional(edgeclient_mutex_action_e mutex_action);
+void edgeclient_update_register_conditional();
 
 /**
  * \brief Remove objects that have been added by this client.
@@ -142,14 +141,14 @@ bool edgeclient_remove_resources_owned_by_client(void *client_context);
 bool edgeclient_stop();
 
 /**
- * \brief Query whether an endpoint object with the given name already exists in Cloud Client.
+ * \brief Query whether an endpoint object with the given name already exists in Device Management Client.
  * \param endpoint_name The name to look for.
- * \return True if the endpoint exists in Cloud Client, otherwise false.
+ * \return True if the endpoint exists in Device Management Client, otherwise false.
  */
 bool edgeclient_endpoint_exists(const char *endpoint_name);
 
 /**
- * \brief Create an endpoint object with given name to Cloud Client. In success, the new endpoint object will be published at the next
+ * \brief Create an endpoint object with given name to Device Management Client. In success, the new endpoint object will be published at the next
  *  registration update or registration.
  * \param endpoint_name The name of endpoint object to create.
  * \param ctx User supplied data pointer
@@ -166,9 +165,9 @@ bool edgeclient_add_endpoint(const char *endpoint_name, void *ctx);
 bool edgeclient_remove_endpoint(const char *endpoint_name);
 
 /**
- * \brief Create an object with given ID to Cloud Client or to endpoint with given name. In success, the new object will be published at the next
+ * \brief Create an object with given ID to Device Management Client or to endpoint with given name. In success, the new object will be published at the next
  *  registration update or registration.
- * \param endpoint_name The name of the endpoint under which the object should be located. It can also be NULL to create the object under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the object should be located. It can also be NULL to create the object under Edge itself.
  * \param object_id The ID of the object to create, a 16-bit unsigned integer.
  * \return True if created successfully, otherwise false.
  */
@@ -177,7 +176,7 @@ bool edgeclient_add_object(const char *endpoint_name, const uint16_t object_id);
 /**
  * \brief Create an object instance with given ID to a specific object. In success, the new object instance will be published at the next
  *  registration update or registration.
- * \param endpoint_name The name of the endpoint under which the object instance should be located. It can also be NULL to create the object instance under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the object instance should be located. It can also be NULL to create the object instance under Edge itself.
  * \param object_id The ID of the object under which the object instance should be created, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance to create, a 16-bit unsigned integer.
  * \return True if created successfully, otherwise false.
@@ -197,7 +196,7 @@ bool edgeclient_remove_object_instance(const char *endpoint_name, const uint16_t
 /**
  * \brief Create a resource with given ID to a specific object instance. In success, the new resource will be published at the next
  *  registration update or registration.
- * \param endpoint_name The name of the endpoint under which the resource should be located. It can also be NULL to create the resource under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the resource should be located. It can also be NULL to create the resource under Edge itself.
  * \param object_id The ID of the object under which the resource should be created, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource should be created, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource to create, a 16-bit unsigned integer.
@@ -226,7 +225,7 @@ bool edgeclient_verify_value(const uint8_t *value, const uint32_t value_length, 
 /**
  * \brief Checks the type of existing resource.
  * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a
- *        resource under Mbed Edge itself.
+ *        resource under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
  *        integer.
@@ -290,7 +289,7 @@ pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
 /**
  * \brief Set a value to a resource with given path, consisting of endpoint_name (optional), object_id, object_instance_id and resource_id.
  * If any of the path elements are missing, they will be created before setting the value.
- * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
@@ -327,7 +326,7 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
 /**
  * \brief Set delayed response on the given resource. This API needs to be used if processing a resource callback of a
  *        POST request takes more than 1 second.
- * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
@@ -346,7 +345,7 @@ pt_api_result_code_e edgeclient_set_delayed_response(const char *endpoint_name,
  * \brief Send delayed response for the given resource. Use is API to send the delayed response after getting post
  *        request callback when you have set the delayed response on the resource by using
  *        edgeclient_set_delayed_response.
- * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
@@ -362,7 +361,7 @@ pt_api_result_code_e edgeclient_send_delayed_response(const char *endpoint_name,
 
 /**
  * \brief Get a pointer to the resource value buffer with given path, consisting of endpoint_name (optional), object_id, object_instance_id and resource_id.
- * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Mbed Edge itself.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16- bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
@@ -382,7 +381,7 @@ bool edgeclient_get_resource_value(const char *endpoint_name,
  * \brief Get a pointer to the resource value buffer with given path, consisting of endpoint_name (optional),
  *        object_id, object_instance_id and resource_id.
  * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a
- *        resource under Mbed Edge itself.
+ *        resource under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16- bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
  *        integer.
@@ -404,19 +403,19 @@ bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
                                                   edgeclient_resource_attributes_t *attributes);
 
 /**
- * \brief Get the internal id assigned to Edge Core device from Mbed Cloud.
+ * \brief Get the internal id assigned to Edge Core device from Device Management.
  * \return The internal id string. The returned data pointer is borrowed to caller.
  */
 const char* edgeclient_get_internal_id();
 
 /**
- * \brief Get the account id assigned to Edge Core device from Mbed Cloud.
+ * \brief Get the account id assigned to Edge Core device from Device Management.
  * \return The account id string. The returned data pointer is borrowed to caller.
  */
 const char* edgeclient_get_account_id();
 
 /**
- * \brief Get the Lwm2m server URI assigned to Edge Core device from Mbed Cloud.
+ * \brief Get the Lwm2m server URI assigned to Edge Core device from Device Management.
  * \return The Lwm2m server URI string. The returned data pointer is borrowed to caller.
  */
 const char* edgeclient_get_lwm2m_server_uri();
@@ -428,7 +427,7 @@ const char* edgeclient_get_lwm2m_server_uri();
 const char* edgeclient_get_endpoint_name();
 
 /**
- * \brief Check if Edge Client is shutting down. If it is, it's no longer allowed to send new data to Mbed Cloud.
+ * \brief Check if Edge Client is shutting down. If it is, it's no longer allowed to send new data to Device Management.
  * \return true  if the shutdown process has started.
  *         false if shutdown proces hasn't been started.
  */

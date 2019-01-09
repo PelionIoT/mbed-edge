@@ -32,15 +32,17 @@ extern "C" {
 
 void edgeclient_deallocate_request_context(edgeclient_request_context *request_context)
 {
-    if (request_context->value != NULL) {
-        free(request_context->value);
+    if (request_context != NULL) {
+        if (request_context->value != NULL) {
+            free(request_context->value);
+        }
+        free(request_context->device_id);
+        free(request_context);
     }
-    free(request_context->device_id);
-    free(request_context);
 }
 
 edgeclient_request_context_t *edgeclient_allocate_request_context(const char *original_uri,
-                                                                  const uint8_t *value,
+                                                                  uint8_t *value,
                                                                   uint32_t value_len,
                                                                   edgeclient_value_format_e value_format,
                                                                   uint8_t operation,
@@ -57,6 +59,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     char* str_object_id = NULL;
     char* str_object_instance_id = NULL;
     char* str_resource_id = NULL;
+    edgeclient_request_context_t *ctx;
     int rc = 0;
 
     if (!original_uri || strlen(original_uri) == 0) {
@@ -64,25 +67,22 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
         return NULL;
     }
 
-    edgeclient_request_context_t *ctx =
-        (edgeclient_request_context_t*) malloc(sizeof(edgeclient_request_context_t));
+    ctx = (edgeclient_request_context_t*) malloc(sizeof(edgeclient_request_context_t));
     if (!ctx) {
         tr_err("Could not allocate request context structure.");
         return NULL;
     }
 
     // Our code is expecting that the buffer is null terminated. So let's add a null termination!
-    const uint8_t *orig_value = value;
     uint8_t *copied_value = NULL;
     if (value) {
-        value = (uint8_t *) malloc(value_len + 1);
-        if (!value) {
+        copied_value = (uint8_t *) malloc(value_len + 1);
+        if (!copied_value) {
             tr_err("edgeclient_endpoint_value_set_handler - cannot duplicate value to null terminate it!");
             free(ctx);
             return NULL;
         }
-        copied_value = (uint8_t *) value;
-        memcpy(copied_value, orig_value, value_len);
+        memcpy(copied_value, value, value_len);
         copied_value[value_len] = '\0';
     }
 
@@ -91,7 +91,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
      * data type for protocol translator
      */
     if (EDGECLIENT_VALUE_IN_TEXT == value_format) {
-        value_bytes_len = text_format_to_value(resource_type, value, value_len, &value_bytes_buf);
+        value_bytes_len = text_format_to_value(resource_type, copied_value, value_len, &value_bytes_buf);
         if (value_bytes_buf == NULL) {
             tr_err("Could not decode resource value to correct type");
             goto cleanup;
@@ -152,10 +152,11 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     if (EDGECLIENT_VALUE_IN_TEXT == value_format) {
         ctx->value = value_bytes_buf;
         ctx->value_len = value_bytes_len;
-    }
-    else {
-        ctx->value = (uint8_t *) malloc(value_len);
-        memcpy(ctx->value, value, value_len);
+        // Free copied value, it is copied to value_bytes_buf as binary content.
+        free(copied_value);
+        copied_value = NULL;
+    } else {
+        ctx->value = copied_value;
         ctx->value_len = value_len;
     }
     ctx->resource_type = resource_type;
@@ -165,15 +166,15 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     ctx->connection = connection;
 
     free(uri);
-    free(copied_value);
+    free(value);
     return ctx;
 
-    cleanup:
-        free(copied_value);
-        free(device_id);
-        free(uri);
-        free(value_bytes_buf);
-        free(ctx);
+cleanup:
+    free(copied_value);
+    free(device_id);
+    free(uri);
+    free(value_bytes_buf);
+    free(ctx);
 
     return NULL;
 }

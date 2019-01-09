@@ -25,7 +25,7 @@
 #include "key_config_manager.h"
 #include "mbed-trace/mbed_trace.h"
 #include "edge-core/edge_server.h"
-#include "edge-client/msg_api.h"
+#include "common/msg_api.h"
 #include "common/test_support.h"
 #include "edge-client/edge_core_cb_result.h"
 #include "edge-client/reset_factory_settings.h"
@@ -40,13 +40,11 @@ typedef struct x_rfs_thread_param {
 
 typedef struct x_rfs_thread_result
 {
-    EVENT_MESSAGE_BASE;
     pthread_t *thread;
     bool customer_rfs_succeeded;
 } rfs_thread_result_t;
 
 typedef struct x_rfs_request_message {
-    EVENT_MESSAGE_BASE;
     edgeclient_request_context_t *request_ctx;
 } rfs_request_message_t;
 
@@ -59,19 +57,21 @@ void rfs_finalize_reset_factory_settings()
     }
 }
 
-EDGE_LOCAL void rfs_reset_factory_settings_request_cb(evutil_socket_t fd, short what, void *arg);
-EDGE_LOCAL void rfs_reset_factory_settings_response_cb(evutil_socket_t fd, short what, void *arg);
+EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg);
+EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg);
 
 void rfs_reset_factory_settings_requested(edgeclient_request_context_t *request_ctx)
 {
     // Send request to main thread, because it's easier to join the RFS thread there.
-    rfs_request_message_t *message =
-            (rfs_request_message_t *) msg_api_allocate_and_init_message(sizeof(rfs_request_message_t));
+    rfs_request_message_t *message = (rfs_request_message_t *) calloc(1, sizeof(rfs_request_message_t));
     if (message) {
         message->request_ctx = request_ctx;
-        msg_api_send_message((event_message_t *) message, rfs_reset_factory_settings_request_cb);
+        struct event_base *base = edge_server_get_base();
+        if (!msg_api_send_message(base, message, rfs_reset_factory_settings_request_cb)) {
+            tr_err("Cannot sent the reset factory settings request message!");
+        }
     } else {
-        tr_err("Cannot send the reset factory settings request message!");
+        tr_err("Cannot allocate the reset factory settings request message!");
     }
 }
 
@@ -86,12 +86,15 @@ static void *rfs_thread(void *arg)
     } else {
         edgecore_execute_failure(request_ctx);
     }
-    rfs_thread_result_t *result =
-            (rfs_thread_result_t *) msg_api_allocate_and_init_message(sizeof(rfs_thread_result_t));
+    rfs_thread_result_t *result = (rfs_thread_result_t *) calloc(1, sizeof(rfs_thread_result_t));
     if (result) {
         result->customer_rfs_succeeded = success;
         result->thread = param->thread;
-        msg_api_send_message((event_message_t *) result, rfs_reset_factory_settings_response_cb);
+        struct event_base *base = edge_server_get_base();
+        if (!msg_api_send_message(base, result, rfs_reset_factory_settings_response_cb)) {
+            tr_err("Cannot send the RFS response message!");
+            free(result);
+        }
     } else {
         tr_err("rfs_thread: cannot allocate message for sending the RFS result! thread leak!");
     }
@@ -99,13 +102,10 @@ static void *rfs_thread(void *arg)
     return NULL;
 }
 
-EDGE_LOCAL void rfs_reset_factory_settings_response_cb(evutil_socket_t fd, short what, void *arg)
+EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg)
 {
-    (void) fd;
-    (void) what;
     rfs_thread_result_t *rfs_thread_result = (rfs_thread_result_t *) arg;
-    free(rfs_thread_result->ev);
-    tr_debug("Sending response to Mbed Cloud");
+    tr_debug("Sending response to Cloud");
     pt_api_result_code_e status =
             edgeclient_send_delayed_response(NULL, EDGE_DEVICE_OBJECT_ID, 0, EDGE_FACTORY_RESET_RESOURCE_ID);
     if (status != PT_API_SUCCESS) {
@@ -125,14 +125,13 @@ EDGE_LOCAL void rfs_reset_factory_settings_response_cb(evutil_socket_t fd, short
 }
 
 // This will happen in main thread
-EDGE_LOCAL void rfs_reset_factory_settings_request_cb(evutil_socket_t fd, short what, void *arg)
+EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg)
 {
-    (void) fd;
-    (void) what;
     tr_debug("rfs_reset_factory_settings_request_cb");
     pthread_t *rfs_thread_p = (pthread_t *) calloc(1, sizeof(pthread_t));
     if (rfs_thread_p == NULL) {
         tr_err("Cannot allocate memory for the rfs thread struct");
+        free(arg);
         return;
     }
 
@@ -140,18 +139,18 @@ EDGE_LOCAL void rfs_reset_factory_settings_request_cb(evutil_socket_t fd, short 
     rfs_thread_param_t *param = (rfs_thread_param_t *) calloc(1, sizeof(rfs_thread_param_t));
     if (param == NULL) {
         free(rfs_thread_p);
+        free(arg);
         tr_err("Cannot allocate memory for the rfs thread struct parameters");
         return;
     }
 
     param->thread = rfs_thread_p;
     param->ctx = (edgeclient_request_context_t *) message->request_ctx;
-    free(message->ev);
-    free(message);
     if (!rfs_thread_p || pthread_create(rfs_thread_p, NULL, rfs_thread, (void *) param)) {
         tr_err("Cannot create the rfs thread");
         free(rfs_thread_p);
     }
+    free(arg);
 }
 
 void rfs_add_factory_reset_resource()

@@ -18,8 +18,22 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifndef PT_API_VERSION
+#define PT_API_VERSION 1
+#endif
+#if PT_API_VERSION != 1
+#error "Including mixed versions of Protocol API"
+#endif
+
 #ifndef PT_DEVICE_OBJECT_H_
 #define PT_DEVICE_OBJECT_H_
+
+#ifdef __GNUC__
+#define DEPRECATED(func) func __attribute__((deprecated))
+#else
+#pragma message("WARNING: Implement DEPRECATED macro, it is missing.")
+#define DEPRECATED(func) func
+#endif
 
 #include <stdbool.h>
 #include "pt-client/pt_api.h"
@@ -45,9 +59,11 @@
  */
 
 /**
- * \file pt_device_object.h
- * \brief A utility header to contain the LwM2M device object ID:3
- * creation for mediated endpoints.
+ * \file pt-client/pt_device_object.h
+ * \brief <b>**Deprecated**</b> A utility header to contain the LwM2M device object ID:3 creation for mediated
+ * endpoints.
+ * \deprecated The protocol translator API v1 is deprecated. The API will exist
+ * until end of 2019.
  *
  * See the LwM2M definition for device resource:
  * http://www.openmobilealliance.org/tech/profiles/LWM2M_Device-v1_0_1.xml
@@ -55,6 +71,7 @@
 
 /**
  * \brief The device object data ID:3.
+ * \deprecated The protocol translator API v1 is deprecated. The API will exist until end of 2019.
  *
  * `NULL` can be passed to optional values and no resource is generated for that field.
  * The parameter strings must be NULL terminated.
@@ -74,6 +91,7 @@ typedef struct ptdo_device_object_data {
 
 /**
  * \brief Create the device object ID:3.
+ * \deprecated The protocol translator API v1 is deprecated. The API will exist until end of 2019.
  *
  * The following mandatory resources are always generated:
  * - Reboot, executable resource ID:4.
@@ -85,11 +103,12 @@ typedef struct ptdo_device_object_data {
  * \param device The device object to initialize with `\3` object and resources.
  * \param device_object_data The struct containing the values and function pointer for the `\3` object and resources.
  * \return The status of the device object initialization operation.\n
- *         'PT_STATUS_SUCCESS' on successful initialize.\n
- *         See `pt_status_t` for possible error codes.
+ *         `PT_STATUS_SUCCESS` on successful initialize.\n
+ *         See ::pt_status_t for possible error codes.
  */
-pt_status_t ptdo_initialize_device_object(pt_device_t *device,
-                                          ptdo_device_object_data_t *device_object_data);
+DEPRECATED(
+    pt_status_t ptdo_initialize_device_object(pt_device_t *device,
+                                              ptdo_device_object_data_t *device_object_data));
 
 /**
  * @}

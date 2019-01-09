@@ -204,7 +204,7 @@ json_t *jsonrpc_validate_params(json_t *json_params, const char *params_spec)
 }
 
 json_t *jsonrpc_handle_request_single(json_t *json_request, struct jsonrpc_method_entry_t method_table[],
-                                      void *userdata)
+                                      struct json_message_t *userdata)
 {
     int rc;
     json_t *json_response;
@@ -267,17 +267,17 @@ char *jsonrpc_handler(const char *input,
                       size_t input_len,
                       struct jsonrpc_method_entry_t method_table[],
                       jsonrpc_response_handler response_handler,
-                      void *userdata, // json_message_t *
-                      bool *protocol_error)
+                      struct json_message_t *userdata,
+                      jsonrpc_handler_e *ret_rc)
 {
-    *protocol_error = false;
+    *ret_rc = JSONRPC_HANDLER_OK;
     json_t *json_request, *json_response = NULL;
     json_error_t error;
     char *output = NULL;
 
     json_request = json_loadb(input, input_len, 0, &error);
     if (!json_request) {
-        *protocol_error = true;
+        *ret_rc = JSONRPC_HANDLER_JSON_PARSE_ERROR;
     } else if (json_is_array(json_request)) {
         size_t len = json_array_size(json_request);
         if (len==0) {
@@ -298,15 +298,21 @@ char *jsonrpc_handler(const char *input,
                     }
                 } else if (jsonrpc_is_notification(req) == 1) {
                     tr_warn("Notifications are not supported. No response given.");
+                    *ret_rc = JSONRPC_HANDLER_NOTIFICATIONS_NOT_SUPPORTED;
                 } else if (jsonrpc_is_response(req) == 1) {
-                    if (!response_handler(req) == 0) {
+                    int rc = response_handler(userdata->connection, req);
+                    if (rc == 1) {
                         json_t *rep = jsonrpc_error_response(NULL,
                                                              jsonrpc_error_object_predefined(JSONRPC_INVALID_REQUEST,
                                                                                              NULL));
                         json_array_append_new(json_response, rep);
+                    } else if (rc == -1) {
+                        tr_error("Protocol error: reponse is not matched to any request.");
+                        *ret_rc = JSONRPC_HANDLER_REQUEST_NOT_MATCHED;
                     }
                 } else {
                     tr_warn("Payload is not a request, notification or response. Not handled at all.");
+                    *ret_rc = JSONRPC_HANDLER_JSON_PAYLOAD_NOT_VALID;
                 }
             }
         }
@@ -314,15 +320,20 @@ char *jsonrpc_handler(const char *input,
         if (jsonrpc_is_request(json_request) == 1) {
             // request is request or notification
             json_response = jsonrpc_handle_request_single(json_request, method_table, userdata);
+            *ret_rc = JSONRPC_HANDLER_NOTIFICATIONS_NOT_SUPPORTED;
         } else if (jsonrpc_is_notification(json_request) == 1) {
             tr_warn("Notifications are not supported. No response given.");
+            *ret_rc = JSONRPC_HANDLER_NOTIFICATIONS_NOT_SUPPORTED;
         } else if (jsonrpc_is_response(json_request) == 1) {
             // payload is response
-            if (!response_handler(json_request) == 0) {
-                tr_warn("Response handler failed to handle payload. No response given.");
+            int rc = response_handler(userdata->connection, json_request);
+            if (rc == -1) {
+                tr_error("Protocol error: reponse is not matched to any request.");
+                *ret_rc = JSONRPC_HANDLER_REQUEST_NOT_MATCHED;
             }
         } else {
             tr_warn("Payload is not a request, notification or response. Not handled at all.");
+            *ret_rc = JSONRPC_HANDLER_JSON_PAYLOAD_NOT_VALID;
         }
     }
 

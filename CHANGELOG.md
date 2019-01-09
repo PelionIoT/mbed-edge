@@ -1,4 +1,43 @@
-# Changelog for Mbed Edge
+# Changelog for Edge
+
+## Release 0.7.1 (2018-01-07)
+
+ * Removed `Mbed` from documentation.
+ * Removed obsolete injection of insecure RoT module in Edge Core build.
+ * Moved the `include/jsonrpc/jsonrpc.h` header under `lib/jsonrpc/jsonrpc`. This header is internal.
+ * Moved the `include/edge-rpc/rpc.h` header under `edge-rpc/edge-rpc`. This header is internal.
+ * Implemented sending the device unregistration message to Device Management backend. The unregistration relies on the lifetime expiration in the Device Management backend.
+ * Updated Device Management Client to version 2.1.1.
+ * Implemented Protocol Translator API v2.
+   * The old Protocol Translator API (v1) is still available.
+   * The v2 API has better thread safety than the v1 API.
+   * `ns_list.h` is not visible outside.
+   * API uses a connection ID instead of a connection structure pointer.
+   * The v2 API optimizes the size of the payload in communication with Device Management Edge.
+ * **Deprecated** The Protocol Translator API v1. The API headers deprecated are under `include/pt-client`.
+ * Removed Yocto toolchain and target. The build environments need to provide a correct toolchain and target.
+
+### Bugfixes
+
+ * Fixed usage for `--cbor-conf` also when combined with `--reset-storage`.
+ * Fixed possible invalid pointer dereference when calling `pt_client_final_cleanup` after `pt_client_start` has returned. <br/> *Migration note:* The `pt_client_final_cleanup` API functionality has been moved inside the `pt_client_start` function and the `pt_client_final_cleanup` function has been deprecated. Any call to `pt_client_final_cleanup` should be removed and the `pt-client/client.h`" include should be removed from the protocol translator as it is an internal header.
+ * Fixed memory leak on `PUT` and `WRITE` request handling. The payload pointer given from Cloud Client to Edge was never freed. The payload was copied for NUL-termination and the original pointer was not freed.
+ * Added workaround for waiting Cloud Client threads to stop on Edge Core close. The underlying Cloud Client's EventOS event loop thread is not joined and occasionally it is reported as memory leak by Valgrind.
+
+### Known issues
+
+ * Firmware update from `morty` version of Yocto to `sumo` does not work and makes devices unusable. The differences in the device trees of the different versions cause problems when starting the kernel after the update.
+ * When Edge communicates on behalf of multiple devices, there is an underlying limitation in the CoAP communication that effectively reduces the amount of requests in flight to be one. On very heavy communication cases, this introduces extra latency. An example calculation:
+   * 30 mediated devices with a resource tree of 20 resources.
+   * Round trip time to Mbed Cloud of 200 ms.
+   * 10 KB registration message.
+   * Underlying Cloud Client sends data in 1 KB blocks and waits for acknowledgement for each block. This equals 10 * 200 ms = 2 seconds.
+   * During that time, other messages are not processed.
+ * If there are a lot of notification updates passed to Mbed Cloud from Mbed Edge, the responsiveness to requests initiated by Mbed Cloud may be hindered.
+ * Protocol translators may cause side effects on devices connecting through another protocol translator if both protocol translators use the same names for the devices because Edge Core identifies the endpoint devices by their name. There is limited checking on which protocol translator owns the endpoint device, and clashing names can cause unknown behavior. Ensure that devices have unique names across the protocol translators. For example, add a prefix or suffix based on the protocol translator name, which must be unique.
+ * `DELETE` (CoAP/LwM2M) operation not supported.
+ * Devices moving between Edge instances have corner cases that are not supported. Deregister the devices from the current Edge instance before connecting to another Edge instance.
+ * Mediated device lifetime tracking is not supported. Devices have the same lifetime as the Edge device. Default is 1 hour. The `#define` used to change the lifetime is `MBED_CLOUD_CLIENT_LIFETIME`.
 
 ## Release 0.6.0 (2018-10-19)
 

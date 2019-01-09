@@ -59,7 +59,7 @@ def byte_to_str(value):
 ResourcePath = namedtuple("ResourcePath", "object_id, instance_id, resource_id")
 
 # See http://www.openmobilealliance.org/wp/OMNA/LwM2M/LwM2MRegistry.html
-# Currently Mbed Cloud Client supports only text-format for resource values
+# Currently Device Management Client supports only text-format for resource values
 LWM2M_RESOURCE_MAPPING  = {
 #    0: byte_to_str,
 #    1: byte_to_str,

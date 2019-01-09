@@ -51,10 +51,9 @@ static bool remove_connection_from_list(struct connection *connection, connectio
 
 static bool remove_connection_from_lists(struct connection *connection)
 {
-    bool conn_found = false;
     struct ctx_data *ctx_data = connection->ctx->ctx_data;
     tr_debug("Checking registered PTs first...");
-    conn_found = remove_connection_from_list(connection, &ctx_data->registered_translators);
+    bool conn_found = remove_connection_from_list(connection, &ctx_data->registered_translators);
     if (conn_found) {
         tr_debug("Found from registered translators.");
     } else {
@@ -94,7 +93,7 @@ bool close_connection(struct connection *connection)
         }
     }
     // In connection_free, the PT resource are destroyed. Therefore we should reregister.
-    edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
+    edgeclient_update_register_conditional();
     return result;
 }
 

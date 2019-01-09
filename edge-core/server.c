@@ -97,13 +97,7 @@ bool create_server_event_loop(struct context *ctx, int http_port)
         return false;
     }
 
-    unsigned flags = 0;
-    flags |= LEV_OPT_CLOSE_ON_FREE;
-    flags |= LEV_OPT_CLOSE_ON_EXEC;
-    flags |= LEV_OPT_REUSEABLE;
-
-    bool http_server_init_ok = false;
-    http_server_init_ok = http_server_init(ctx, http_port);
+    bool http_server_init_ok = http_server_init(ctx, http_port);
     if (!http_server_init_ok) {
         tr_err("Cannot create http server to port %d.", http_port);
     }

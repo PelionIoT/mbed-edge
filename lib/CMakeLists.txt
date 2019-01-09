@@ -5,6 +5,8 @@ if (TARGET_GROUP STREQUAL test)
   add_subdirectory (cpputest)
 endif ()
 
+set (DISABLE_PAL_TESTS ON CACHE BOOL "Disable PAL tests.")
+
 add_definitions ("-DJANSSON_EXAMPLES=OFF")
 add_definitions ("-DJANSSON_BUILD_DOCS=OFF")
 add_definitions ("-DJANSSON_WITHOUT_TESTS=ON")

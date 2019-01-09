@@ -68,5 +68,9 @@ void edge_io_release_lock_for_socket(const char *path, int lock_fd);
  */
 int edge_io_unlink(const char *path);
 
-#endif
+/**
+ * @}
+ * Close EDGE_IO_LIB Doxygen group definition
+ */
 
+#endif

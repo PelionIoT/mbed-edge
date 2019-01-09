@@ -23,8 +23,12 @@
 
 /**
  * \defgroup EDGE_DEFAULT_MESSAGE_ID_GENERATOR_LIB Default message id generator library
- * \file default_message_id_generator.h
  * @{
+ */
+
+/**
+ * \file default_message_id_generator.h
+ * \brief Default message ID generator for JSON-RPC messages.
  */
 
 /**
@@ -34,7 +38,7 @@
  *
  * \return A unique message ID.
  */
-typedef char* (*generate_msg_id)();
+typedef char *(*generate_msg_id)();
 
 /**
  * \brief Default message generation function.

@@ -1,8 +1,8 @@
-# Mbed Edge
+# Edge
 
-This document contains the instructions for using and developing Mbed Edge.
+This document contains the instructions for using and developing Edge.
 
-The full Mbed Edge documentation is [part of our Mbed Cloud documentation site](https://cloud.mbed.com/docs/current/connecting/device-management-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+The full Edge documentation is [part of our Device Management documentation site](https://cloud.mbed.com/docs/latest/connecting/device-management-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
 
 ## License
 
@@ -19,13 +19,14 @@ The contents of the repository.
 | `cmake`               | CMake scripts
 | `common`              | Common functionality of edge-core and pt-client.
 | `config`              | The configuration files location.
-| `edge-client`         | A wrapper used to integrate Mbed Edge with Mbed Cloud Client.
+| `edge-client`         | A wrapper used to integrate Edge with Device Management Client.
 | `edge-core`           | Edge Core server process.
 | `edge-rpc`            | Common RPC functionality of edge-core and pt-client.
 | `edge-tool`           | A helper tool to observe and manipulate Edge mediated resources.
-| `include`             | Header files for Mbed Edge.
-| `lib`                 | Mbed Edge library dependencies
-| `pt-client`           | Protocol translator client stub.
+| `include`             | Header files for Edge.
+| `lib`                 | Edge library dependencies
+| `pt-client`           | **Deprecated** Protocol translator client v1 stub.
+| `pt-client-2`         | Protocol translator client v2 stub.
 
 ### Files
 
@@ -33,7 +34,7 @@ The contents of the repository.
 |-----------------------------------|---------------------------------------------
 | `CMakeLists.txt`                  | The root CMakeLists file.
 | `git_details.cmake`               | CMake file used for generating the version information.
-| `config/mbed_cloud_client_user_config.h` | A configuration file for the Mbed Cloud Client settings.
+| `config/mbed_cloud_client_user_config.h` | A configuration file for the Device Management Client settings.
 | `config/mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
 
 ## Dependencies
@@ -56,26 +57,28 @@ Tools needed for building:
  * Git for cloning this repository.
  * CMake 2.8 or later.
  * GCC for compiling.
+ * Doxygen for documentation generation.
+ * Graphviz for documentation generation.
 
 ```
-$ apt install build-essential cmake git
+$ apt install build-essential cmake git doxygen graphviz
 ```
 
 ## Initialize repositories
 
-Fetch the Git submodules that are direct dependencies for Mbed Edge.
+Fetch the Git submodules that are direct dependencies for Edge.
 ```
 $ git submodule init
 $ git submodule update
 ```
 
-## Configuring Mbed Edge build
+## Configuring Edge build
 
-You can configure the build options for Mbed Cloud Client with the CMake command line
+You can configure the build options for Device Management Client with the CMake command line
 flags.
 You can enable `BYOC_MODE` or `DEVELOPER_MODE` by giving a flag `-DBYOC_MODE=ON` or
 `-DDEVELOPER_MODE=ON` when creating the CMake build to insert the certificates to
-Mbed Edge during compilation. For factory provisioning, you need to give the mode
+Edge during compilation. For factory provisioning, you need to give the mode
 `-DFACTORY_MODE=ON`.
 
 ```
@@ -88,15 +91,15 @@ $ make
 In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-tool` to generate the `update_default_resources.c`,
 see the documentation on [getting the update resources](#getting-the-update-resources).
 
-With the `BYOC_MODE` it is possible to inject the Mbed Cloud Client configuration as CBOR file. The `--cbor-conf` argument takes the path to CBOR file. The `edge-tool` can be used to convert the C source file Mbed Cloud developer credentials file to CBOR format. See the instructions in [`edge-tool/README.md`](./edge-tool/README.md)
+With the `BYOC_MODE` it is possible to inject the Device Management Client configuration as CBOR file. The `--cbor-conf` argument takes the path to CBOR file. The `edge-tool` can be used to convert the C source file Device Management developer credentials file to CBOR format. See the instructions in [`edge-tool/README.md`](./edge-tool/README.md)
 
 Other build flags can also be set with this method.
 
 ### Factory provisioning
 
 Factory provisioning is the process of injecting the cryptographic credentials
-used to connect Mbed Edge to Mbed Cloud. For more information, read the
-[Provisioning documentation](https://cloud.mbed.com/docs/v1.2/provisioning-process/index.html).
+used to connect Edge to Device Management Cloud. For more information, read the
+[Provisioning documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html).
 
 ### Using your own certificate authority
 
@@ -111,7 +114,7 @@ To enable the developer mode, add the following flag to the CMake command:
 `-DDEVELOPER_MODE=ON`.
 
 After this, you need to add the `mbed_cloud_dev_credentials.c` file to the
-`config` folder. You need a user account in Mbed Cloud to be able to
+`config` folder. You need a user account in Device Management Cloud to be able to
 generate a developer certificate. To obtain the developer certificate, follow
 these steps:
 
@@ -125,9 +128,9 @@ these steps:
 To configure the expiration time from the default of one hour (3600 seconds),
 change the compile time define `MBED_CLOUD_CLIENT_LIFETIME` in the
 `config/mbed_cloud_client_user_config.h` file. The expiration time is inherited by the
-mediated endpoints from the Mbed Edge Core. You should set the expiration
+mediated endpoints from the Edge Core. You should set the expiration
 time to a meaningful value for your setup. For more the details of the expiration,
-read the [Mbed Cloud Client documentation](https://cloud.mbed.com/docs/v1.2/connecting/deregister-your-device.html).
+read the [Device Management Client documentation](https://cloud.mbed.com/docs/latest/connecting/deregister-your-device.html).
 
 ```
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
@@ -140,13 +143,13 @@ in the CMake command line: `-DFIRMWARE_UPDATE=ON`.
 
 In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
 The exact value of the define depends on the used Linux distribution and the
-machine used to run Mbed Edge.
+machine used to run Edge.
 For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
 a value `ARM_UCP_LINUX_GENERIC`.
 
 When you have enabled the update, you need to generate the
 `update_default_resources.c` file. To create this file, use the
-[`manifest-tool` utility](https://cloud.mbed.com/docs/v1.2/updating-firmware/manifest-tool.html).
+[`manifest-tool` utility](https://cloud.mbed.com/docs/latest/updating-firmware/manifest-tool.html).
 Give, for example, the following command:
 
 ```
@@ -160,7 +163,7 @@ to sign the manifest for the firmware update.
 
 <span class="notes">**Note:** The generated certificates are not secure for use
 in production environments. Please read the
-[Provisioning devices for Mbed Cloud documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
+[Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
 on how to build a resource file and certificates safe for a production environment.</span>
 
 ### Configuring the maximum number of registered endpoints
@@ -211,9 +214,9 @@ $ make
 
 ### Root of Trust device key generation
 
-The Mbed Edge versions before `CR-0.4.1` contained a Mbed Cloud Client versions
+The Edge versions before `CR-0.4.1` contained a Device Management Client versions
 from `1.2.x` which had a defect in Root of Trust device key generation. The
-defect is fixed in `1.3.0` version of the Mbed Cloud Client but the fix is not
+defect is fixed in `1.3.0` version of the Device Management Client but the fix is not
 backwards compatible. Use the compatibility flag only if you must have the
 compatibility and you accept the security issues it contains.
 
@@ -234,12 +237,12 @@ add_definitions ("-DPAL_DEVICE_KEY_DERIVATION_BACKWARD_COMPATIBILITY_CALC=1")
 ### Using custom targets
 
 Custom targets can be set by creating custom cmake files to `./cmake/targets` and
-`./cmake/toolchains`-folders. The `targets`-folder is used for setting up the Mbed
+`./cmake/toolchains`-folders. The `targets`-folder is used for setting up the
 Edge build options, whereas the `toolchains`-folder is used for setting the build
 environment variables. After creating the custom cmake file, the `./cmake/edge_configure.cmake`
 needs to be edited to include the new targets.
 
-### Building the Mbed Edge Core server
+### Building the Edge Core server
 
 You can use the following commands to do a developer build:
 
@@ -253,7 +256,7 @@ $ make
 
 The built `edge-core` binary will be in `build/bin`-folder.
 
-### Building Mbed Edge Doxygen API
+### Building Edge Doxygen API
 
 You can use the following commands to build the Doxygen documentation:
 
@@ -274,7 +277,7 @@ $ ./edge-core --edge-pt-domain-socket <domain-socket> -o <http-port>
 ```
 
 In the `edge-core` command, the `edge-pt-domain-socket` parameter is the domain socket
-path where the protocol translator connects to. The `http-port` parameter is the port that you can use for querying the status of Mbed Edge.
+path where the protocol translator connects to. The `http-port` parameter is the port that you can use for querying the status of Edge.
 The default domain socket path is `/tmp/edge.sock` (for the protocol
 translator API) and the default HTTP port is `8080` (for the HTTP status API).
 
@@ -291,10 +294,10 @@ used for persistent storage settings for `egde-core`.
 
 You can use the `--reset-storage` parameter to clear the settings in this folder
 when starting the server. This does not remove the devices and settings in the cloud.
-You need to remove them manually, for example using the Mbed Cloud Portal.
+You need to remove them manually, for example using the Device Management Cloud Portal.
 
 You can set the location of the configuration directory in your Edge target configuration file,
-for example: `cmake/targets/yocto.cmake` by changing the values of
+for example: `cmake/targets/default.cmake` by changing the values of
 `PAL_FS_MOUNT_POINT_PRIMARY` and `PAL_FS_MOUNT_POINT_SECONDARY`.
 
 <span class="notes">**Note:** Do not add trailing `/` to the paths.

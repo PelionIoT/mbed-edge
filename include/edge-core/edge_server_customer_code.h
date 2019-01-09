@@ -23,15 +23,15 @@
 #include "edge-client/edge_client.h"
 
 /**
- * \defgroup EDGE_SERVER_CUSTOMER_CODE Mbed Edge Server Customer Code
+ * \defgroup EDGE_SERVER_CUSTOMER_CODE Edge Server Customer Code
  * \ingroup EDGE_SERVER_CUSTOMER_CODE
  * @{
  */
 
 /** \file edge_server_customer_code.h
- * \brief Mbed Edge server customer code
+ * \brief Edge server customer code
  *
- * This file contains hooks for a customer implementation. For example, when factory reset is called from Mbed Cloud,
+ * This file contains hooks for a customer implementation. For example, when factory reset is called from Device Management,
  * `edgeserver_execute_rfs_customer_code` is called.\n
  * The customers may implement their own implementation for reset factory settings.\n
  * This function should always return within a reasonable time, ideally within a few seconds.\n
@@ -39,7 +39,7 @@
  */
 
 /**
- * \brief Called when reset factory settings is requested from Mbed Cloud.
+ * \brief Called when reset factory settings is requested from Cloud.
  *
  * \param request_ctx Information about this request.
  * \return True if reset factory settings was successful.\n

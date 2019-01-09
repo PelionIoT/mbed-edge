@@ -25,7 +25,7 @@ if (NOT ${DEVELOPER_MODE} AND NOT ${BYOC_MODE} AND NOT ${FACTORY_MODE})
   SET (DEVELOPER_MODE ON)
 endif()
 
-# Mandatory definitions for Mbed Cloud Client
+# Mandatory definitions for Device Management Client
 add_definitions ("-DRESOURCE_ATTRIBUTES_LIST=1")
 
 
@@ -40,7 +40,7 @@ if (${DEVELOPER_MODE})
     MESSAGE ("No external MBED_CLOUD_IDENTITY_CERT_FILE injected.")
     SET (MBED_CLOUD_IDENTITY_CERT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/config/mbed_cloud_dev_credentials.c")
   else()
-    MESSAGE ("Mbed Cloud developer certificate identity file injected.")
+    MESSAGE ("Device Management developer certificate identity file injected.")
   endif()
 
   if (NOT ${TARGET_GROUP} STREQUAL test)
@@ -61,24 +61,18 @@ if (TRACE_COAP_PAYLOAD)
   add_definitions ("-DMBED_CLIENT_PRINT_COAP_PAYLOAD=1")
 endif()
 
-if (NOT DEFINED MBED_SECURE_ROT_IMPLEMENTATION)
-  MESSAGE (WARNING "No secure Root of Trust implementation injected.")
-  MESSAGE (WARNING "Using an insecure dummy implementation.")
-  SET (MBED_SECURE_ROT_IMPLEMENTATION "lib/mbed-cloud-client/mbed-client-pal/Examples/PlatformBSP/pal_insecure_ROT.c")
-endif ()
-add_library (mbed-rot ${MBED_SECURE_ROT_IMPLEMENTATION})
-
 add_definitions ("-D__LINUX__")
 add_definitions ("-DTARGET_IS_PC_LINUX")
 
-if (NOT DEFINED TARGET_DEVICE)
-    SET (TARGET_DEVICE "default")
+if (NOT DEFINED TARGET_CONFIG_ROOT)
+   include ("cmake/targets/default.cmake")
+else ()
+   include ("${TARGET_CONFIG_ROOT}/target.cmake")
 endif()
-include ("cmake/targets/${TARGET_DEVICE}.cmake")
 
 
 if (${FIRMWARE_UPDATE})
-  MESSAGE ("Enabling firmware update for Mbed Edge")
+  MESSAGE ("Enabling firmware update for Edge")
   if (${DEVELOPER_MODE})
     if (NOT DEFINED MBED_UPDATE_RESOURCE_FILE)
       MESSAGE ("The custom update resource descriptor c-file not injected.")
@@ -115,11 +109,11 @@ if (NOT DEFINED MBEDTLS_CONFIG)
 endif()
 add_definitions ("-DMBEDTLS_CONFIG_FILE=\"${MBEDTLS_CONFIG}\"")
 
-# Select Mbed Cloud Client configuration header
+# Select Device Management Client configuration header
 # Custom configuration header file can be given with argument -DCLOUD_CLIENT_CONFIG
 if (NOT DEFINED CLOUD_CLIENT_CONFIG)
   SET (CLOUD_CLIENT_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/mbed_cloud_client_user_config.h")
-  MESSAGE ("Using default Mbed Cloud Client config: ${CLOUD_CLIENT_CONFIG}")
+  MESSAGE ("Using default Device Management Client config: ${CLOUD_CLIENT_CONFIG}")
 endif()
 add_definitions ("-DMBED_CLOUD_CLIENT_USER_CONFIG_FILE=\"${CLOUD_CLIENT_CONFIG}\"")
 add_definitions ("-DMBED_CLIENT_USER_CONFIG_FILE=\"${CLOUD_CLIENT_CONFIG}\"")
@@ -177,7 +171,6 @@ endif()
 add_definitions("-DMBED_CLOUD_CLIENT_EDGE_EXTENSION")
 
 # Example application default configuration
-SET (CLIENT_EXAMPLE_REAPPEARING_THREAD_STACK_SIZE 131072)
 SET (MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE 40960)
 SET (MBEDTLS_USER_CONFIG_FILE "\"config/mbedtls_mbed_client_config.h\"")
 SET (MBED_CONF_MBED_CLIENT_DNS_THREAD_STACK_SIZE 131072)

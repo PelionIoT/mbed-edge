@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <assert.h>
 #include "libwebsockets.h"
+#include <event2/event_struct.h>
 
 #include "edge-client/edge_client.h"
 #include "edge-client/edge_client_byoc.h"
@@ -52,6 +53,9 @@
 #define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
 
 EDGE_LOCAL struct context *g_program_context = NULL;
+EDGE_LOCAL struct event ev_sigint;
+EDGE_LOCAL struct event ev_sigterm;
+EDGE_LOCAL struct event ev_sigusr2;
 EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data);
 EDGE_LOCAL edgeclient_create_parameters_t edgeclient_create_params = {0};
 
@@ -307,9 +311,9 @@ json_t *http_state_in_json(struct context *ctx)
     return res;
 }
 
-EDGE_LOCAL void shutdown_handler(int signum)
+EDGE_LOCAL void shutdown_handler(evutil_socket_t s, short x, void * args)
 {
-    tr_info("shutdown_handler signal: %d", signum);
+    tr_info("shutdown_handler signal: %d", x);
     tr_info("edgeclient status when shutting down: %s", cloud_connection_status_in_string(g_program_context));
     edgeclient_stop();
 }
@@ -354,21 +358,11 @@ void *edgeserver_graceful_shutdown()
 }
 
 #ifndef BUILD_TYPE_TEST
-EDGE_LOCAL bool setup_signals(void)
+EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
 {
-    struct sigaction sa = { .sa_handler = shutdown_handler, };
     struct sigaction sa_pipe = { .sa_handler = SIG_IGN, };
     int ret_val;
 
-    if (sigemptyset(&sa.sa_mask) != 0) {
-        return false;
-    }
-    if (sigaction(SIGTERM, &sa, NULL) != 0) {
-        return false;
-    }
-    if (sigaction(SIGINT, &sa, NULL) != 0) {
-        return false;
-    }
     ret_val = sigaction(SIGPIPE, &sa_pipe, NULL);
     if (ret_val != 0) {
         tr_warn("setup_signals: sigaction with SIGPIPE returned error=(%d) errno=(%d) strerror=(%s)",
@@ -376,12 +370,17 @@ EDGE_LOCAL bool setup_signals(void)
                 errno,
                 strerror(errno));
     }
-#ifdef DEBUG
-    tr_info("Setting support for SIGUSR2");
-    if (sigaction(SIGUSR2, &sa, NULL) != 0) {
-        return false;
-    }
-#endif
+
+    // use libevent signal handler for shut down
+    (void)event_assign(&ev_sigint, ev_base, SIGINT, EV_SIGNAL|EV_PERSIST, shutdown_handler, NULL);
+    (void)event_add(&ev_sigint, NULL);
+
+    (void)event_assign(&ev_sigterm, ev_base, SIGTERM, EV_SIGNAL|EV_PERSIST, shutdown_handler, NULL);
+    (void)event_add(&ev_sigterm, NULL);
+
+    (void)event_assign(&ev_sigusr2, ev_base, SIGUSR2, EV_SIGNAL|EV_PERSIST, shutdown_handler, NULL);
+    (void)event_add(&ev_sigusr2, NULL);
+
     return true;
 }
 #endif
@@ -543,6 +542,7 @@ EDGE_LOCAL void clean_resources(struct lws_context *lwsc, const char *edge_pt_so
     }
     clean(g_program_context);
     free_program_context_and_data();
+    rpc_deinit();
 }
 
 #ifndef BUILD_TYPE_TEST
@@ -580,7 +580,7 @@ int testable_main(int argc, char **argv)
         }
 
         // Create client
-        tr_info("Starting mbed Edge Core cloud client");
+        tr_info("Starting Device Management Edge Cloud Client");
         edgeclient_create_params.handle_write_to_pt_cb = write_to_pt;
         edgeclient_create_params.handle_register_cb = register_cb;
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
@@ -603,7 +603,7 @@ int testable_main(int argc, char **argv)
         edgeclient_connect();
 
 #ifndef BUILD_TYPE_TEST
-        if (!setup_signals()) {
+        if (!setup_signals(g_program_context->ev_base)) {
             tr_err("Failed to setup signals.");
             rc = 1;
             break;

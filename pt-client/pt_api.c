@@ -18,6 +18,9 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1 // needed for strndup
+#endif
 #include <event2/bufferevent.h>
 #include <jansson.h>
 #include <string.h>
@@ -88,13 +91,13 @@ void device_customer_callback_free(struct pt_device_customer_callback *customer_
     free(customer_callback);
 }
 
-EDGE_LOCAL void customer_callback_free_func(void* callback_data)
+EDGE_LOCAL void customer_callback_free_func(rpc_request_context_t *callback_data)
 {
     struct pt_customer_callback *customer_callback = (struct pt_customer_callback*) callback_data;
     customer_callback_free(customer_callback);
 }
 
-EDGE_LOCAL void device_customer_callback_free_func(void* callback_data)
+EDGE_LOCAL void device_customer_callback_free_func(rpc_request_context_t *callback_data)
 {
     struct pt_device_customer_callback *customer_callback = (struct pt_device_customer_callback *) callback_data;
     device_customer_callback_free(customer_callback);
@@ -184,7 +187,7 @@ EDGE_LOCAL pt_status_t write_data_frame(json_t *message,
                                                      success_handler,
                                                      failure_handler,
                                                      free_func,
-                                                     customer_callback,
+                                                     (rpc_request_context_t *) customer_callback,
                                                      connection->transport_connection->write_function);
 
     if (ret_val == -1) {
@@ -256,7 +259,8 @@ static char* convert_resource_type_to_str(Lwm2mResourceType resource_type)
     }
 }
 
-static void parse_objects(pt_object_list_t *objects, json_t *j_objects){
+static void parse_objects(pt_object_list_t *objects, json_t *j_objects)
+{
     ns_list_foreach(pt_object_t, current_object, objects)
     {
         json_t *j_object = json_object();
@@ -277,7 +281,7 @@ static void parse_objects(pt_object_list_t *objects, json_t *j_objects){
             json_array_append_new(j_object_instances, j_object_instance);
             ns_list_foreach(pt_resource_t, current_resource, resources)
             {
-                pt_resource_opaque_t *opaque = (pt_resource_opaque_t *)current_resource;
+                pt_resource_t *opaque = (pt_resource_t *) current_resource;
                 json_t *j_resource = json_object();
                 int encoded_length = apr_base64_encode_len(opaque->value_size);
                 char *encoded_value = (char*)malloc(encoded_length);
@@ -496,7 +500,7 @@ void pt_device_free(pt_device_t *device)
                 pt_resource_list_t *resources = current_instance->resources;
                 ns_list_foreach_safe(pt_resource_t, current_resource, resources)
                 {
-                    pt_resource_opaque_t *opaque = (pt_resource_opaque_t *)current_resource;
+                    pt_resource_t *opaque = (pt_resource_t *) current_resource;
                     free(opaque->value);
                     ns_list_remove(resources, current_resource);
                     free(current_resource);
@@ -609,24 +613,26 @@ pt_object_instance_t *pt_object_find_object_instance(pt_object_t *object, uint16
     return NULL;
 }
 
-pt_resource_opaque_t *pt_object_instance_add_resource(pt_object_instance_t *object_instance,
-                                                      uint16_t id,
-                                                      Lwm2mResourceType type,
-                                                      uint8_t *value, uint32_t value_size,
-                                                      pt_status_t *status)
+pt_resource_t *pt_object_instance_add_resource(pt_object_instance_t *object_instance,
+                                               uint16_t id,
+                                               Lwm2mResourceType type,
+                                               uint8_t *value,
+                                               uint32_t value_size,
+                                               pt_status_t *status)
 {
     return pt_object_instance_add_resource_with_callback(object_instance, id, type,
                                                           OPERATION_READ, value, value_size,
                                                           status, NULL);
 }
 
-pt_resource_opaque_t *pt_object_instance_add_resource_with_callback(pt_object_instance_t *object_instance,
-                                                                     uint16_t id,
-                                                                     Lwm2mResourceType type,
-                                                                     uint8_t operations,
-                                                                     uint8_t *value, uint32_t value_size,
-                                                                     pt_status_t *status,
-                                                                     pt_resource_callback callback)
+pt_resource_t *pt_object_instance_add_resource_with_callback(pt_object_instance_t *object_instance,
+                                                             uint16_t id,
+                                                             Lwm2mResourceType type,
+                                                             uint8_t operations,
+                                                             uint8_t *value,
+                                                             uint32_t value_size,
+                                                             pt_status_t *status,
+                                                             pt_resource_callback callback)
 {
     if (object_instance == NULL || status == NULL) {
         *status = PT_STATUS_INVALID_PARAMETERS;
@@ -649,7 +655,7 @@ pt_resource_opaque_t *pt_object_instance_add_resource_with_callback(pt_object_in
         return NULL;
     }
 
-    pt_resource_opaque_t *resource = (pt_resource_opaque_t*) calloc(1, sizeof(pt_resource_opaque_t));
+    pt_resource_t *resource = (pt_resource_t *) calloc(1, sizeof(pt_resource_t));
     if (resource == NULL) {
         *status = PT_STATUS_ALLOCATION_FAIL;
         return NULL;
@@ -668,15 +674,16 @@ pt_resource_opaque_t *pt_object_instance_add_resource_with_callback(pt_object_in
     return resource;
 }
 
-pt_resource_opaque_t *pt_object_instance_find_resource(pt_object_instance_t *instance, uint16_t id)
+pt_resource_t *pt_object_instance_find_resource(pt_object_instance_t *instance, uint16_t id)
 {
     if (instance == NULL || !instance->resources) {
         return NULL;
     }
 
-    ns_list_foreach(pt_resource_t, cur, instance->resources) {
+    ns_list_foreach(pt_resource_t, cur, instance->resources)
+    {
         if (cur->id == id) {
-            return (pt_resource_opaque_t*) cur;
+            return (pt_resource_t *) cur;
         }
     }
     return NULL;

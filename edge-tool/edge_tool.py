@@ -18,7 +18,7 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 
-"""Observe and manipulate Mbed Edge device values.
+"""Observe and manipulate Edge device values.
    Convert developer certificates to CBOR for runtime injection.
 
 Usage:
@@ -37,7 +37,7 @@ Options:
   --host-edge=<device-id>          Filter devices hosted by this Edge device.
   --edge-devices                   Filter and list all Edge devices.
   --connected                      Filter only currently connected devices.
-  --development-certificate path>  The path to Mbed Cloud development certificate C source file.
+  --development-certificate path>  The path to Device Management development certificate C source file.
   --update-resource <path>         The path to `update_default_resources.c` source file.
   --cbor <path>                    The CBOR output file path.
 """

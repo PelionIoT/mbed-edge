@@ -25,14 +25,14 @@
 #include "common/pt_api_error_codes.h"
 
 /**
- * \ingroup EDGE_SERVER Mbed Edge functionality and RPC API.
+ * \ingroup EDGE_SERVER Edge functionality and RPC API.
  * @{
  */
 
 /** \file protocol_api.h
- * \brief Mbed Edge RPC API
+ * \brief Edge RPC API
  *
- * Definition of the Mbed Edge RPC API.
+ * Definition of the Edge RPC API.
  *
  * RPC API provides functions to:
  * - register and unregister the protocol translator.
@@ -42,12 +42,12 @@
  */
 
 /**
- * \brief Initialize Mbed Edge RPC API.
+ * \brief Initialize Edge RPC API.
  */
 void init_protocol();
 
 /**
- * \brief Register the protocol translator to Mbed Edge.
+ * \brief Register the protocol translator to Edge.
  *
  * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.
@@ -59,7 +59,7 @@ void init_protocol();
 int protocol_translator_register(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
- * \brief Register an endpoint device to Mbed Edge.
+ * \brief Register an endpoint device to Edge.
  *
  * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.
@@ -71,7 +71,7 @@ int protocol_translator_register(json_t *request, json_t *json_params, json_t **
 int device_register(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
- * \brief Unregister an endpoint device from Mbed Edge.
+ * \brief Unregister an endpoint device from Edge.
  *
  * \param request The jsonrpc request.
  * \param json_params The parameter portion of the jsonrpc request.

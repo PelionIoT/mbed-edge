@@ -1,16 +1,30 @@
 #For Cmake system, if we want to compile all projects with cross toolchain. Then we should set the CMAKE_TOOLCHAIN_FILE as the 1st step.
 #More information could be refered to here:
 #https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/CrossCompiling
+
+# Check if user initialized and updated git submodules
+if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libwebsockets/libwebsockets" OR
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/jansson/jansson" OR
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libevent/libevent" OR
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/library"
+   )
+	MESSAGE (FATAL_ERROR "Cannot find required libraries, please run \
+                       `git submodule init` and `git submodule update`")
+endif()
+
 if (NOT DEFINED TARGET_TOOLCHAIN)
     SET (TARGET_TOOLCHAIN "mcc-linux-x86")
 endif()
 # Yocto build defines CMAKE_TOOLCHAIN_FILE to set the tool chain.
 # We must not override it.
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    SET(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/toolchains/${TARGET_TOOLCHAIN}.cmake")
+    if (DEFINED TARGET_CONFIG_ROOT)
+        SET(CMAKE_TOOLCHAIN_FILE "${TARGET_CONFIG_ROOT}/toolchain.cmake")
+    else ()
+        SET(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/toolchains/mcc-linux-x86.cmake")
+    endif()
 endif()
-
-project ("mbed-edge" C)
+project ("edge" C)
 cmake_minimum_required (VERSION 2.8)
 
 SET (EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
@@ -26,10 +40,10 @@ find_package (Threads REQUIRED)
 # Utility cmake functions
 include (cmake/common.cmake)
 
-# Mbed Edge basic configuration
+# Edge basic configuration
 include (cmake/edge_configure.cmake)
 
-# Mbed Edge include directories
+# Edge include directories
 include (cmake/edge_include_directories.cmake)
 
 
@@ -50,8 +64,15 @@ else ()
     SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -fprofile-arcs -ftest-coverage")
     SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -lgcov")
   endif ()
+  if (ENABLE_THREAD_SANITIZE EQUAL 1)
+    message ("Enabling thread sanitizer")
+    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fsanitize=thread")
+    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -fsanitize=thread")
+    SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
+  endif ()
 endif ()
 
+add_subdirectory (common)
 add_subdirectory (nano-stack)
 add_subdirectory (mbed-trace-edge)
 add_subdirectory (edge-client)
@@ -59,6 +80,7 @@ add_subdirectory (lib)
 add_subdirectory (edge-core)
 add_subdirectory (edge-rpc)
 add_subdirectory (pt-client)
+add_subdirectory (pt-client-2)
 
 # Add doc target for building documentation with Doxygen
 # add a target to generate API documentation with Doxygen

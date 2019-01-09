@@ -61,7 +61,7 @@ public:
     bool set_uri(const char *device_name, uint16_t object_id, uint16_t object_instance_id, uint16_t resource_id);
 
     /**
-     * \brief Called when execute operation is requested from MbedCloud.
+     * \brief Called when execute operation is requested from Device Management.
      * \param params The M2MResource::M2MExecuteParameter parameters for the execute operation.
      */
     void execute(void *params);

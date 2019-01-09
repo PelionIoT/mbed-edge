@@ -1,8 +1,9 @@
-# Mbed Edge include hierarchy
+# Edge include hierarchy
 include_directories (common)
 include_directories (config)
 include_directories (edge-client)
 include_directories (edge-core)
+include_directories (edge-rpc)
 include_directories (include)
 include_directories (lib/jsonrpc)
 
@@ -24,7 +25,7 @@ include_directories (lib/mbedtls/include)
 include_directories (lib/mbedtls/include/mbedtls/)
 SET (MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES "${ROOT_HOME}/lib/mbed-cloud-client")
 
-# mbed cloud client
+# cloud client
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES})
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/source)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-cloud-client)

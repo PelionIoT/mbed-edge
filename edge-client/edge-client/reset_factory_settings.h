@@ -32,7 +32,7 @@
 
 /**
  * \file reset_factory_settings.h
- * \brief Definition Reset Factory Settings Mbed Edge internal API (internal).
+ * \brief Definition Reset Factory Settings Edge internal API (internal).
  */
 
 /**
@@ -41,7 +41,7 @@
 void rfs_add_factory_reset_resource();
 
 /**
- * \brief Called when reset factory settings request comes from Mbed Cloud.
+ * \brief Called when reset factory settings request comes from Device Management.
  * \param request_ctx Data and state information about the reset factory settings request.
  * \see edgeclient_request_context_t
  */

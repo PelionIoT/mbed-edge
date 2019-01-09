@@ -122,8 +122,8 @@ pt_status_t check_write_value_data_allocated(json_t *request,
                                              json_t *j_objects,
                                              json_t *device_id,
                                              struct pt_device_customer_callback *customer_callback);
-void device_customer_callback_free_func(void* callback_data);
-void customer_callback_free_func(void *callback_data);
+void device_customer_callback_free_func(rpc_request_context_t *callback_data);
+void customer_callback_free_func(rpc_request_context_t *callback_data);
 
 void pt_init_check_close_condition_function(pt_f_close_condition func);
 

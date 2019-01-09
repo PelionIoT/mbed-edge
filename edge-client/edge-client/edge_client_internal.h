@@ -23,7 +23,7 @@
 #include "common/test_support.h"
 #include "m2mbase.h"
 #include "m2minterface.h"
-#include "pal.h"
+#include "common/edge_mutex.h"
 #include "m2mresourceinstance.h"
 #include "edge-client/edge_client.h"
 #include "edge-client/execute_cb_params_base.h"
@@ -55,9 +55,9 @@ typedef struct edgeclient_data_s {
     {
     }
     virtual ~edgeclient_data_s();
-    M2MBaseList unregistered_objects;
-    M2MBaseList registering_objects;
-    M2MBaseList registered_objects;
+    M2MBaseList pending_objects; /**< Objects pending for registration or deregistration */
+    M2MBaseList registering_objects; /**< Objects in registration phase. */
+    M2MBaseList registered_objects; /**< Registered objects.  */
     bool m2m_resources_added_or_removed;
 
 
@@ -71,7 +71,7 @@ typedef struct edgeclient_data_s {
 } edgeclient_data_t;
 
 #ifdef BUILD_TYPE_TEST
-extern palMutexID_t edgeclient_mutex;
+extern edge_mutex_t edgeclient_mutex;
 class EdgeClientImpl;
 extern EdgeClientImpl *client;
 
@@ -107,7 +107,7 @@ size_t value_to_text_format(Lwm2mResourceType resource_type, const uint8_t* valu
 #endif
 
 extern edgeclient_data_t *client_data;
-EDGE_LOCAL void edgeclient_update_register_msg_cb(evutil_socket_t fd, short what, void *arg);
+EDGE_LOCAL void edgeclient_update_register_msg_cb(void *arg);
 EDGE_LOCAL void edgeclient_on_unregistered_callback(void);
 EDGE_LOCAL void edgeclient_on_registered_callback(void);
 EDGE_LOCAL void edgeclient_set_update_register_needed(edgeclient_mutex_action_e mutex_action);

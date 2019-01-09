@@ -275,7 +275,7 @@ static void set_write_resource_error_result(json_t **result, pt_api_result_code_
     *result = jsonrpc_error_object(code, pt_api_get_error_message(code), json_string("Cannot write resource value"));
 }
 
-static void mgmt_write_free_func(void *userdata)
+static void mgmt_write_free_func(rpc_request_context_t *userdata)
 {
     mgmt_api_request_context_t *mgmt_context = (mgmt_api_request_context_t *) (userdata);
     tr_debug("Handling write to management client free operations.");
@@ -296,7 +296,7 @@ static void mgmt_send_response_common(mgmt_api_request_context_t *mgmt_context, 
     int ret_code = rpc_construct_and_send_response(mgmt_context->connection,
                                                    response,
                                                    mgmt_write_free_func,
-                                                   mgmt_context, // context
+                                                   (rpc_request_context_t *) mgmt_context, // context
                                                    mgmt_context->connection->transport_connection->write_function);
     if (0 != ret_code) {
         tr_err("mgmt_api_write_success: can't send message. Return code: %d", ret_code);
@@ -305,6 +305,11 @@ static void mgmt_send_response_common(mgmt_api_request_context_t *mgmt_context, 
 
 EDGE_LOCAL void mgmt_api_write_success(edgeclient_request_context_t *ctx)
 {
+    tr_debug("write success for device '%s' | path: '%d/%d/%d'.",
+             ctx->device_id,
+             ctx->object_id,
+             ctx->object_instance_id,
+             ctx->resource_id);
     mgmt_api_request_context_t *mgmt_context = (mgmt_api_request_context_t *) (ctx->connection);
     pt_api_result_code_e result_code = edgeclient_update_resource_value(ctx->device_id,
                                                                         ctx->object_id,
@@ -329,10 +334,14 @@ EDGE_LOCAL void mgmt_api_write_failure(edgeclient_request_context_t *ctx)
 {
     tr_warn("Writing to protocol translator failed");
     mgmt_api_request_context_t *mgmt_context = (mgmt_api_request_context_t *) (ctx->connection);
+    tr_debug("write failure for device '%s' | path: '%d/%d/%d'.",
+             ctx->device_id,
+             ctx->object_id,
+             ctx->object_instance_id,
+             ctx->resource_id);
     json_t *response = allocate_response_common(mgmt_context);
     json_t *result = NULL;
     set_write_resource_error_result(&result, PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED);
-
     json_object_set_new(response, "error", result);
     mgmt_send_response_common(mgmt_context, response);
     edgeclient_deallocate_request_context(ctx);
@@ -345,7 +354,10 @@ int write_resource(json_t *request, json_t *json_params, json_t **result, void *
     uint8_t *parsed_value = NULL;
     uint32_t parsed_value_length;
     char *uri_with_device = NULL;
+    edgeclient_request_context_t *request_ctx = NULL;
+    mgmt_api_request_context_t *mgmt_ctx = NULL;
     const char *uri;
+
     if (0 != parse_endpoint_name_and_uri_tokens(json_params, result, &endpoint_name, uri_tokens, &uri)) {
         return 1;
     }
@@ -379,41 +391,59 @@ int write_resource(json_t *request, json_t *json_params, json_t **result, void *
 
     bool value_ok = edgeclient_verify_value(parsed_value, parsed_value_length, attributes.type);
     if (!value_ok) {
+        tr_debug("write_resource: value verification failed.");
         set_write_resource_error_result(result, PT_API_ILLEGAL_VALUE);
         goto error_exit;
     }
-    mgmt_api_request_context_t *mgmt_ctx = malloc(sizeof(mgmt_api_request_context_t));
+    mgmt_ctx = malloc(sizeof(mgmt_api_request_context_t));
 
     if (!mgmt_ctx) {
+        tr_debug("write_resource: management api request context malloc failure.");
         goto error_exit;
     }
     mgmt_ctx->request_id = strdup(json_string_value(json_object_get(request, "id")));
     mgmt_ctx->connection = ((struct json_message_t *) userdata)->connection;
     asprintf(&uri_with_device, "d/%s%s", endpoint_name, uri);
-    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri_with_device,
-                                                                                    parsed_value,
-                                                                                    parsed_value_length,
-                                                                                    EDGECLIENT_VALUE_IN_BINARY,
-                                                                                    OPERATION_WRITE,
-                                                                                    attributes.type,
-                                                                                    mgmt_api_write_success,
-                                                                                    mgmt_api_write_failure,
-                                                                                    (void *) mgmt_ctx);
+    request_ctx = edgeclient_allocate_request_context(uri_with_device,
+                                                      parsed_value,
+                                                      parsed_value_length,
+                                                      EDGECLIENT_VALUE_IN_BINARY,
+                                                      OPERATION_WRITE,
+                                                      attributes.type,
+                                                      mgmt_api_write_success,
+                                                      mgmt_api_write_failure,
+                                                      (void *) mgmt_ctx);
     if (request_ctx) {
+        tr_debug("write_resource: edgeclient request_context allocated.");
         if (write_to_pt(request_ctx, (void *) endpoint_connection) != 0) {
+            tr_warn("Was not able to prepare or send message to protocol translator.");
             set_write_resource_error_result(result, PT_API_ILLEGAL_VALUE);
-            goto error_exit;
+            /*
+             * The edge and management api contexts must be freed here, the failure callback is not
+             * called and should not be called here. If it would be called two responses would be written
+             * back to client application.
+             */
+            edgeclient_deallocate_request_context(request_ctx);
+            free(mgmt_ctx->request_id);
+            free(mgmt_ctx);
+            free(uri_with_device);
+            return 1; // error occured.
         }
     } else {
+        tr_debug("write_resource: edgeclient request context is NULL. Failing.");
         // Most probably memory ran out. Just return quickly.
         goto error_exit;
     }
-    free(parsed_value);
     free(uri_with_device);
     return -1; // OK so far, but response is provided later.
 error_exit:
     free(parsed_value);
     free(uri_with_device);
+    edgeclient_deallocate_request_context(request_ctx);
+    if (mgmt_ctx) {
+        free(mgmt_ctx->request_id);
+        free(mgmt_ctx);
+    }
     return 1; // error occured.
 }
 

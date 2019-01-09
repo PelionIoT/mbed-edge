@@ -23,6 +23,17 @@
 #include "common/edge_mutex.h"
 
 /**
+ * \defgroup EDGE_TRACE Edge trace API.
+ * @{
+ */
+
+/** \file edge_trace.h
+ * \brief Edge trace API
+ *
+ * Utility functions for the Edge tracing functionality.
+ */
+
+/**
  * \brief The function may be used to initialize the Edge Trace API.
  * \param color_mode Set to true if ANSI color coded logging is needed. By setting false the plain text log is written.
  */
@@ -52,5 +63,10 @@ extern edge_mutex_t trace_mutex;
  */
 char *edge_trace_prefix(size_t size);
 #endif
+
+/**
+ * @}
+ * Close EDGE_TRACE Doxygen group definition
+ */
 
 #endif

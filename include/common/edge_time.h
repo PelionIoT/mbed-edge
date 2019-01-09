@@ -25,6 +25,17 @@
 #include <stdbool.h>
 
 /**
+ * \defgroup EDGE_TIME Edge time API.
+ * @{
+ */
+
+/** \file edge_time.h
+ * \brief Edge time API
+ *
+ * Utility functions for getting time.
+ */
+
+/**
  * \brief Get current milliseconds.
  * Uses CLOCK_MONOTONIC as source from POSIX.1-2001, POSIX.1-2008, SUSv2 compliant system.
  * If _POSIX_MONOTONIC_CLOCK is not defined the function returns 0.
@@ -39,5 +50,10 @@ uint64_t edgetime_get_monotonic_in_ms();
  *         false if the system call failed and sets seconds and ns to 0.
  */
 bool edgetime_get_real_in_ns(uint64_t *seconds, uint64_t *ns);
+
+/**
+ * @}
+ * Close EDGE_TIME Doxygen group definition
+ */
 
 #endif

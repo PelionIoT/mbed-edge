@@ -34,9 +34,7 @@ client_data_t *edge_core_create_client(enum client_type client_type)
         return NULL;
     }
     // Set the id to invalid
-    if (NULL != client_data) {
-        client_data->id = -1;
-    }
+    client_data->id = -1;
     client_data->name = NULL;
     client_data->registered = false;
 

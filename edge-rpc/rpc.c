@@ -18,6 +18,10 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1 // needed for strndup
+#endif
+
 #include "edge-rpc/rpc.h"
 
 #include <assert.h>
@@ -32,6 +36,7 @@
 
 #include "mbed-trace/mbed_trace.h"
 #include "common/edge_time.h"
+
 #define TRACE_GROUP "rpc"
 
 /**
@@ -45,12 +50,41 @@ generate_msg_id g_generate_msg_id;
 typedef struct message {
     json_t *json_message;
     char *id;
-    void *request_context;
+    rpc_request_context_t *request_context;
+    struct connection *connection;
     ns_list_link_t link;
     rpc_response_handler success_handler;
     rpc_response_handler failure_handler;
     rpc_free_func free_func;
 } message_t;
+
+edge_mutex_t rpc_mutex;
+
+static message_t *_remove_message_for_connection_and_id(struct connection *connection, const char *message_id);
+
+void rpc_init()
+{
+    int32_t result = edge_mutex_init(&rpc_mutex, PTHREAD_MUTEX_ERRORCHECK);
+    assert(0 == result);
+}
+
+void rpc_deinit()
+{
+    int32_t result = edge_mutex_destroy(&rpc_mutex);
+    assert(0 == result);
+}
+
+static void rpc_mutex_wait()
+{
+    int32_t result = edge_mutex_lock(&rpc_mutex);
+    assert(0 == result);
+}
+
+static void rpc_mutex_release()
+{
+    int32_t result = edge_mutex_unlock(&rpc_mutex);
+    assert(0 == result);
+}
 
 /*
  * List to contain sent messages
@@ -59,12 +93,18 @@ static NS_LIST_DEFINE(messages, message_t, link);
 
 int rpc_message_list_size()
 {
-    return ns_list_count(&messages);
+    rpc_mutex_wait();
+    int count = ns_list_count(&messages);
+    rpc_mutex_release();
+    return count;
 }
 
 bool rpc_message_list_is_empty()
 {
-    return ns_list_is_empty(&messages);
+    rpc_mutex_wait();
+    bool is_empty = ns_list_is_empty(&messages);
+    rpc_mutex_release();
+    return is_empty;
 }
 
 json_t* allocate_base_request(const char* method)
@@ -78,15 +118,21 @@ json_t* allocate_base_request(const char* method)
     return msg;
 }
 
-message_t* alloc_message(json_t *json_message, rpc_response_handler success_handler,
-                         rpc_response_handler failure_handler,
-                         rpc_free_func free_func,
-                         void *request_context)
+static message_t *alloc_message(json_t *json_message,
+                                rpc_response_handler success_handler,
+                                rpc_response_handler failure_handler,
+                                rpc_free_func free_func,
+                                rpc_request_context_t *request_context,
+                                struct connection *connection)
 {
+    if (request_context == NULL) {
+        tr_err("Error: No request context, or could not allocate message struct.");
+        return NULL;
+    }
     message_t *entry = calloc(1, sizeof(message_t));
     if (entry == NULL) {
-        // FIXME: exit process?
-        tr_err("Error could not allocate message struct.");
+        tr_err("Error: Out of memory.");
+        return NULL;
     }
     entry->json_message = json_message;
     entry->success_handler = success_handler;
@@ -98,6 +144,7 @@ message_t* alloc_message(json_t *json_message, rpc_response_handler success_hand
         entry->free_func = free_func;
     }
     entry->request_context = request_context;
+    entry->connection = connection;
     return entry;
 }
 
@@ -121,7 +168,7 @@ struct json_message_t* alloc_json_message_t(const char* data, size_t len, struct
 {
     struct json_message_t *msg = malloc(sizeof(struct json_message_t));
     if (NULL == msg) {
-        tr_err("Cannot allocate msg in allloc_json_message_t");
+        tr_err("Cannot allocate msg in alloc_json_message_t");
         return NULL;
     }
     msg->data = strndup(data, len);
@@ -152,7 +199,8 @@ int rpc_construct_message(json_t *message,
                           rpc_response_handler success_handler,
                           rpc_response_handler failure_handler,
                           rpc_free_func free_func,
-                          void *request_context,
+                          rpc_request_context_t *request_context,
+                          struct connection *connection,
                           void **returned_msg_entry,
                           char **data,
                           size_t *data_len,
@@ -178,7 +226,12 @@ int rpc_construct_message(json_t *message,
 
     if (*data != NULL) {
         *data_len = json_dumpb(message, *data, *data_len, JSON_COMPACT | JSON_SORT_KEYS);
-        message_t *msg_entry = alloc_message(message, success_handler, failure_handler, free_func, request_context);
+        message_t *msg_entry = alloc_message(message,
+                                             success_handler,
+                                             failure_handler,
+                                             free_func,
+                                             request_context,
+                                             connection);
         if (NULL == msg_entry) {
             // FIXME: handle error
             tr_err("Error in adding the request to the request list.");
@@ -226,20 +279,27 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
                                        rpc_response_handler success_handler,
                                        rpc_response_handler failure_handler,
                                        rpc_free_func free_func,
-                                       void *customer_callback,
+                                       rpc_request_context_t *customer_callback_ctx,
                                        write_func write_function)
 {
     void *message_entry;
     char *data;
     char *message_id;
     size_t data_len;
-    int rc = rpc_construct_message(message, success_handler, failure_handler,
-                                   free_func, customer_callback, &message_entry,
-                                   &data, &data_len, &message_id);
+    int rc = rpc_construct_message(message,
+                                   success_handler,
+                                   failure_handler,
+                                   free_func,
+                                   customer_callback_ctx,
+                                   connection,
+                                   &message_entry,
+                                   &data,
+                                   &data_len,
+                                   &message_id);
 
     if (rc == 1 || data == NULL) {
         json_decref(message);
-        free_func(customer_callback);
+        free_func(customer_callback_ctx);
         return -1;
     }
 
@@ -249,16 +309,21 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
      * having the message in the message list.
      */
     rpc_add_message_entry_to_list(message_entry);
-    write_function(connection, data, data_len);
+    int32_t ret = write_function(connection, data, data_len);
+    if (ret != 0) {
+        tr_err("write_function returned %d", ret);
+        message_t *found = _remove_message_for_connection_and_id(connection, message_id);
+        rpc_dealloc_message_entry(found);
+        return -2; // the message_couldn't be sent
+    }
     free(message_id);
-
-    return 0;
+    return ret;
 }
 
 int32_t rpc_construct_and_send_response(struct connection *connection,
                                         json_t *response,
                                         rpc_free_func free_func,
-                                        void *customer_callback_ctx,
+                                        rpc_request_context_t *customer_callback_ctx,
                                         write_func write_function)
 {
     char *data;
@@ -282,52 +347,55 @@ int32_t rpc_construct_and_send_response(struct connection *connection,
 void rpc_add_message_entry_to_list(void *message_entry)
 {
     if (message_entry) {
+#if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_DEBUG
+        message_t *msg = (message_t *) message_entry;
+        json_t *id_obj = json_object_get(msg->json_message, "id");
+        tr_debug("rpc_add_message_entry_to_list, connection: %p id : %s", msg->connection, json_string_value(id_obj));
+#endif
+        rpc_mutex_wait();
         ns_list_add_to_end(&messages, (message_t *) message_entry);
+        rpc_mutex_release();
     }
 }
 
-static message_t *_remove_message_for_id(const char *message_id)
+static message_t *_remove_message_for_connection_and_id(struct connection *connection, const char *message_id)
 {
     message_t *found = NULL;
+    tr_debug("_remove_message_for_connection_and_id connection: %p id: %s", connection, message_id);
+    rpc_mutex_wait();
     ns_list_foreach_safe(message_t, cur, &messages)
     {
         json_t *id_obj = json_object_get(cur->json_message, "id");
         assert(id_obj != NULL);
-        if (strncmp(json_string_value(id_obj), message_id, strlen(message_id)) == 0) {
+        if (cur->connection == connection && strncmp(json_string_value(id_obj), message_id, strlen(message_id)) == 0) {
             found = cur;
             ns_list_remove(&messages, found);
             break;
         }
     }
+    rpc_mutex_release();
     return found;
 }
 
-static message_t *remove_message_for_response(json_t *response, const char **response_id)
+static message_t *remove_message_for_response(struct connection *connection, json_t *response, const char **response_id)
 {
-  json_t *response_id_obj = json_object_get(response, "id");
-  if (response_id_obj == NULL) {
-      // FIXME: No id in response, handle as failure
-      tr_error("Can't find id in response");
-      return NULL;
-  }
+    json_t *response_id_obj = json_object_get(response, "id");
+    if (response_id_obj == NULL) {
+        tr_error("Can't find id in response");
+        return NULL;
+    }
 
-  *response_id = json_string_value(response_id_obj);
-  return _remove_message_for_id(*response_id);
+    *response_id = json_string_value(response_id_obj);
+    return _remove_message_for_connection_and_id(connection, *response_id);
 }
 
-void remove_message_for_id(const char *message_id)
+static int handle_response(struct connection *connection, json_t *response)
 {
-    (void *) _remove_message_for_id(message_id);
-}
-
-
-int handle_response(json_t *response)
-{
-    int rc = 1;
+    int rc;
     const char *response_id = NULL;
-    message_t *found = NULL;
+    message_t *found;
 
-    found = remove_message_for_response(response, &response_id);
+    found = remove_message_for_response(connection, response, &response_id);
     if (found != NULL) {
         json_t *result_obj = json_object_get(response, "result");
 
@@ -356,13 +424,10 @@ int handle_response(json_t *response)
         if (callback_time >= WARN_CALLBACK_RUNTIME) {
             tr_warn("Callback processing took more than %d milliseconds to run, actual call took %f ms.", WARN_CALLBACK_RUNTIME, callback_time);
         }
-
-    } else {
-        tr_warn("Did not find any matching request for the response with id: %s.", response_id);
-        rc = 1;
-    }
-    if (found) {
         rpc_dealloc_message_entry(found);
+    } else {
+        tr_err("Did not find any matching request for the response with id: %s.", response_id);
+        rc = -1;
     }
     return rc;
 }
@@ -380,26 +445,40 @@ int rpc_handle_message(const char *data,
         tr_err("Cannot allocate json_message in rpc_handle_message");
         return 1;
     }
+    jsonrpc_handler_e rc;
+    char *response = jsonrpc_handler(data, len, method_table, handle_response, json_message, &rc);
 
-    char *response = jsonrpc_handler(data, len, method_table, handle_response, json_message, protocol_error);
+    switch (rc) {
+        case JSONRPC_HANDLER_REQUEST_NOT_MATCHED:
+        case JSONRPC_HANDLER_JSON_PARSE_ERROR: {
+            *protocol_error = true;
+            break;
+        }
+        default:
+            break;
+    }
 
     deallocate_json_message_t(json_message);
     if (response == NULL) {
+        // When response is received in rpc_handle_message, there's no response for that.
+        if (rc == JSONRPC_HANDLER_OK) {
+            return 0;
+        }
         return 1;
-
     }
-    int rc = write_function(connection, response, strlen(response));
-    return rc;
+    return write_function(connection, response, strlen(response));
 }
 
 void rpc_destroy_messages()
 {
     int32_t count = 0;
+    rpc_mutex_wait();
     ns_list_foreach_safe(message_t, cur, &messages)
     {
         ns_list_remove(&messages, cur);
         rpc_dealloc_message_entry(cur);
         count ++;
     }
+    rpc_mutex_release();
     tr_warn("Destroyed %d (unhandled) messages.", count);
 }

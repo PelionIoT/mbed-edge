@@ -35,7 +35,7 @@
  * Edge Client creates an instance of ExecuteCallbackParamsBase class for resources that have OPERATION_EXECUTE set
  * for allowed operations.
  * The execute method of this class implements what will be done when the execute operation is requested from the
- * Mbed Cloud for a resource.
+ * Device Management for a resource.
  *
  */
 class ExecuteCallbackParamsBase
@@ -50,7 +50,7 @@ class ExecuteCallbackParamsBase
     }
 
     /**
-     * \brief Called when execute operation is requested from MbedCloud.
+     * \brief Called when execute operation is requested from Device Management.
      * \param params The M2MResource::M2MExecuteParameter parameters for the execute operation.
      */
     virtual void execute(void *params) = 0;

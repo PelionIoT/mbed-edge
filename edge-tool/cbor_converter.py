@@ -40,7 +40,7 @@ KEY_MAP = {
     'MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY': 'mbed.BootstrapDevicePrivateKey',
     'MBED_CLOUD_DEV_BOOTSTRAP_ENDPOINT_NAME': 'mbed.EndpointName',
     'MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI': 'mbed.BootstrapServerURI',
-    'MBED_CLOUD_DEV_ACCOUNT_ID': 'mbed.AccountId',
+    'MBED_CLOUD_DEV_ACCOUNT_ID': 'mbed.AccountID',
     'MBED_CLOUD_DEV_MANUFACTURER': 'mbed.Manufacturer',
     'MBED_CLOUD_DEV_MODEL_NUMBER': 'mbed.ModelNumber',
     'MBED_CLOUD_DEV_SERIAL_NUMBER': 'mbed.SerialNumber',

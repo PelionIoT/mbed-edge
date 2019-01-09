@@ -1,4 +1,4 @@
-set (LWS_UNIX_SOCK ON CACHE BOOL "Mbed Edge communicates with domain sockets")
+set (LWS_UNIX_SOCK ON CACHE BOOL "Device Management Edge communicates with domain sockets")
 set (LWS_WITH_SSL OFF CACHE BOOL "No SSL needed with domain sockets.")
 set (LWS_WITH_LIBEVENT ON CACHE BOOL "Libevent is selected as event loop.")
 set (LWS_WITH_SHARED OFF CACHE BOOL "No need for shared libraries, link it in.")

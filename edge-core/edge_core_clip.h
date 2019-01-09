@@ -59,13 +59,14 @@ const char help_message[] =
 "  --color-log                          Use ANSI colors in log.\n"
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
 "  -o --http-port <int>                 HTTP port number [default: 8080].\n"
-"  -r --reset-storage                   Before starting the server, clean old Mbed Cloud Client configuration.\n"
+"  -r --reset-storage                   Before starting the server, clean the old Device Management Client\n"
+"                                       configuration.\n"
 "  -c --cbor-conf <cbor>                The CBOR configuration file path.\n"
 "                                       The CBOR configuration option is mandatory for the first\n"
-"                                       start of the Mbed Edge Core when it is built with BYOC_MODE.\n"
+"                                       start of the Edge Core when it is built with BYOC_MODE.\n"
 "                                       This option cannot be used if built with DEVELOPER_MODE or FACTORY_MODE.\n"
-"                                       If this options is given second time the current Mbed Cloud Client\n"
-"                                       configuration is removed and new configuration injected.\n"
+"                                       If this option is given second time (without --reset-storage) the current\n"
+"                                       Device Management Client configuration is used.\n"
 "";
 
 const char usage_pattern[] =

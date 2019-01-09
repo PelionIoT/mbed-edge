@@ -37,7 +37,7 @@
  */
 
 /**
- * \brief Called when a resource execute request is received from Mbed Cloud.
+ * \brief Called when a resource execute request is received from Device Management.
  * \param request_ctx State and parameters relating to this execute request.
  */
 void edgeserver_execute_resource(edgeclient_request_context_t *request_ctx);
@@ -68,7 +68,7 @@ public:
     ~EdgeCoreCallbackParams();
 
     /**
-     * \brief Called when execute operation is requested from MbedCloud.
+     * \brief Called when execute operation is requested from Device Management.
      * \param params The M2MResource::M2MExecuteParameter parameters for the execute operation.
      */ void
     execute(void *params);

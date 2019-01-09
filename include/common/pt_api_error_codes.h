@@ -22,15 +22,16 @@
 #define PT_API_ERROR_CODES_H_
 
 /**
- * \ingroup EDGE_COMMON Mbed Edge and protocol translator common definitions.
+ * \defgroup PT_API_ERROR_CODES Edge and protocol translator common definitions.
  * @{
  */
 
-/** \file error_codes.h
- * \brief Mbed Edge service error codes.
+/**
+ * \file pt_api_error_codes.h
+ * \brief Edge service error codes.
  *
  * Note: The error codes are extending JSON RPC error codes. They should not overlap with them, see:
- * http://www.jsonrpc.org/specification and jsonrpc/jsonrpc.h.
+ * http://www.jsonrpc.org/specification and lib/jsonrpc/jsonrpc.h.
  */
 
 typedef enum {
@@ -135,7 +136,7 @@ const char *pt_api_get_error_message(pt_api_result_code_e code);
 
 /**
  * @}
- * Close EDGE_COMMON Doxygen ingroup definition
+ * Close PT_API_ERROR_CODES Doxygen ingroup definition
  */
 
 #endif /* PT_API_ERROR_CODES_H_ */

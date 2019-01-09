@@ -24,14 +24,14 @@
 #include <stdint.h>
 
 /**
- * \ingroup EDGE_MUTEX Mbed Edge mutex API.
+ * \defgroup EDGE_MUTEX Edge mutex API.
  * @{
  */
 
 /** \file edge_mutex.h
  * \brief Edge Mutex API
  *
- * Definition of the Edge Mutex API.
+ * Definition of the Edge mutex API.
  *
  * This module exists to help testing mutexes. In tests we also use pthread mutexes.
  * Therefore we cannot mock them. Instead we have a library which calls pthread mutexes and can be mocked.
@@ -48,9 +48,10 @@ typedef pthread_mutex_t edge_mutex_t;
  *        memory for the mutex data structure.
  * \param type is used for setting mutex type using pthread_mutexattr_settype. See `man
  * pthread_mutex_attr`. Allowed values are:
- *                        - PTHREAD_MUTEX_FAST
+ *                        - PTHREAD_MUTEX_NORMAL
  *                        - PTHREAD_MUTEX_RECURSIVE
  *                        - PTHREAD_MUTEX_ERRORCHECK
+ * _GNU_SOURCE compiler definition needs to be defined for these enums to be enabled.
  */
 int32_t edge_mutex_init(edge_mutex_t *mutex, int32_t type);
 

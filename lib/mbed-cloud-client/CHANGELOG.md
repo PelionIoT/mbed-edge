@@ -1,10 +1,41 @@
 ## Changelog for Pelion Device Management Client
 
-### Release 2.0.1.1 (12.10.2018)
+### Release 2.1.1 (19.12.2018)
+
+* Full support for asynchronous CoAP REST response with response code and payload for GET, PUT and POST requests. The feature is enabled via `ENABLE_ASYNC_REST_RESPONSE`.
+* Updated Mbed CoAP to 4.7.2.
+
+### Release 2.1.0 (11.12.2018)
 
 #### Pelion Device Management Client
 
-* [Mbed OS] Hotfix client reconnection handling during TCP connection error `PEER_CLOSE_NOTIFY`.
+* Added Edge-specific translated device unregistration parameter `d` to registration message body.
+* Start reconnection if no response received for CoAP ping.
+* Updated Mbed CoAP to 4.7.1.
+
+#### Factory configurator client
+
+* Fixed SOTP flash write area size to accept values larger than 8 bytes.
+
+#### Update Client
+
+* Implemented new error codes for the campaign metrics feature.
+* Client reports an error if the firmware image is greater than the device flash limit.
+* Fixed issues with 32-bit addressing limits to enable download of very large firmware images.
+* Removed an unnecessary DNS lookup. The HTTP Source FSM implementation redid the DNS lookup on every new fragment, even though in most cases the data was expected to already be in the TCP receive buffer. This modifies the FSM to avoid that step unless it is necessary.
+* Added logic to generate a compilation error for an invalid download protocol value.
+* Defined additional individually enabled trace functions at compile time to reduce the resume trace ROM size.
+* Fixed various Linux warnings.
+* Replaced wrong licence headers to Apache 2.0 and added license headers where missing.
+* Removed dependency to deprecated component `COMMON_PAL` removed in Mbed OS 5.9.
+* Guarded `ARM_UC_cryptoDecrypt` against unnecessary calls.
+* Removed external reference to `arm_uc_blockdevice` and used default block device instance from Mbed OS instead.
+* Added debug messages to check frequency of resume attempts.
+
+#### Platform Adaptation Layer (PAL)
+
+* Refactored internal library structure to allow more streamlined porting to new platforms.
+* Removed limitation for setting page size for SOTP.
 
 ### Release 2.0.1 (12.10.2018)
 
@@ -29,6 +60,7 @@
 #### Pelion Device Management Client
 
 * This version of client has been tested with Mbed OS 5.10.0.
+* Updated Mbed CoAP to 4.6.3.
 
 #### Factory configurator client
 

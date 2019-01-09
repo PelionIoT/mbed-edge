@@ -66,7 +66,7 @@ extern struct lws_protocols edge_server_protocols[];
 extern struct context *g_program_context;
 extern edgeclient_create_parameters_t edgeclient_create_params;
 int testable_main(int argc, char **argv);
-void shutdown_handler(int signum);
+void shutdown_handler(evutil_socket_t s, short x, void * args);
 bool parse_create_params(int argc, char **argv, edgeclient_create_parameters_t *create_params, bool *display_help);
 void display_help();
 void error_cb(int error_code, const char *error_description);

@@ -21,6 +21,16 @@
 #ifndef INCLUDE_COMMON_CONSTANTS_H_
 #define INCLUDE_COMMON_CONSTANTS_H_
 
+/**
+ * \defgroup EDGE_CONSTANTS Common constants used in Edge Core.
+ * @{
+ */
+
+/**
+ * \file constants.h
+ * \brief Common constants used in Edge Core.
+ */
+
 /*! *\brief Read operation bitmask for a resource. */
 #define OPERATION_READ      0x01
 /*! \brief Write operation bitmask for a resource. */
@@ -32,6 +42,9 @@
 /*! \brief Delete operation bitmask for a resource. */
 #define OPERATION_DELETE    0x08
 
+/**
+ * \brief LwM2M resource type enumeration constants.
+ */
 typedef enum {
     LWM2M_STRING,
     LWM2M_INTEGER,
@@ -41,5 +54,10 @@ typedef enum {
     LWM2M_TIME,
     LWM2M_OBJLINK
 } Lwm2mResourceType;
+
+/**
+ * @}
+ * Close EDGE_CONSTANTS Doxygen group definition
+ */
 
 #endif /* INCLUDE_COMMON_CONSTANTS_H_ */

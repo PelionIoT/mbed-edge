@@ -51,6 +51,7 @@ connection_t *connection_init(struct context *ctx,
                               void *userdata)
 {
     connection_t *connection;
+    // TODO: who frees this?
     connection = (connection_t*) calloc(1, sizeof(connection_t));
     if (!connection) {
         tr_err("Could not allocation internal connection structure.");
@@ -111,9 +112,11 @@ static int check_protocol_translator_callbacks(const protocol_translator_callbac
 int pt_client_write_data(connection_t *connection, char *data, size_t len)
 {
     websocket_connection_t *websocket_connection = (websocket_connection_t*) connection->transport_connection->transport;
-    if (send_to_websocket((uint8_t *) data, len, websocket_connection)) {
+    int ret = send_to_websocket((uint8_t *) data, len, websocket_connection);
+    if (!ret) {
         return 0;
     } else {
+        tr_err("sending to websocket failed returning %d", ret);
         return 1;
     }
 }
@@ -437,6 +440,8 @@ int pt_client_start(const char *socket_path,
     program_context->socket_path = socket_path;
     program_context->json_flags = JSON_COMPACT;
 
+    rpc_init();
+
     /* Configure libevent */
     if (configure_libevent() != 0) {
         tr_err("Libevent configuring failed!");
@@ -514,10 +519,12 @@ cleanup:
         (*connection)->ctx = NULL;
     }
     libevent_global_shutdown();
+    rpc_destroy_messages();
+    rpc_deinit();
     return rc;
 }
 
 void pt_client_final_cleanup()
 {
-    rpc_destroy_messages();
+    // Deprecated
 }

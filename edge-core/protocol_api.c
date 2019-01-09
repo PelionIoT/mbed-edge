@@ -73,6 +73,7 @@ static int update_device_values_from_json(json_t *structure,
 
 void init_protocol()
 {
+    rpc_init();
     rpc_set_generate_msg_id(edge_default_generate_msg_id);
 }
 
@@ -212,7 +213,7 @@ int protocol_translator_register(json_t *request, json_t *json_params, json_t **
             tr_info("Registered protocol translator '%s'", name);
 
             *result = json_string("ok");
-            edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
+            edgeclient_update_register_conditional();
             return 0;
         } else {
             tr_warn("Protocol translator name already reserved.");
@@ -382,7 +383,7 @@ int device_register(json_t *request, json_t *json_params, json_t **result, void 
     update_device_amount_resource_by_delta(connection, +1);
     edgeserver_change_number_registered_endpoints_by_delta(+1);
     tr_info("Device registered successfully: '%s'.", device_id);
-    edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
+    edgeclient_update_register_conditional();
     return 0;
 }
 
@@ -430,7 +431,7 @@ int device_unregister(json_t *request, json_t *json_params, json_t **result, voi
     edgeserver_change_number_registered_endpoints_by_delta(-1);
     *result = json_string("ok");
     tr_info("Device unregistered successfully: '%s'.", device_id);
-    edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
+    edgeclient_update_register_conditional();
     return 0;
 }
 
@@ -691,7 +692,7 @@ static pt_api_result_code_e update_device_values_from_json(json_t *json_structur
     if (ret == PT_API_SUCCESS) {
         // The 2nd pass is done to actually write the values.
         ret = update_json_device_objects(json_structure, PT_MODE_REAL, connection, device_id_val, error_detail);
-        edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
+        edgeclient_update_register_conditional();
     }
     return ret;
 }
@@ -714,8 +715,9 @@ static void handle_write_to_pt_failure(json_t *response, void* userdata)
  * This is called after either handle_write_to_pt_success or
  * handle_write_to_pt_failure callback is called. See write_to_pt.
  */
-static void pt_write_free_func(void* userdata)
+static void pt_write_free_func(rpc_request_context_t *userdata)
 {
+    (void) userdata;
     tr_debug("Handling write to protocol translator free operations. Nothing to do.");
 }
 
@@ -791,6 +793,7 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
     }
     if (out_size != 0) {
         if (0 != mbedtls_base64_encode(json_value, out_size, &out_size, request_ctx->value, request_ctx->value_len)) {
+            tr_error("Could not encode value to base64.");
             ret_val = 1;
             goto write_to_pt_cleanup;
         }
@@ -806,7 +809,7 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
                                              handle_write_to_pt_success,
                                              handle_write_to_pt_failure,
                                              pt_write_free_func,
-                                             request_ctx,
+                                             (rpc_request_context_t *) request_ctx,
                                              connection->transport_connection->write_function);
 
 write_to_pt_cleanup:

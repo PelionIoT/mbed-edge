@@ -138,7 +138,11 @@ int send_to_websocket(uint8_t *bytes, size_t len, websocket_connection_t *websoc
     message->bytes = bytes;
     message->len = len;
     ns_list_add_to_end(websocket_conn->sent, message);
-    lws_callback_on_writable(websocket_conn->wsi);
+    int ret = lws_callback_on_writable(websocket_conn->wsi);
+    if (1 != ret) {
+        tr_err("lws_callback_on_writable returned %d", ret);
+        return -1;
+    }
     return 0;
 }
 

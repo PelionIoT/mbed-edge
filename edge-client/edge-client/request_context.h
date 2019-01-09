@@ -68,6 +68,7 @@ void edgeclient_deallocate_request_context(edgeclient_request_context_t *request
  * \brief The request context allocation function.
  * \param uri The resource uri of the request.
  * \param value The value for performed action.
+ *        On success the the value is freed. On failure the value is not freed.
  * \param value_len The amount of bytes in the value.
  * \param value_format The format in which the value is. See ::edgeclient_value_format_e.
  * \param operation The performed operation
@@ -75,10 +76,12 @@ void edgeclient_deallocate_request_context(edgeclient_request_context_t *request
  * \param resource_type Data type of the resource.
  * \param success_handler The handler function to call on success response.
  * \param failure_handler The handler function to call on failure response.
- * \param connection The supplied connection context.
+ * \param connection The supplied connection context if successul.
+ * \return On failure NULL is returned.
+ *         On success the allocated context pointer is returned.
  */
 edgeclient_request_context_t *edgeclient_allocate_request_context(const char *uri,
-                                                                  const uint8_t *value,
+                                                                  uint8_t *value,
                                                                   uint32_t value_len,
                                                                   edgeclient_value_format_e value_format,
                                                                   uint8_t operation,

@@ -23,7 +23,7 @@
 extern "C" {
 #include "common/integer_length.h"
 #include "edge-core/edge_server.h"
-#include "edge-client/msg_api.h"
+#include "common/msg_api.h"
 }
 #include <pthread.h>
 #include <stdio.h>
@@ -31,7 +31,6 @@ extern "C" {
 #include <string.h>
 
 #include "pal.h"
-#include "pal_fileSystem.h"
 #include "fcc_defs.h"
 #include "factory_configurator_client.h"
 #include "mbed_cloud_client_user_config.h"
@@ -39,6 +38,7 @@ extern "C" {
 #include "common/pt_api_error_codes.h"
 #include "common/constants.h"
 #include "common/test_support.h"
+#include "common/edge_mutex.h"
 #include "edge-client/edge_client.h"
 extern "C" {
 #include "edge-client/edge_client_format_values.h"
@@ -59,12 +59,8 @@ extern "C" {
 #include "mbed-client/m2mvector.h"
 #include "ns_event_loop.h"
 
-typedef struct x_update_register_msg {
-    EVENT_MESSAGE_BASE;
-} update_register_msg_t;
-
 EDGE_LOCAL EdgeClientImpl *client = NULL;
-EDGE_LOCAL palMutexID_t edgeclient_mutex;
+EDGE_LOCAL edge_mutex_t edgeclient_mutex;
 edgeclient_data_t *client_data = NULL;
 EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list);
 EDGE_LOCAL void setup_config_mountdir();
@@ -98,7 +94,7 @@ EDGE_LOCAL void destroy_base_list(M2MBaseList &list)
 
 edgeclient_data_s::~edgeclient_data_s()
 {
-    destroy_base_list(unregistered_objects);
+    destroy_base_list(pending_objects);
     destroy_base_list(registered_objects);
     destroy_base_list(registering_objects);
     destroy_resource_list(resource_list);
@@ -119,21 +115,27 @@ EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list)
     }
 }
 
-void edgeclient_mutex_init()
+EDGE_LOCAL void edgeclient_mutex_init()
 {
-    palStatus_t err;
-    err = pal_osMutexCreate(&edgeclient_mutex);
-    assert(err == PAL_SUCCESS);
+    int32_t result = edge_mutex_init(&edgeclient_mutex, PTHREAD_MUTEX_ERRORCHECK);
+    assert(0 == result);
 }
-void edgeclient_mutex_wait() {
-    palStatus_t err;
-    err = pal_osMutexWait(edgeclient_mutex, PAL_RTOS_WAIT_FOREVER);
-    assert(err == PAL_SUCCESS);
+EDGE_LOCAL void edgeclient_mutex_wait()
+{
+    int32_t result = edge_mutex_lock(&edgeclient_mutex);
+    assert(0 == result);
 }
-void edgeclient_mutex_release() {
-    palStatus_t err;
-    err = pal_osMutexRelease(edgeclient_mutex);
-    assert(err == PAL_SUCCESS);
+
+EDGE_LOCAL void edgeclient_mutex_release()
+{
+    int32_t result = edge_mutex_unlock(&edgeclient_mutex);
+    assert(0 == result);
+}
+
+EDGE_LOCAL void edgeclient_mutex_destroy()
+{
+    int32_t result = edge_mutex_destroy(&edgeclient_mutex);
+    assert(0 == result);
 }
 
 EDGE_LOCAL void edgeclient_write_success(edgeclient_request_context_t *ctx)
@@ -199,7 +201,6 @@ EDGE_LOCAL void edgeclient_endpoint_value_set_handler(const M2MResourceBase *res
                     client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
                 } else {
                     tr_err("Request context was NULL. Write not propagated to protocol translator.");
-                    free(value);
                 }
             }
             else {
@@ -211,6 +212,9 @@ EDGE_LOCAL void edgeclient_endpoint_value_set_handler(const M2MResourceBase *res
             tr_warning("endpoint resource value update fail, could not find parent object!");
             free(value);
         }
+    } else {
+        tr_error("edgeclient_endpoint_value_set_handler: resource base is null");
+        assert(false);
     }
 }
 
@@ -233,29 +237,23 @@ EDGE_LOCAL void list_objects_sub(const char *objects_name, M2MBaseList &objects)
 
 EDGE_LOCAL void list_objects()
 {
-    list_objects_sub("unregistered objects", client_data->unregistered_objects);
+    list_objects_sub("pending objects", client_data->pending_objects);
     list_objects_sub("registering objects", client_data->registering_objects);
     list_objects_sub("registered objects", client_data->registered_objects);
 }
 #endif
 
-EDGE_LOCAL void edgeclient_update_register_msg_cb(evutil_socket_t fd, short what, void *arg)
+EDGE_LOCAL void edgeclient_update_register_msg_cb(void *arg)
 {
-    (void) fd;
-    (void) what;
+    (void) arg;
     tr_debug("edgeclient_update_register_msg_cb");
-    update_register_msg_t *msg = (update_register_msg_t *) arg;
-    edgeclient_update_register_conditional(EDGECLIENT_LOCK_MUTEX);
-    msg_api_free_message((event_message_t *) msg);
+    edgeclient_update_register_conditional();
 }
 
 EDGE_LOCAL void edgeclient_send_update_register_conditional_message()
 {
-    update_register_msg_t *msg =
-            (update_register_msg_t *) msg_api_allocate_and_init_message(sizeof(update_register_msg_t));
-    if (msg) {
-        msg_api_send_message((event_message_t *) msg, edgeclient_update_register_msg_cb);
-    } else {
+    struct event_base *base = edge_server_get_base();
+    if (!msg_api_send_message(base, NULL, edgeclient_update_register_msg_cb)) {
         tr_err("edgeclient_send_update_register_conditional_message - cannot send message!");
     }
 }
@@ -273,13 +271,21 @@ EDGE_LOCAL void edgeclient_on_registered_callback(void) {
     tr_debug("on_registered_callback, registered %d objects", client_data->registering_objects.size());
     M2MBaseList::iterator it;
     for (it = client_data->registering_objects.begin(); it != client_data->registering_objects.end(); it++) {
-        client_data->registered_objects.push_back(*it);
+        // Check: !Endpoint or (Endpoint and not deleted)
+        bool is_endpoint = (*it)->base_type() == M2MBase::ObjectDirectory;
+        if (!is_endpoint || (is_endpoint && !(*it)->is_deleted())) {
+            client_data->registered_objects.push_back(*it);
+        } else {
+            // Remove from client
+            client->remove_object(*it);
+            delete (*it);
+        }
     }
     // And clear registering_objects for next register update
     client_data->registering_objects.clear();
-    tr_debug("on_registered_callback, unregistered objects count %d", client_data->unregistered_objects.size());
-    // Move unregistered objects to be registered if there is any
-    if (!client_data->unregistered_objects.empty()) {
+    tr_debug("on_registered_callback, pending objects count %d", client_data->pending_objects.size());
+    // Move pending objects to be registered if there is any
+    if (!client_data->pending_objects.empty()) {
         start_registration = true;
     }
     client_data->g_handle_register_cb();
@@ -288,6 +294,10 @@ EDGE_LOCAL void edgeclient_on_registered_callback(void) {
     if (client->is_interrupt_received() && !start_registration) {
         edgeserver_graceful_shutdown();
     }
+#ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
+    tr_debug("on_registered_callback, after list handling.");
+    list_objects();
+#endif
     edgeclient_mutex_release();
 
     if (start_registration) {
@@ -392,16 +402,18 @@ bool edgeclient_remove_resources_owned_by_client(void *context)
 
 uint32_t edgeclient_remove_objects_owned_by_client(void *client_context)
 {
+    edgeclient_mutex_wait();
     uint32_t total_removed = 0;
     total_removed += edgeclient_remove_objects_from_list(
             client_data->registered_objects, client_context, &check_context_matches);
     total_removed += edgeclient_remove_objects_from_list(
-            client_data->unregistered_objects, client_context, &check_context_matches);
+            client_data->pending_objects, client_context, &check_context_matches);
     total_removed += edgeclient_remove_objects_from_list(
             client_data->registering_objects, client_context, &check_context_matches);
     if (total_removed > 0) {
-        edgeclient_set_update_register_needed(EDGECLIENT_LOCK_MUTEX);
+        edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
     }
+    edgeclient_mutex_release();
     return total_removed;
 }
 
@@ -411,7 +423,7 @@ EDGE_LOCAL uint32_t remove_all_endpoints()
     total_removed +=
             edgeclient_remove_objects_from_list(client_data->registered_objects, NULL, &check_context_is_not_null);
     total_removed +=
-            edgeclient_remove_objects_from_list(client_data->unregistered_objects, NULL, &check_context_is_not_null);
+            edgeclient_remove_objects_from_list(client_data->pending_objects, NULL, &check_context_is_not_null);
     total_removed +=
             edgeclient_remove_objects_from_list(client_data->registering_objects, NULL, &check_context_is_not_null);
     if (total_removed > 0) {
@@ -428,15 +440,18 @@ bool edgeclient_stop()
         client->set_interrupt_received();
         bool translators_removed = edgeserver_remove_protocol_translator_nodes();
         uint32_t endpoints_removed = remove_all_endpoints();
-        if (translators_removed) {
-            edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
-        }
-        if (client_data->edgeclient_status == REGISTERED && endpoints_removed > 0) {
-            tr_info("edgeclient_stop - removing %u endpoints", endpoints_removed);
+        if (client_data->edgeclient_status == REGISTERED && edgeclient_is_registration_needed()) {
+            tr_info("edgeclient_stop - removing %u endpoints translators_removed=%d",
+                    endpoints_removed,
+                    (int32_t) translators_removed);
             edgeclient_update_register(EDGECLIENT_DONT_LOCK_MUTEX);
         } else {
-            tr_info("edgeclient_stop - initiating graceful shutdown");
-            edgeserver_graceful_shutdown();
+            // If registering is already in progress, just wait for the callback
+            if (client_data->edgeclient_status != REGISTERING) {
+                tr_info("edgeclient_stop - initiating graceful shutdown when edgeclient status is %d",
+                        (int32_t)(client_data->edgeclient_status));
+                edgeserver_graceful_shutdown();
+            }
         }
     } else {
         tr_error("edgeclient_stop - 2nd interrupt received. Exiting immediately!");
@@ -470,6 +485,14 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
     }
 }
 
+/* The unistd and usleep are introduced for a workaround to wait
+ * underlying pal/pthread shutdown of eventOS.
+ * The waiting of thread shutdown relies on semaphores, the event
+ * loop thread releases the semaphore that is waited on the thread
+ * which set the stop flag.
+ */
+#include <unistd.h>
+#define SHUTDOWN_USECS 500000 // 500 ms
 void edgeclient_destroy()
 {
     tr_debug("edgeclient_destroy %p", client);
@@ -479,6 +502,13 @@ void edgeclient_destroy()
         client = NULL;
         fcc_finalize();
         ns_event_loop_thread_stop();
+        edgeclient_mutex_destroy();
+        /*
+         * The workaround for waiting that underlying threads from Cloud Client are freed.
+         */
+        unsigned int usecs = SHUTDOWN_USECS;
+        tr_warn("edgeclient_destroy: sleeping for %d ms for shutdown.", usecs / 1000);
+        usleep(usecs);
     }
 }
 
@@ -504,17 +534,11 @@ void edgeclient_connect() {
     }
 }
 
-void edgeclient_update_register_conditional(edgeclient_mutex_action_e mutex_action)
+void edgeclient_update_register_conditional()
 {
     tr_debug("update_register_client_conditional");
-    if (EDGECLIENT_LOCK_MUTEX == mutex_action) {
-        edgeclient_mutex_wait();
-    }
-    if (edgeclient_is_registration_needed()) {
-        edgeclient_update_register(EDGECLIENT_DONT_LOCK_MUTEX);
-    }
-    if (EDGECLIENT_LOCK_MUTEX == mutex_action) {
-        edgeclient_mutex_release();
+    if (edgeclient_is_registration_needed()) {  // atomic
+        edgeclient_update_register(EDGECLIENT_LOCK_MUTEX);
     }
 }
 
@@ -551,10 +575,13 @@ void edgeclient_update_register(edgeclient_mutex_action_e mutex_action) {
 }
 
 bool edgeclient_endpoint_exists(const char *endpoint_name) {
+    bool ret = true;
+    edgeclient_mutex_wait();
     if (edgeclient_get_endpoint(endpoint_name) == NULL) {
-        return false;
+        ret = false;
     }
-    return true;
+    edgeclient_mutex_release();
+    return ret;
 }
 
 void edgeclient_add_object_to_registration(M2MBase *object)
@@ -563,14 +590,14 @@ void edgeclient_add_object_to_registration(M2MBase *object)
         return;
     }
     edgeclient_mutex_wait();
-    client_data->unregistered_objects.push_back(object);
+    client_data->pending_objects.push_back(object);
     edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
     edgeclient_mutex_release();
 }
 
 bool edgeclient_add_endpoint(const char *endpoint_name, void *ctx) {
     tr_debug("add_endpoint %s", endpoint_name);
-    if (endpoint_name == NULL || edgeclient_endpoint_exists(endpoint_name)) {
+    if (endpoint_name == NULL || edgeclient_get_endpoint(endpoint_name) != NULL) {
         return false;
     }
     M2MEndpoint *new_ep = M2MInterfaceFactory::create_endpoint(String(endpoint_name));
@@ -600,11 +627,11 @@ bool edgeclient_remove_endpoint(const char *endpoint_name)
         found = true;
         (*found_list).erase(found_index);
     }
+    client_data->pending_objects.push_back(endpoint);
     edgeclient_mutex_release();
-    // Remove from client
+    // Mark deleted, ultimate deletion happens in registration update callback.
     if (endpoint) {
-        client->remove_object(endpoint);
-        delete endpoint;
+        endpoint->set_deleted();
     }
     return found;
 }
@@ -973,7 +1000,7 @@ bool edgeclient_verify_value(const uint8_t *value, const uint32_t value_length, 
 bool edgeclient_get_endpoint_context(const char *endpoint_name, void **context_out)
 {
     M2MEndpoint *endpoint = edgeclient_get_endpoint(endpoint_name);
-    if (endpoint) {
+    if (endpoint && !endpoint->is_deleted()) {
         *context_out = endpoint->get_context();
         return true;
     }
@@ -1132,7 +1159,18 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *by
 
 #if BYOC_MODE
     tr_info("Starting in BYOC mode.");
-    edgeclient_inject_byoc(byoc_data);
+    status = fcc_verify_device_configured_4mbed_cloud();
+    tr_debug("fcc_verify_device_configured_4mbed_cloud  = %d", status);
+    tr_debug("reset_storage  = %d", reset_storage);
+    if (reset_storage || status != FCC_STATUS_SUCCESS) {
+        edgeclient_inject_byoc(byoc_data);
+    } else {
+        if(byoc_data->cbor_file && status == FCC_STATUS_SUCCESS) {
+            mbed_tracef(TRACE_LEVEL_WARN, TRACE_GROUP, "%s", "KCM seems to exist already. \
+                                                              You need to use --reset-storage \
+                                                              to override it. Now continuing with old identity.");
+        }
+    }
 #elif defined(DEVELOPER_MODE)
     tr_info("Starting in DEVELOPER mode.");
     tr_info("Injecting developer certificate injection");
@@ -1147,7 +1185,7 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *by
     edgeclient_destroy_byoc_data(byoc_data);
     status = fcc_verify_device_configured_4mbed_cloud();
     if (status != FCC_STATUS_SUCCESS) {
-        tr_error("Device not configured for mbed Cloud - exit");
+        tr_error("Device not configured for Device Management - exit");
         exit(1);
     }
 }
@@ -1158,16 +1196,28 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *by
 
 EDGE_LOCAL void edgeclient_add_client_objects_for_registering()
 {
-    // Move unregistered objects to registering list to be registered
+    // Move pending objects to registering list to be registered
     M2MBaseList::iterator it;
-    for (it = client_data->unregistered_objects.begin(); it != client_data->unregistered_objects.end(); it++) {
+    for (it = client_data->pending_objects.begin(); it != client_data->pending_objects.end(); it++) {
         client_data->registering_objects.push_back(*it);
         edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
     }
-    // Clear objects from unregistered list
-    client_data->unregistered_objects.clear();
+    // Clear objects from pending list
+    client_data->pending_objects.clear();
+
+    // Remove objects flagged to be deleted, those shall not be handed to client.
+    M2MBaseList list;
+    for (it = client_data->registering_objects.begin(); it != client_data->registering_objects.end(); it++) {
+        const char* name = (*it)->name();
+        tr_debug("edgeclient_add_client_objects_for_registering: checking if object in index %s is deleted.", name);
+        if (!(*it)->is_deleted()) {
+            tr_debug("edgeclient_add_client_objects_for_registering: object in %s is not deleted.", name);
+            list.push_back(*it);
+        }
+    }
+
     // Give new objects to client
-    client->add_objects(client_data->registering_objects);
+    client->add_objects(list);
 }
 
 EDGE_LOCAL M2MEndpoint *edgeclient_find_endpoint_from_list(
@@ -1246,7 +1296,7 @@ EDGE_LOCAL M2MEndpoint *edgeclient_get_endpoint_with_index(const char *endpoint_
                                                             found_index);
     if (match == NULL) {
         match = edgeclient_find_endpoint_from_list(endpoint_name,
-                                                   client_data->unregistered_objects,
+                                                   client_data->pending_objects,
                                                    found_list,
                                                    found_index);
     }
@@ -1268,7 +1318,7 @@ EDGE_LOCAL M2MObject *edgeclient_get_object_with_index(const uint16_t object_id,
                                                         found_list,
                                                         found_index);
     if (match == NULL) {
-        match = edgeclient_find_object_from_list(object_id, client_data->unregistered_objects, found_list, found_index);
+        match = edgeclient_find_object_from_list(object_id, client_data->pending_objects, found_list, found_index);
     }
     if (match == NULL) {
         match = edgeclient_find_object_from_list(object_id, client_data->registering_objects, found_list, found_index);
@@ -1416,6 +1466,10 @@ edge_device_list_t *edgeclient_devices()
     for (; it != objects->end(); it++) {
         if ((*it)->base_type() == M2MBase::ObjectDirectory) {
             M2MEndpoint *endpoint = (M2MEndpoint*)*it;
+
+            // Skip deleted endpoints
+            if (endpoint->is_deleted()) continue;
+
             edge_device_entry_t *entry = (edge_device_entry_t*) malloc(sizeof(edge_device_entry_t));
             edge_device_resource_list_t *resources = (edge_device_resource_list_t*) malloc(sizeof(edge_device_resource_list_t));
             char *name = strdup(endpoint->name());
@@ -1468,7 +1522,7 @@ edge_device_list_t *edgeclient_devices()
                         }
 
                         char uri[64];
-                        // Mbed Cloud Client stores the identifier as string for
+                        // Device Management Client stores the identifier as string for
                         // object and resource. The object instance has uint16_t as identifier.
                         sprintf(uri, "/%s/%d/%s", obj->name(), ins->instance_id(), res->name());
                         resource_entry->uri = strdup(uri);

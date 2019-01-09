@@ -20,6 +20,8 @@ add_library (pt-client ${SOURCES})
 add_definitions(-DMBED_CONF_MBED_TRACE_ENABLE=1)
 
 target_include_directories (pt-client PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories (pt-client PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/jsonrpc)
+target_include_directories (pt-client PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../edge-rpc)
 SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -shared")
 
 if (TARGET_GROUP STREQUAL test)

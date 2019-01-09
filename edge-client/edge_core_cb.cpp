@@ -101,10 +101,12 @@ void EdgeCoreCallbackParams::execute(void *params)
 
     const uint8_t* buffer = parameters->get_argument_value();
     uint16_t length = parameters->get_argument_value_length();
+    uint8_t* copy_buffer = (uint8_t*) malloc(length);
+    memcpy(copy_buffer, buffer, length);
 
     tr_info("resource executed: url=%s, data length=%d", uri, length);
     edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
-                                                                                    buffer,
+                                                                                    copy_buffer,
                                                                                     length,
                                                                                     EDGECLIENT_VALUE_IN_BINARY,
                                                                                     OPERATION_EXECUTE,
@@ -116,7 +118,7 @@ void EdgeCoreCallbackParams::execute(void *params)
         // direct the callback to Edge Core:
         edgeserver_execute_resource(request_ctx);
     } else {
-        tr_err("Could not write execution to protocol translator.");
+        tr_err("Could not call Edge Core resource execute.");
     }
 }
 

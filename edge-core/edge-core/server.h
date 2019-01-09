@@ -25,12 +25,12 @@
 #include "edge-core/client_type.h"
 
 /**
- * \defgroup EDGE_SERVER Mbed Edge functionality and RPC API.
+ * \defgroup EDGE_SERVER Edge functionality and RPC API.
  * @{
  */
 
 /** \file server.h
- * \brief The server side entry definitions of Mbed Edge.
+ * \brief The server side entry definitions of Edge.
  */
 
 struct ctx_data;
@@ -44,25 +44,25 @@ struct context {
 };
 
 /**
- * \brief Enumeration of Mbed Edge statuses.
+ * \brief Enumeration of Edge statuses.
  */
 typedef enum {
     /**
-     * The status when Mbed Edge is connecting or reconnecting to Mbed Cloud.
+     * The status when Edge is connecting or reconnecting to Device Management.
      */
     EDGE_STATE_CONNECTING,
     /**
-     * The status when Mbed Edge has a working connection with Mbed Cloud.
+     * The status when Edge has a working connection with Device Management.
      */
     EDGE_STATE_CONNECTED,
     /**
-     * The status when Mbed Edge has encountered an error with the connection to Mbed Cloud.
+     * The status when Edge has encountered an error with the connection to Device Management.
      */
     EDGE_STATE_ERROR
 } edge_state;
 
 /**
- * \brief The ID for the protocol translator object stored in Cloud Client.
+ * \brief The ID for the protocol translator object stored in Device Management Client.
  */
 #define PROTOCOL_TRANSLATOR_OBJECT_ID 26241
 /**
@@ -99,7 +99,7 @@ struct ctx_data {
 };
 
 /**
- * \brief Initializes the connection structure between Mbed Edge and the connected
+ * \brief Initializes the connection structure between Edge and the connected
  * protocol translator.
  * \param ctx The program context.
  * \param client_data the client data.
@@ -115,7 +115,7 @@ struct connection* connection_init(struct context *ctx, client_data_t *client_da
 uint32_t connection_free(struct connection *connection);
 
 /**
- * \brief Create and start Mbed Edge eventloop.
+ * \brief Create and start Edge eventloop.
  * \param ctx The program context.
  * \param http_port The port of the HTTP server to listen to.
  */
