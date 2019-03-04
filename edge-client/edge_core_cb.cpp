@@ -34,10 +34,11 @@ extern "C" {
 #include "mbed-trace/mbed_trace.h"
 #include "edge-client/edge_core_cb.h"
 #include "edge-client/edge_core_cb_result.h"
+#include "edge-client/edge_client.h"
 
-void edgeserver_execute_resource(edgeclient_request_context_t *request_ctx)
+bool edgeserver_resource_async_request(edgeclient_request_context_t *request_ctx)
 {
-    tr_debug("edgeserver_execute_resource %d/%d/%d operation %d",
+    tr_debug("edgeserver_resource_async_request %d/%d/%d operation %d",
              request_ctx->object_id,
              request_ctx->object_instance_id,
              request_ctx->resource_id,
@@ -48,18 +49,54 @@ void edgeserver_execute_resource(edgeclient_request_context_t *request_ctx)
     } else {
         tr_warn("Unexpected edge_server_resource parameters");
         edgeclient_deallocate_request_context(request_ctx);
+        return false;
     }
+    return true;
 }
 
-void edgecore_execute_success(edgeclient_request_context_t *ctx)
+void edgecore_async_cb_success(edgeclient_request_context_t *ctx)
 {
-    tr_info("Execute successful to for path '%d/%d/%d'.", ctx->object_id, ctx->object_instance_id, ctx->resource_id);
+    tr_info("Edge Core asynchronous request successful to for path '%d/%d/%d'.",
+            ctx->object_id,
+            ctx->object_instance_id,
+            ctx->resource_id);
+    pt_api_result_code_e status = edgeclient_send_asynchronous_response(NULL,
+                                                                        EDGE_DEVICE_OBJECT_ID,
+                                                                        ctx->object_instance_id,
+                                                                        ctx->resource_id,
+                                                                        ctx->token,
+                                                                        ctx->token_len,
+                                                                        COAP_RESPONSE_CHANGED);
+    if (PT_API_SUCCESS != status) {
+        tr_err("Failed to send a successful asynchronous request response for '%d/%d/%d' ! Code: %d",
+               ctx->object_id,
+               ctx->object_instance_id,
+               ctx->resource_id,
+               status);
+    }
     edgeclient_deallocate_request_context(ctx);
 }
 
-void edgecore_execute_failure(edgeclient_request_context_t *ctx)
+void edgecore_async_cb_failure(edgeclient_request_context_t *ctx)
 {
-    tr_info("Execute failed to for path '%d/%d/%d'.", ctx->object_id, ctx->object_instance_id, ctx->resource_id);
+    tr_warn("Edge Core asynchronous request failed to for path '%d/%d/%d'.",
+            ctx->object_id,
+            ctx->object_instance_id,
+            ctx->resource_id);
+    pt_api_result_code_e status = edgeclient_send_asynchronous_response(NULL,
+                                                                        EDGE_DEVICE_OBJECT_ID,
+                                                                        ctx->object_instance_id,
+                                                                        ctx->resource_id,
+                                                                        ctx->token,
+                                                                        ctx->token_len,
+                                                                        COAP_RESPONSE_INTERNAL_SERVER_ERROR);
+    if (PT_API_SUCCESS != status) {
+        tr_err("edgeclient_send_asynchronous_response failed for '%d/%d/%d' ! returned status: %d",
+               ctx->object_id,
+               ctx->object_instance_id,
+               ctx->resource_id,
+               status);
+    }
     edgeclient_deallocate_request_context(ctx);
 }
 
@@ -90,35 +127,39 @@ EdgeCoreCallbackParams::~EdgeCoreCallbackParams()
     }
 }
 
-void EdgeCoreCallbackParams::execute(void *params)
+bool EdgeCoreCallbackParams::async_request(M2MResource *resource,
+                                           M2MBase::Operation operation,
+                                           uint8_t *buffer,
+                                           size_t length,
+                                           uint8_t *token,
+                                           uint8_t token_len,
+                                           edge_rc_status_e *rc_status)
 {
     if (!uri) {
         tr_err("Cannot execute on NULL uri");
-        return;
+        return false;
     }
 
-    M2MResource::M2MExecuteParameter* parameters = static_cast<M2MResource::M2MExecuteParameter*>(params);
-
-    const uint8_t* buffer = parameters->get_argument_value();
-    uint16_t length = parameters->get_argument_value_length();
-    uint8_t* copy_buffer = (uint8_t*) malloc(length);
-    memcpy(copy_buffer, buffer, length);
-
-    tr_info("resource executed: url=%s, data length=%d", uri, length);
+    tr_info("resource executed: url=%s, data length=%d", uri, (int32_t) length);
     edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
-                                                                                    copy_buffer,
+                                                                                    buffer,
                                                                                     length,
+                                                                                    token,
+                                                                                    token_len,
                                                                                     EDGECLIENT_VALUE_IN_BINARY,
-                                                                                    OPERATION_EXECUTE,
+                                                                                    (uint8_t) operation,
                                                                                     LWM2M_OPAQUE,
-                                                                                    edgecore_execute_success,
-                                                                                    edgecore_execute_failure,
+                                                                                    edgecore_async_cb_success,
+                                                                                    edgecore_async_cb_failure,
+                                                                                    rc_status,
                                                                                     NULL);
     if (request_ctx) {
         // direct the callback to Edge Core:
-        edgeserver_execute_resource(request_ctx);
+        return edgeserver_resource_async_request(request_ctx);
     } else {
-        tr_err("Could not call Edge Core resource execute.");
+        free(buffer);
+        tr_err("Could not call Edge Core resource execute for uri '%s'.", uri);
     }
+    return false;
 }
 

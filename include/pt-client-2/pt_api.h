@@ -299,7 +299,7 @@ pt_status_t pt_device_unregister(const connection_id_t connection_id,
  * \return The status of the write value operation.\n
  *         `PT_STATUS_SUCCESS` on successful write.\n
  *         See ::pt_status_t for possible error codes.
- *         Note: doesn't call the callbacks if PT_STATUS_INVALID_PARAMETERS is returned.
+ *         Note: doesn't call the callbacks if PT_STATUS_INVALID_PARAMETERS or PT_STATUS_NOT_CONNECTED is returned.
  */
 pt_status_t pt_device_write_values(const connection_id_t connection_id,
                                    const char *device_id,

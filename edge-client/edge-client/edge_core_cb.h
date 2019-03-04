@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include "edge-client/edge_client.h"
 #include "m2mresource.h"
-#include "edge-client/execute_cb_params_base.h"
+#include "edge-client/async_cb_params_base.h"
 
 /**
  * \ingroup EDGE_CORE_CB_PARAMS Edge Core Callback Parameters.
@@ -37,17 +37,19 @@
  */
 
 /**
- * \brief Called when a resource execute request is received from Device Management.
+ * \brief Called when an asynchronous resource request is received from Device Management.
  * \param request_ctx State and parameters relating to this execute request.
+ * \return true if the request was successfully handled
+ *         false if the request couldn't be handled.
  */
-void edgeserver_execute_resource(edgeclient_request_context_t *request_ctx);
+bool edgeserver_resource_async_request(edgeclient_request_context_t *request_ctx);
 
 /**
  * \brief Edge Client creates an instance of EdgeCoreCallbackParams class for Edge Core resources that have
  *        OPERATION_EXECUTE set for allowed operations.
  *
  */
-class EdgeCoreCallbackParams : public ExecuteCallbackParamsBase
+class EdgeCoreCallbackParams : public AsyncCallbackParamsBase
 {
 public:
     /**
@@ -68,10 +70,25 @@ public:
     ~EdgeCoreCallbackParams();
 
     /**
-     * \brief Called when execute operation is requested from Device Management.
-     * \param params The M2MResource::M2MExecuteParameter parameters for the execute operation.
-     */ void
-    execute(void *params);
+     * \brief Called when a write or execute operation is requested from Device Management.
+     * \param resource The resource for which this operation is applied.
+     * \param operation The operation (write or execute).
+     * \param buffer The asynchronous request buffer. Needs to be deallocated by Edge.
+     * \param length The length or the size of the buffer.
+     * \param token The asynchronous request token sent by the cloud client.
+     *              This is an allocated memory and ownership is transferred.
+     * \param token_length length The length of the token.
+     * \param[out] rc_status Returned status value for request context allocation.
+     * \return true if the request was successfully handled
+     *         false if the request could not be handled
+     */
+    bool async_request(M2MResource *resource,
+                       M2MBase::Operation operation,
+                       uint8_t *buffer,
+                       size_t length,
+                       uint8_t *token,
+                       uint8_t token_length,
+                       edge_rc_status_e *rc_status);
 
 private:
     char *uri;

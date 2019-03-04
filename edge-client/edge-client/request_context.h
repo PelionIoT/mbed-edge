@@ -39,6 +39,17 @@ typedef enum {
 } edgeclient_value_format_e;
 
 /**
+ * \brief Return values for Edge request context operations
+ */
+typedef enum edge_rc_status {
+    EDGE_RC_STATUS_SUCCESS,                /* The operation succeeded */
+    EDGE_RC_STATUS_CANNOT_ALLOCATE_MEMORY, /* A memory allocation failed */
+    EDGE_RC_STATUS_INVALID_VALUE_FORMAT,   /* Invalid format received for value type. */
+    EDGE_RC_STATUS_CANNOT_PARSE_URI,       /* The given uri cannot be parsed. */
+    EDGE_RC_STATUS_INVALID_PARAMETERS      /* Given parameters were not correct. */
+} edge_rc_status_e;
+
+/**
  * \brief Handler to call when response is available for Edge clients initiated requets.
  * \param ctx Request context which was passed in the original request.
  */
@@ -51,7 +62,10 @@ typedef struct edgeclient_request_context {
     uint16_t resource_id; /**< The resource id. */
     Lwm2mResourceType resource_type; /**< The resource type. */
     uint8_t *value; /**< The pointer to bytes resulting from decoding text format value to the correct data type. This will be passed to protocol translator. */
-    uint32_t value_len; /**< The size of value buffer. */
+    uint32_t value_len; /**< The size of the value buffer. */
+    uint8_t *token; /**< This is used for saving the token given by cloud client. The response is sent back using this
+                       token. */
+    uint8_t token_len; /**< The size of the token. */
     uint8_t operation; /**< The operation done to the resource. */
     edgeclient_response_handler success_handler; /**< The success handler to call on success response */
     edgeclient_response_handler failure_handler; /**< The failure handler to call on failure response */
@@ -70,6 +84,9 @@ void edgeclient_deallocate_request_context(edgeclient_request_context_t *request
  * \param value The value for performed action.
  *        On success the the value is freed. On failure the value is not freed.
  * \param value_len The amount of bytes in the value.
+ * \param token The token for performed action.
+ *        On success the the token is freed. On failure the token is not freed.
+ * \param token_len The amount of bytes in the token.
  * \param value_format The format in which the value is. See ::edgeclient_value_format_e.
  * \param operation The performed operation
  *        #OPERATION_WRITE or #OPERATION_EXECUTE
@@ -77,17 +94,21 @@ void edgeclient_deallocate_request_context(edgeclient_request_context_t *request
  * \param success_handler The handler function to call on success response.
  * \param failure_handler The handler function to call on failure response.
  * \param connection The supplied connection context if successul.
+ * \param[out] status On success #EDGE_RC_STATUS_SUCCESS. Other error codes for failure.
  * \return On failure NULL is returned.
  *         On success the allocated context pointer is returned.
  */
 edgeclient_request_context_t *edgeclient_allocate_request_context(const char *uri,
                                                                   uint8_t *value,
                                                                   uint32_t value_len,
+                                                                  uint8_t *token,
+                                                                  uint8_t token_len,
                                                                   edgeclient_value_format_e value_format,
                                                                   uint8_t operation,
                                                                   Lwm2mResourceType resource_type,
                                                                   edgeclient_response_handler success_handler,
                                                                   edgeclient_response_handler failure_handler,
+                                                                  edge_rc_status_e *status,
                                                                   void *connection);
 
 #ifdef __cplusplus

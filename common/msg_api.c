@@ -21,16 +21,11 @@
 #define TRACE_GROUP "edgemsgapi"
 #include <event2/event.h>
 #include "common/msg_api.h"
+#include "common/msg_api_internal.h"
 #include "mbed-trace/mbed_trace.h"
 #include "common/test_support.h"
 #include <stdlib.h>
 #include <assert.h>
-
-typedef struct x_event_message {
-    struct event *ev;
-    event_loop_callback_t callback;
-    void *data;
-} event_message_t;
 
 static bool msg_api_add_event_from_thread(struct event *ev)
 {
@@ -91,6 +86,8 @@ bool msg_api_send_message(struct event_base *base, void *data, event_loop_callba
     if (event_assign(message->ev, base, -1, 0, event_cb, message) == 0) {
         return msg_api_add_event_from_thread(message->ev);
     } else {
+        free(message->ev);
+        free(message);
         tr_err("Cannot assign event in msg_api_send_message");
         return false;
     }

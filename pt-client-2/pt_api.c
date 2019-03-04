@@ -1310,26 +1310,30 @@ pt_status_t pt_device_write_values(const connection_id_t connection_id,
                                    pt_device_response_handler failure_handler,
                                    void *userdata)
 {
-    pt_status_t status;
+    pt_status_t status = PT_STATUS_SUCCESS;
+    send_message_params_t *message = NULL;
     if (NULL == device_id) {
         return PT_STATUS_INVALID_PARAMETERS;
     }
     api_lock();
     connection_t *connection = find_connection(connection_id);
-    pt_device_t *device = pt_devices_find_device(connection->client->devices, device_id);
-    send_message_params_t *message = pt_device_write_values_common(connection_id,
-                                                                   device,
-                                                                   success_handler,
-                                                                   failure_handler,
-                                                                   userdata,
-                                                                   &status);
+    if (NULL == connection) {
+        status = PT_STATUS_NOT_CONNECTED;
+    } else {
+        pt_device_t *device = pt_devices_find_device(connection->client->devices, device_id);
+        message = pt_device_write_values_common(connection_id,
+                                                device,
+                                                success_handler,
+                                                failure_handler,
+                                                userdata,
+                                                &status);
+    }
     api_unlock();
     if (PT_STATUS_SUCCESS == status) {
         status = send_message_to_event_loop(connection_id, message);
     } else {
         assert(NULL == message);
     }
-    //api_unlock();
     return status;
 }
 

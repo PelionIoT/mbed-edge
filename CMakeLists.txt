@@ -3,9 +3,9 @@
 #https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/CrossCompiling
 
 # Check if user initialized and updated git submodules
-if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libwebsockets/libwebsockets" OR
-    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/jansson/jansson" OR
-    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libevent/libevent" OR
+if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libwebsockets/libwebsockets/CMakeLists.txt" OR
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/jansson/jansson/CMakeLists.txt" OR
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libevent/libevent/CMakeLists.txt" OR
     NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/library"
    )
 	MESSAGE (FATAL_ERROR "Cannot find required libraries, please run \
@@ -25,7 +25,7 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     endif()
 endif()
 project ("edge" C)
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.5)
 
 SET (EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
@@ -50,24 +50,28 @@ include (cmake/edge_include_directories.cmake)
 include(git_details.cmake)
 
 ADD_DEFINITIONS(-D__STDC_FORMAT_MACROS)
+if (NOT (CMAKE_BUILD_TYPE STREQUAL release))
+    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+endif ()
 
 if (TARGET_GROUP STREQUAL test)
-  SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fprofile-arcs -ftest-coverage")
-  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-c++14-compat -g -O0 -fprofile-arcs -ftest-coverage")
+  SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-c++14-compat -g -fprofile-arcs -ftest-coverage")
   SET (CMAKE_EXE_LINKER_FLAGS "-fprofile-arcs")
   SET (CPPUTEST_HOME "${CMAKE_CURRENT_LIST_DIR}/lib/cpputest")
   add_subdirectory (test)
 else ()
   if (ENABLE_COVERAGE EQUAL 1)
     message ("Enabling coverage")
-    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fprofile-arcs -ftest-coverage")
-    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -fprofile-arcs -ftest-coverage")
+    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
     SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -lgcov")
   endif ()
   if (ENABLE_THREAD_SANITIZE EQUAL 1)
     message ("Enabling thread sanitizer")
-    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fsanitize=thread")
-    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -fsanitize=thread")
+    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
+    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
     SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
   endif ()
 endif ()

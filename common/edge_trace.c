@@ -117,6 +117,9 @@ void edge_trace_init(int color_mode)
         mbed_trace_config_set(mbed_trace_config_get() & ~TRACE_MODE_COLOR);
     }
 
+    // force stdout to line buffering
+    setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
+
     mbed_trace_init();
     trace_mutex_init();
 // enabling following will require to expecting wait mutexes for every trace during the tests

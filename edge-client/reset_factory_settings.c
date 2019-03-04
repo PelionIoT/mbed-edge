@@ -33,21 +33,6 @@
 #include "edge-client/reset_factory_settings_internal.h"
 #include <string.h>
 
-typedef struct x_rfs_thread_param {
-    edgeclient_request_context_t *ctx;
-    pthread_t *thread;
-} rfs_thread_param_t;
-
-typedef struct x_rfs_thread_result
-{
-    pthread_t *thread;
-    bool customer_rfs_succeeded;
-} rfs_thread_result_t;
-
-typedef struct x_rfs_request_message {
-    edgeclient_request_context_t *request_ctx;
-} rfs_request_message_t;
-
 void rfs_finalize_reset_factory_settings()
 {
     tr_info("Finalizing rfs settings");
@@ -56,9 +41,6 @@ void rfs_finalize_reset_factory_settings()
         tr_err("Failed to do factory reset - %d", kcm_status);
     }
 }
-
-EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg);
-EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg);
 
 void rfs_reset_factory_settings_requested(edgeclient_request_context_t *request_ctx)
 {
@@ -81,15 +63,11 @@ static void *rfs_thread(void *arg)
     edgeclient_request_context_t *request_ctx = param->ctx;
     bool success = edgeserver_execute_rfs_customer_code(request_ctx);
 
-    if (success) {
-        edgecore_execute_success(request_ctx);
-    } else {
-        edgecore_execute_failure(request_ctx);
-    }
     rfs_thread_result_t *result = (rfs_thread_result_t *) calloc(1, sizeof(rfs_thread_result_t));
     if (result) {
         result->customer_rfs_succeeded = success;
         result->thread = param->thread;
+        result->request_ctx = request_ctx;
         struct event_base *base = edge_server_get_base();
         if (!msg_api_send_message(base, result, rfs_reset_factory_settings_response_cb)) {
             tr_err("Cannot send the RFS response message!");
@@ -106,10 +84,11 @@ EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg)
 {
     rfs_thread_result_t *rfs_thread_result = (rfs_thread_result_t *) arg;
     tr_debug("Sending response to Cloud");
-    pt_api_result_code_e status =
-            edgeclient_send_delayed_response(NULL, EDGE_DEVICE_OBJECT_ID, 0, EDGE_FACTORY_RESET_RESOURCE_ID);
-    if (status != PT_API_SUCCESS) {
-        tr_err("edgeclient_send_delayed_response failed! returned status: %d", status);
+    edgeclient_request_context_t *request_ctx = rfs_thread_result->request_ctx;
+    if (rfs_thread_result->customer_rfs_succeeded) {
+        edgecore_async_cb_success(request_ctx);
+    } else {
+        edgecore_async_cb_failure(request_ctx);
     }
     void *result;
     int join_status = pthread_join(*rfs_thread_result->thread, &result);
@@ -164,7 +143,6 @@ void rfs_add_factory_reset_resource()
                                   LWM2M_OPAQUE,
                                   OPERATION_EXECUTE,
                                   /* userdata */ NULL);
-    edgeclient_set_delayed_response(NULL, EDGE_DEVICE_OBJECT_ID, 0, EDGE_FACTORY_RESET_RESOURCE_ID, true);
 }
 
 

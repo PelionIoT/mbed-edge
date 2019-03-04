@@ -37,6 +37,7 @@ void edgeclient_deallocate_request_context(edgeclient_request_context *request_c
             free(request_context->value);
         }
         free(request_context->device_id);
+        free(request_context->token);
         free(request_context);
     }
 }
@@ -44,11 +45,14 @@ void edgeclient_deallocate_request_context(edgeclient_request_context *request_c
 edgeclient_request_context_t *edgeclient_allocate_request_context(const char *original_uri,
                                                                   uint8_t *value,
                                                                   uint32_t value_len,
+                                                                  uint8_t *token,
+                                                                  uint8_t token_len,
                                                                   edgeclient_value_format_e value_format,
                                                                   uint8_t operation,
                                                                   Lwm2mResourceType resource_type,
                                                                   edgeclient_response_handler success_handler,
                                                                   edgeclient_response_handler failure_handler,
+                                                                  edge_rc_status_e *rc_status,
                                                                   void *connection)
 {
     uint8_t *value_bytes_buf = NULL;
@@ -62,24 +66,33 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     edgeclient_request_context_t *ctx;
     int rc = 0;
 
+    if (!rc_status) {
+        return NULL;
+    }
+
+    *rc_status = EDGE_RC_STATUS_SUCCESS;
     if (!original_uri || strlen(original_uri) == 0) {
         tr_err("NULL or empty uri passed to write context allocation.");
+        *rc_status = EDGE_RC_STATUS_INVALID_PARAMETERS;
         return NULL;
     }
 
     ctx = (edgeclient_request_context_t*) malloc(sizeof(edgeclient_request_context_t));
     if (!ctx) {
         tr_err("Could not allocate request context structure.");
+        *rc_status = EDGE_RC_STATUS_CANNOT_ALLOCATE_MEMORY;
         return NULL;
     }
-
+    ctx->token = token;
+    ctx->token_len = token_len;
     // Our code is expecting that the buffer is null terminated. So let's add a null termination!
     uint8_t *copied_value = NULL;
     if (value) {
         copied_value = (uint8_t *) malloc(value_len + 1);
         if (!copied_value) {
-            tr_err("edgeclient_endpoint_value_set_handler - cannot duplicate value to null terminate it!");
+            tr_err("edgeclient_allocate_request_context - cannot duplicate value to null terminate it!");
             free(ctx);
+            *rc_status = EDGE_RC_STATUS_CANNOT_ALLOCATE_MEMORY;
             return NULL;
         }
         memcpy(copied_value, value, value_len);
@@ -94,6 +107,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
         value_bytes_len = text_format_to_value(resource_type, copied_value, value_len, &value_bytes_buf);
         if (value_bytes_buf == NULL) {
             tr_err("Could not decode resource value to correct type");
+            *rc_status = EDGE_RC_STATUS_INVALID_VALUE_FORMAT;
             goto cleanup;
         }
     }
@@ -104,6 +118,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     uri = strndup(original_uri, strlen(original_uri));
     if (uri == NULL) {
         tr_err("Could not allocate copy of original uri for request context.");
+        *rc_status = EDGE_RC_STATUS_CANNOT_ALLOCATE_MEMORY;
         goto cleanup;
     }
     /*
@@ -119,11 +134,13 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
             device_id = strdup(tokenized);
             if (device_id == NULL) {
                 tr_err("Could not duplicate device id string");
+                *rc_status = EDGE_RC_STATUS_CANNOT_PARSE_URI;
                 goto cleanup;
             }
         }
         else {
             tr_err("Could not tokenize the URI string");
+            *rc_status = EDGE_RC_STATUS_CANNOT_PARSE_URI;
             goto cleanup;
         }
     } else {
@@ -141,6 +158,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     rc = rc | edge_str_to_uint16_t(str_resource_id, &resource_id);
 
     if (rc == 1) {
+        *rc_status = EDGE_RC_STATUS_CANNOT_PARSE_URI;
         tr_err("Could not parse valid url for resource.");
         goto cleanup;
     }
@@ -170,6 +188,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     return ctx;
 
 cleanup:
+    free(token);
     free(copied_value);
     free(device_id);
     free(uri);

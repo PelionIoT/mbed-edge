@@ -20,9 +20,7 @@
 
 palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
 {
-    palStatus_t status;
-    status = pal_plat_osRandomBuffer_blocking(randomBuf, bufSizeBytes);
-    return status;
+    return pal_plat_osRandomBuffer_blocking(randomBuf, bufSizeBytes);
 }
 
 // a simple wrapper, no need to keep it on platform layer. This uses also direct

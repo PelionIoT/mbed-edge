@@ -20,18 +20,31 @@
 
 #ifndef RESET_FACTORY_SETTINGS_INTERNAL_H
 #define RESET_FACTORY_SETTINGS_INTERNAL_H
-#ifdef BUILD_TYPE_TEST
 #include <event2/event.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void rfs_reset_factory_settings_request_cb(void *arg);
-void rfs_reset_factory_settings_response_cb(void *arg);
+typedef struct x_rfs_thread_param {
+    edgeclient_request_context_t *ctx;
+    pthread_t *thread;
+} rfs_thread_param_t;
+
+typedef struct x_rfs_thread_result {
+    pthread_t *thread;
+    bool customer_rfs_succeeded;
+    edgeclient_request_context_t *request_ctx;
+} rfs_thread_result_t;
+
+typedef struct x_rfs_request_message {
+    edgeclient_request_context_t *request_ctx;
+} rfs_request_message_t;
+
+EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg);
+EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg);
 #ifdef __cplusplus
 }
 #endif
 
-#endif
 #endif

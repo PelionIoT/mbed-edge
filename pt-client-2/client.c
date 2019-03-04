@@ -192,9 +192,14 @@ EDGE_LOCAL void pt_client_shutdown_cb(void *arg)
 pt_status_t pt_client_shutdown(pt_client_t *client)
 {
     pt_status_t status = PT_STATUS_SUCCESS;
-    tr_info("pt_client_shutdown");
-    if (!msg_api_send_message(client->ev_base, client, pt_client_shutdown_cb)) {
-        tr_err("Cannot shutdown");
+    tr_info("pt_client_shutdown client: %p", client);
+    if (client) {
+        if (!msg_api_send_message(client->ev_base, client, pt_client_shutdown_cb)) {
+            tr_err("Cannot shutdown");
+            status = PT_STATUS_ERROR;
+        }
+    } else {
+        tr_err("Cannot shutdown, because client is NULL");
         status = PT_STATUS_ERROR;
     }
     return status;

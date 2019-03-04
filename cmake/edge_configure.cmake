@@ -27,7 +27,7 @@ endif()
 
 # Mandatory definitions for Device Management Client
 add_definitions ("-DRESOURCE_ATTRIBUTES_LIST=1")
-
+add_definitions ("-DENABLE_ASYNC_REST_RESPONSE")
 
 # Select provisioning mode
 if (${DEVELOPER_MODE})
@@ -152,14 +152,15 @@ if (DEFINED PAL_UPDATE_FIRMWARE_DIR)
 endif()
 
 if (DEFINED TRACE_LEVEL)
+  MESSAGE ("Trace level set to ${TRACE_LEVEL}")
   add_definitions ("-DMBED_CONF_MBED_TRACE_ENABLE=1")
-  if (${TRACE_LEVEL} STREQUAL "DEBUG")
+  if (${TRACE_LEVEL} STREQUAL DEBUG)
         add_definitions ("-DMBED_TRACE_MAX_LEVEL=TRACE_LEVEL_DEBUG")
-    elseif (${TRACE_LEVEL} STREQUAL "INFO")
+    elseif (${TRACE_LEVEL} STREQUAL INFO)
         add_definitions ("-DMBED_TRACE_MAX_LEVEL=TRACE_LEVEL_INFO")
-    elseif (${TRACE_LEVEL} STREQUAL "WARN")
+    elseif (${TRACE_LEVEL} STREQUAL WARN)
         add_definitions ("-DMBED_TRACE_MAX_LEVEL=TRACE_LEVEL_WARN")
-    elseif (${TRACE_LEVEL} STREQUAL "ERROR")
+    elseif (${TRACE_LEVEL} STREQUAL ERROR)
         add_definitions ("-DMBED_TRACE_MAX_LEVEL=TRACE_LEVEL_ERROR")
     else ()
         MESSAGE (FATAL_ERROR "Unknown trace level '${TRACE_LEVEL}'")

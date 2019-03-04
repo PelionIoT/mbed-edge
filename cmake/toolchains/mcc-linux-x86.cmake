@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 MESSAGE("Building with mcc-linux-x86 toolchain")
 
 # default to GNU99

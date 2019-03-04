@@ -270,6 +270,7 @@ $ make edge-doc
 The generated documentation can be found from the `build-doc/doxygen`-folder.
 
 ### General info for running the binaries
+
 Before running any Protocol Translator clients, start Edge Core first, for example like following:
 
 ```

@@ -1,6 +1,17 @@
 # Changelog for Edge
 
-## Release 0.7.1 (2018-01-07)
+## Release 0.8.0 (2019-02-27)
+
+ * Updated Mbed TLS to version 2.15.1.
+ * Added end-to-end support for asynchronous write operations (`OPERATION_WRITE` and `OPERATION_EXECUTE`) from a web application
+   to protocol translator managed endpoints.
+   * This allows the web application to detect if the operation has succeeded or failed.
+ * CMake 3.5 is required
+ * Fixed an issue where a write value operation would allow creating more endpoints than the configured endpoint limit.
+ * Fixed a crash occurring when a write value operation is called while the protocol translator is disconnected.
+ * Updated Device Management Client to version 2.2.1
+
+## Release 0.7.1 (2019-01-08)
 
  * Removed `Mbed` from documentation.
  * Removed obsolete injection of insecure RoT module in Edge Core build.
@@ -20,7 +31,8 @@
 ### Bugfixes
 
  * Fixed usage for `--cbor-conf` also when combined with `--reset-storage`.
- * Fixed possible invalid pointer dereference when calling `pt_client_final_cleanup` after `pt_client_start` has returned. <br/> *Migration note:* The `pt_client_final_cleanup` API functionality has been moved inside the `pt_client_start` function and the `pt_client_final_cleanup` function has been deprecated. Any call to `pt_client_final_cleanup` should be removed and the `pt-client/client.h`" include should be removed from the protocol translator as it is an internal header.
+ * Fixed possible invalid pointer dereference when calling `pt_client_final_cleanup` after `pt_client_start` has returned.
+   *Migration note:* The `pt_client_final_cleanup` API functionality has been moved inside the `pt_client_start` function and the `pt_client_final_cleanup` function has been deprecated. Any call to `pt_client_final_cleanup` should be removed and the `pt-client/client.h`" include should be removed from the protocol translator as it is an internal header.
  * Fixed memory leak on `PUT` and `WRITE` request handling. The payload pointer given from Cloud Client to Edge was never freed. The payload was copied for NUL-termination and the original pointer was not freed.
  * Added workaround for waiting Cloud Client threads to stop on Edge Core close. The underlying Cloud Client's EventOS event loop thread is not joined and occasionally it is reported as memory leak by Valgrind.
 

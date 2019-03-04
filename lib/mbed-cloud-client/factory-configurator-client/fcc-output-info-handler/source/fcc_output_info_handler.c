@@ -50,12 +50,12 @@ const char g_fcc_invalid_cn_certificate_error_str[] = "Certificate CN attribute 
 const char g_fcc_crypto_public_key_correlation_error_str[] = "Certificate public key validation failed:";
 const char g_fcc_internal_storage_error_str[] = "Internal storage error:";
 const char g_fcc_csr_requests_too_many[] = "Too many CSR requests. Maximum CSR requests supported is " xstr(CSR_MAX_NUMBER_OF_CSRS);
-
 //kcm crypto error strings
 const char g_fcc_kcm_file_error_str[] = "File operation general error:";
 const char g_fcc_kcm_invalid_file_version_str[] = "File version invalid:";
 const char g_fcc_kcm_file_data_corrupted_str[] = "File data corrupted:";
 const char g_fcc_kcm_file_name_corrupted_str[] = "File name corrupted:";
+const char g_fcc_kcm_file_name_invalid_str[] = "File name invalid:";
 const char g_fcc_kcm_not_initialized_str[] = "KCM not initialized:";
 const char g_fcc_kcm_close_incomplete_chain_str[] = "Closing incomplete KCM chain:";
 const char g_fcc_kcm_invalid_chain_str[] = "Corrupted certificate chain file:";
@@ -222,6 +222,7 @@ char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
         case FCC_STATUS_WARNING_CREATE_ERROR:
         case FCC_STATUS_INVALID_CERT_ATTRIBUTE:
         case FCC_STATUS_INTERNAL_ITEM_ALREADY_EXIST:
+        case FCC_STATUS_NOT_SUPPORTED:
             fcc_error_string = (char*)g_fcc_general_status_error_str;
             break;
         case FCC_STATUS_CA_ERROR:
@@ -318,6 +319,7 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
         case KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR:
         case KCM_CRYPTO_STATUS_INVALID_OID:
         case KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT:
+        case KCM_STATUS_RBP_ERROR:
             kcm_error_string = (char*)g_fcc_general_status_error_str;
             break;
         case KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR:
@@ -367,6 +369,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
             break;
         case KCM_STATUS_FILE_NAME_CORRUPTED:
             kcm_error_string = (char*)g_fcc_kcm_file_name_corrupted_str;
+            break;
+        case KCM_STATUS_FILE_NAME_INVALID:
+            kcm_error_string = (char*)g_fcc_kcm_file_name_invalid_str;
             break;
         case KCM_STATUS_ITEM_IS_EMPTY:
             kcm_error_string = (char*)g_fcc_crypto_empty_item_error_str;

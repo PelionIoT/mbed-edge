@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-void print_mbed_stats();
+void print_mbed_stats(void);
 
 #ifdef __cplusplus
 }

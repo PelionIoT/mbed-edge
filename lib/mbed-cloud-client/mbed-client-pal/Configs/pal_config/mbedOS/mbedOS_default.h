@@ -23,24 +23,6 @@
     #define DEBUG
 #endif
 
-/*!
- * \brief This file is for more specific definitions (per board, if needed).
- *        if this file is defined it will be included from pal_configuration.h
- *        if not, the default file will be included - if needed
- */
-#ifndef PAL_BOARD_SPECIFIC_CONFIG
-    #if defined(TARGET_K64F) || defined(TARGET_K66F)
-        #include "K64F_and_K66F_default.h"
-    #elif defined(TARGET_NUCLEO_F429ZI)
-        #include "NUCLEO_default.h"
-    #elif defined(TARGET_UBLOX_EVK_ODIN_W2)
-        #include "ODIN_default.h"
-    #elif defined(TARGET_UBLOX_C030_U201)
-        #include "C030_default.h"
-    #endif
-#endif
-
-
 #ifndef PAL_RTOS_WAIT_FOREVER
     #define PAL_RTOS_WAIT_FOREVER osWaitForever
 #endif
@@ -84,6 +66,22 @@
 
 #ifndef PAL_INT_FLASH_NUM_SECTIONS
     #define PAL_INT_FLASH_NUM_SECTIONS 2
+#endif
+
+#ifndef PAL_USE_HW_ROT
+    #define PAL_USE_HW_ROT 0
+#endif
+
+#ifndef PAL_US_HW_RTC
+    #define PAL_USE_HW_RTC 0
+#endif
+
+// DEVICE_TRNG is a define that mbed-os defines for every board that is configured to have a TRNG
+// mbedtls uses this define when gathering entropy 
+#if defined(DEVICE_TRNG) && !defined(PAL_USE_HW_TRNG)
+    #define PAL_USE_HW_TRNG 1
+#elif !defined(DEVICE_TRNG) && !defined(PAL_USE_HW_TRNG)
+    #define PAL_USE_HW_TRNG 0
 #endif
 
 #endif /* PAL_MBEDOS_CONFIGURATION_H_ */

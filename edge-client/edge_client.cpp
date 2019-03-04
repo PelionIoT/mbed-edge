@@ -47,8 +47,8 @@ extern "C" {
 #include "edge-client/edge_client_internal.h"
 #include "edge-client/edge_client_byoc.h"
 #include "edge-client/edge_core_cb.h"
-#include "edge-client/execute_cb_params.h"
-#include "edge-client/execute_cb_params_base.h"
+#include "edge-client/async_cb_params.h"
+#include "edge-client/async_cb_params_base.h"
 #include "edge-client/eventloop_tracing.h"
 #include "edge-client/edge_client_mgmt.h"
 #include "edge-client/request_context.h"
@@ -58,13 +58,20 @@ extern "C" {
 #include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mvector.h"
 #include "ns_event_loop.h"
+#include "include/m2mcallbackstorage.h"
 
 EDGE_LOCAL EdgeClientImpl *client = NULL;
-EDGE_LOCAL edge_mutex_t edgeclient_mutex;
 edgeclient_data_t *client_data = NULL;
 EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list);
 EDGE_LOCAL void setup_config_mountdir();
 EDGE_LOCAL Lwm2mResourceType resolve_m2mresource_type(M2MResourceBase::ResourceType resourceType);
+EDGE_LOCAL void edgeclient_handle_async_coap_request_cb(const M2MBase &base,
+                                                        M2MBase::Operation operation,
+                                                        const uint8_t *token,
+                                                        const uint8_t token_len,
+                                                        const uint8_t *buffer,
+                                                        size_t buffer_size,
+                                                        void *client_args);
 
 typedef bool (*context_check_fn)(struct context *checked_ctx, struct context *given_ctx);
 
@@ -106,8 +113,8 @@ EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list)
     int32_t i = 0;
     for(i = 0; i < list.size(); i++)
     {
-        if (list[i]->ecp) {
-            delete list[i]->ecp;
+        if (list[i]->acp) {
+            delete list[i]->acp;
         }
         delete list[i];
         list.erase(i);
@@ -115,107 +122,164 @@ EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list)
     }
 }
 
-EDGE_LOCAL void edgeclient_mutex_init()
+EDGE_LOCAL void edgeclient_execute_success(edgeclient_request_context_t *ctx)
 {
-    int32_t result = edge_mutex_init(&edgeclient_mutex, PTHREAD_MUTEX_ERRORCHECK);
-    assert(0 == result);
-}
-EDGE_LOCAL void edgeclient_mutex_wait()
-{
-    int32_t result = edge_mutex_lock(&edgeclient_mutex);
-    assert(0 == result);
+    tr_info("Execute successful to protocol translator for path 'd/%s/%d/%d/%d'.",
+            ctx->device_id,
+            ctx->object_id,
+            ctx->object_instance_id,
+            ctx->resource_id);
+    edgeclient_send_asynchronous_response(ctx->device_id,
+                                          ctx->object_id,
+                                          ctx->object_instance_id,
+                                          ctx->resource_id,
+                                          ctx->token,
+                                          ctx->token_len,
+                                          COAP_RESPONSE_CHANGED);
+    edgeclient_deallocate_request_context(ctx);
 }
 
-EDGE_LOCAL void edgeclient_mutex_release()
+EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx)
 {
-    int32_t result = edge_mutex_unlock(&edgeclient_mutex);
-    assert(0 == result);
-}
-
-EDGE_LOCAL void edgeclient_mutex_destroy()
-{
-    int32_t result = edge_mutex_destroy(&edgeclient_mutex);
-    assert(0 == result);
+    tr_info("Execute failed to protocol translator for path 'd/%s/%d/%d/%d'.",
+            ctx->device_id,
+            ctx->object_id,
+            ctx->object_instance_id,
+            ctx->resource_id);
+    edgeclient_send_asynchronous_response(ctx->device_id,
+                                          ctx->object_id,
+                                          ctx->object_instance_id,
+                                          ctx->resource_id,
+                                          ctx->token,
+                                          ctx->token_len,
+                                          COAP_RESPONSE_INTERNAL_SERVER_ERROR);
+    edgeclient_deallocate_request_context(ctx);
 }
 
 EDGE_LOCAL void edgeclient_write_success(edgeclient_request_context_t *ctx)
 {
-    edgeclient_set_resource_value(ctx->device_id, ctx->object_id, ctx->object_instance_id,
-                                  ctx->resource_id, ctx->value, ctx->value_len,
-                                  ctx->resource_type, ctx->operation, ctx->connection);
+    coap_response_code_e coap_response = COAP_RESPONSE_CHANGED;
+    pt_api_result_code_e status = edgeclient_update_resource_value(ctx->device_id,
+                                                                   ctx->object_id,
+                                                                   ctx->object_instance_id,
+                                                                   ctx->resource_id,
+                                                                   ctx->value,
+                                                                   ctx->value_len);
+    if (PT_API_SUCCESS != status) {
+        tr_err("edgeclient_write_success: updating written value failed with code %d", status);
+        switch (status) {
+            case PT_API_RESOURCE_NOT_FOUND: {
+                coap_response = COAP_RESPONSE_NOT_FOUND;
+            } break;
+            case PT_API_ILLEGAL_VALUE: {
+                coap_response = COAP_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
+            } break;
+            default: {
+                coap_response = COAP_RESPONSE_INTERNAL_SERVER_ERROR;
+            } break;
+        }
+    }
+    edgeclient_send_asynchronous_response(ctx->device_id,
+                                          ctx->object_id,
+                                          ctx->object_instance_id,
+                                          ctx->resource_id,
+                                          ctx->token,
+                                          ctx->token_len,
+                                          coap_response);
     edgeclient_deallocate_request_context(ctx);
 }
 
 EDGE_LOCAL void edgeclient_write_failure(edgeclient_request_context_t *ctx)
 {
     tr_warn("Writing to protocol translator failed");
+    edgeclient_send_asynchronous_response(ctx->device_id,
+                                          ctx->object_id,
+                                          ctx->object_instance_id,
+                                          ctx->resource_id,
+                                          ctx->token,
+                                          ctx->token_len,
+                                          COAP_RESPONSE_INTERNAL_SERVER_ERROR);
     edgeclient_deallocate_request_context(ctx);
 }
 
-EDGE_LOCAL void edgeclient_endpoint_value_set_handler(const M2MResourceBase *resource_base,
-                                                      uint8_t *value,
-                                                      const uint32_t value_length)
+bool edgeclient_endpoint_value_execute_handler(const M2MResourceBase *resource_base,
+                                               void *endpoint_context,
+                                               uint8_t *buffer,
+                                               const uint32_t length,
+                                               uint8_t *token,
+                                               uint8_t token_len,
+                                               edge_rc_status_e *rc_status)
 {
-    if (resource_base != NULL) {
-        M2MBase::BaseType type = resource_base->base_type();
-        Lwm2mResourceType resource_type = resolve_m2mresource_type(resource_base->resource_instance_type());
-        const char* uri_path = resource_base->uri_path();
-        /* Find the m2mendpoint for this resource */
-        M2MObject *obj = NULL;
-        M2MResourceInstance *resource_instance = NULL;
-        M2MResource *resource = NULL;
-        switch (type) {
-            case M2MBase::ResourceInstance:
-                resource_instance = (M2MResourceInstance*) resource_base;
-                obj = &(resource_instance->get_parent_resource().get_parent_object_instance().get_parent_object());
-                break;
-            case M2MBase::Resource:
-                resource = (M2MResource*) resource_base;
-                obj = &(resource->get_parent_object_instance().get_parent_object());
-                break;
-            default:
-                break;
-        }
+    Lwm2mResourceType resource_type = resolve_m2mresource_type(resource_base->resource_instance_type());
+    const char *uri = resource_base->uri_path();
+    uint8_t operation = OPERATION_EXECUTE;
 
-        if (obj != NULL) {
-            void *ctx = NULL;
-            M2MEndpoint *endpoint = obj->get_endpoint();
-            if (endpoint != NULL) {
-                ctx = endpoint->get_context();
-            }
+    tr_info("resource async request: operation=%d url=%s, data length=%d", (int32_t) operation, uri, (int32_t) length);
 
-            if (ctx != NULL) {
-                tr_info("Value write initiated to protocol translator for %s with size %u", uri_path, value_length);
+    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
+                                                                                    buffer,
+                                                                                    length,
+                                                                                    token,
+                                                                                    token_len,
+                                                                                    EDGECLIENT_VALUE_IN_BINARY,
+                                                                                    (uint8_t) operation,
+                                                                                    resource_type,
+                                                                                    edgeclient_execute_success,
+                                                                                    edgeclient_execute_failure,
+                                                                                    rc_status,
+                                                                                    endpoint_context);
 
-                edgeclient_request_context_t
-                        *request_ctx = edgeclient_allocate_request_context(uri_path,
-                                                                           value,
-                                                                           value_length,
-                                                                           EDGECLIENT_VALUE_IN_TEXT,
-                                                                           OPERATION_WRITE,
-                                                                           resource_type,
-                                                                           edgeclient_write_success,
-                                                                           edgeclient_write_failure,
-                                                                           ctx);
-                if (request_ctx) {
-                    client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
-                } else {
-                    tr_err("Request context was NULL. Write not propagated to protocol translator.");
-                }
-            }
-            else {
-                tr_warning("endpoint resource value update fail, could not find context!");
-                free(value);
-            }
-        }
-        else {
-            tr_warning("endpoint resource value update fail, could not find parent object!");
-            free(value);
+    if (request_ctx) {
+        if (0 == edgeclient_write_to_pt_cb(request_ctx, endpoint_context)) {
+            return true;
+        } else {
+            tr_err("Executing to protocol translator failed.");
+            edgeclient_deallocate_request_context(request_ctx);
         }
     } else {
-        tr_error("edgeclient_endpoint_value_set_handler: resource base is null");
-        assert(false);
+        tr_err("Could not allocate request context for writing to protocol translator.");
+        free(buffer);
     }
+    return false;
+}
+
+bool edgeclient_endpoint_value_set_handler(const M2MResourceBase *resource_base,
+                                           void *endpoint_context,
+                                           uint8_t *value,
+                                           const uint32_t value_length,
+                                           uint8_t *token,
+                                           uint8_t token_len,
+                                           edge_rc_status_e *rc_status)
+{
+    const char *uri_path = resource_base->uri_path();
+    Lwm2mResourceType resource_type = resolve_m2mresource_type(resource_base->resource_instance_type());
+    tr_info("Value write initiated to protocol translator for %s with size %u", uri_path, value_length);
+
+    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri_path,
+                                                                                    value,
+                                                                                    value_length,
+                                                                                    token,
+                                                                                    token_len,
+                                                                                    EDGECLIENT_VALUE_IN_TEXT,
+                                                                                    OPERATION_WRITE,
+                                                                                    resource_type,
+                                                                                    edgeclient_write_success,
+                                                                                    edgeclient_write_failure,
+                                                                                    rc_status,
+                                                                                    endpoint_context);
+    if (request_ctx) {
+        // below actually calls write_to_pt in protocol_api.c
+        if (0 != edgeclient_write_to_pt_cb(request_ctx, endpoint_context)) {
+            tr_err("Write failed. Freeing the request context.");
+            edgeclient_deallocate_request_context(request_ctx);
+            return false;
+        }
+        return true;
+    } else {
+        tr_err("Could not allocate request context. Write not propagated to protocol translator.");
+        free(value);
+    }
+    return false;
 }
 
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
@@ -258,7 +322,10 @@ EDGE_LOCAL void edgeclient_send_update_register_conditional_message()
     }
 }
 
-EDGE_LOCAL void edgeclient_on_registered_callback(void) {
+// This method is "safe", because it's called from libevent event loop, preventing e.g. race-conditions.
+EDGE_LOCAL void edgeclient_on_registered_callback_safe(void *arg)
+{
+    (void) arg;
     tr_debug("edgeclient_on_registered_callback client_data = %p", client_data);
     bool start_registration = false;
     tr_debug("on_registered_callback");
@@ -266,7 +333,6 @@ EDGE_LOCAL void edgeclient_on_registered_callback(void) {
     list_objects();
 #endif
     // Move newly registered objects to registered list
-    edgeclient_mutex_wait();
     client_data->edgeclient_status = REGISTERED;
     tr_debug("on_registered_callback, registered %d objects", client_data->registering_objects.size());
     M2MBaseList::iterator it;
@@ -298,36 +364,66 @@ EDGE_LOCAL void edgeclient_on_registered_callback(void) {
     tr_debug("on_registered_callback, after list handling.");
     list_objects();
 #endif
-    edgeclient_mutex_release();
 
     if (start_registration) {
         edgeclient_send_update_register_conditional_message();
     }
 }
 
-EDGE_LOCAL void edgeclient_on_unregistered_callback(void)
+EDGE_LOCAL void edgeclient_on_registered_callback(void)
 {
-    tr_debug("on_unregistered_callback");
+    struct event_base *base = edge_server_get_base();
+    if (!msg_api_send_message(base, NULL, edgeclient_on_registered_callback_safe)) {
+        tr_err("edgeclient_on_registered_callback - cannot send message!");
+    }
+}
+
+EDGE_LOCAL void edgeclient_on_unregistered_callback_safe(void *arg)
+{
+    tr_debug("on_unregistered_callback_safe");
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
     list_objects();
 #endif
-    edgeclient_mutex_wait();
     client_data->edgeclient_status = UNREGISTERED;
 
     client_data->g_handle_unregister_cb();
-    edgeclient_mutex_release();
 }
 
-void edgeclient_on_error_callback(int error_code, const char *error_description) {
-    tr_debug("on_error_callback");
+EDGE_LOCAL void edgeclient_on_unregistered_callback(void)
+{
+    struct event_base *base = edge_server_get_base();
+    if (!msg_api_send_message(base, NULL, edgeclient_on_unregistered_callback_safe)) {
+        tr_err("edgeclient_on_unregistered_callback - cannot send message!");
+    }
+}
+
+void edgeclient_on_error_callback_safe(edgeclient_error_callback_params_t *params)
+{
+    tr_debug("on_error_callback_safe");
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
     list_objects();
 #endif
-    edgeclient_mutex_wait();
     client_data->edgeclient_status = ERROR;
 
-    client_data->g_handle_error_cb(error_code, error_description);
-    edgeclient_mutex_release();
+    client_data->g_handle_error_cb(params->error_code, params->error_description);
+    free(params);
+}
+
+void edgeclient_on_error_callback(int error_code, const char *error_description)
+{
+    struct event_base *base = edge_server_get_base();
+    edgeclient_error_callback_params_t *params = (edgeclient_error_callback_params_t *)
+            calloc(1, sizeof(edgeclient_error_callback_params_t));
+    if (params) {
+        params->error_code = error_code;
+        params->error_description = error_description;
+        if (msg_api_send_message(base, params, (event_loop_callback_t) edgeclient_on_error_callback_safe)) {
+            return;
+        } else {
+            free(params);
+        }
+    }
+    tr_err("edgeclient_on_error_callback - cannot send message!");
 }
 
 /**
@@ -388,8 +484,8 @@ bool edgeclient_remove_resources_owned_by_client(void *context)
         if (resource_list_object->connection == context) {
             tr_debug("  remove resource list object: %p", resource_list_object);
             client_data->resource_list.erase(index);
-            if (resource_list_object->ecp) {
-                delete resource_list_object->ecp;
+            if (resource_list_object->acp) {
+                delete resource_list_object->acp;
             }
             delete resource_list_object;
             // Note: we cannot delete the resource here, because the resource destructor is private!
@@ -402,7 +498,6 @@ bool edgeclient_remove_resources_owned_by_client(void *context)
 
 uint32_t edgeclient_remove_objects_owned_by_client(void *client_context)
 {
-    edgeclient_mutex_wait();
     uint32_t total_removed = 0;
     total_removed += edgeclient_remove_objects_from_list(
             client_data->registered_objects, client_context, &check_context_matches);
@@ -411,9 +506,8 @@ uint32_t edgeclient_remove_objects_owned_by_client(void *client_context)
     total_removed += edgeclient_remove_objects_from_list(
             client_data->registering_objects, client_context, &check_context_matches);
     if (total_removed > 0) {
-        edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
+        edgeclient_set_update_register_needed();
     }
-    edgeclient_mutex_release();
     return total_removed;
 }
 
@@ -427,7 +521,7 @@ EDGE_LOCAL uint32_t remove_all_endpoints()
     total_removed +=
             edgeclient_remove_objects_from_list(client_data->registering_objects, NULL, &check_context_is_not_null);
     if (total_removed > 0) {
-        edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
+        edgeclient_set_update_register_needed();
     }
     return total_removed;
 }
@@ -435,7 +529,6 @@ EDGE_LOCAL uint32_t remove_all_endpoints()
 bool edgeclient_stop()
 {
     bool ret_val = true;
-    edgeclient_mutex_wait();
     if (!client->is_interrupt_received()) {
         client->set_interrupt_received();
         bool translators_removed = edgeserver_remove_protocol_translator_nodes();
@@ -444,7 +537,7 @@ bool edgeclient_stop()
             tr_info("edgeclient_stop - removing %u endpoints translators_removed=%d",
                     endpoints_removed,
                     (int32_t) translators_removed);
-            edgeclient_update_register(EDGECLIENT_DONT_LOCK_MUTEX);
+            edgeclient_update_register();
         } else {
             // If registering is already in progress, just wait for the callback
             if (client_data->edgeclient_status != REGISTERING) {
@@ -458,7 +551,6 @@ bool edgeclient_stop()
         edgeserver_exit_event_loop();
         ret_val = false;
     }
-    edgeclient_mutex_release();
     return ret_val;
 }
 
@@ -471,7 +563,6 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         edgeclient_setup_credentials(params->reset_storage, byoc_data);
         client = new EdgeClientImpl();
         edgeclient_data_init();
-        edgeclient_mutex_init();
 
         client_data->g_handle_write_to_pt_cb = params->handle_write_to_pt_cb;
         client_data->g_handle_register_cb = params->handle_register_cb;
@@ -492,7 +583,11 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
  * which set the stop flag.
  */
 #include <unistd.h>
+#ifndef BUILD_TYPE_TEST
 #define SHUTDOWN_USECS 500000 // 500 ms
+#else
+#define SHUTDOWN_USECS 1000 // 1 ms
+#endif
 void edgeclient_destroy()
 {
     tr_debug("edgeclient_destroy %p", client);
@@ -502,7 +597,6 @@ void edgeclient_destroy()
         client = NULL;
         fcc_finalize();
         ns_event_loop_thread_stop();
-        edgeclient_mutex_destroy();
         /*
          * The workaround for waiting that underlying threads from Cloud Client are freed.
          */
@@ -514,7 +608,6 @@ void edgeclient_destroy()
 
 void edgeclient_connect() {
     bool start_registration = false;
-    edgeclient_mutex_wait();
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
     list_objects();
 #endif
@@ -528,7 +621,6 @@ void edgeclient_connect() {
     else {
         tr_debug("Client already registering, defer registration");
     }
-    edgeclient_mutex_release();
     if (start_registration) {
         client->start_registration();
     }
@@ -538,17 +630,13 @@ void edgeclient_update_register_conditional()
 {
     tr_debug("update_register_client_conditional");
     if (edgeclient_is_registration_needed()) {  // atomic
-        edgeclient_update_register(EDGECLIENT_LOCK_MUTEX);
+        edgeclient_update_register();
     }
 }
 
-void edgeclient_update_register(edgeclient_mutex_action_e mutex_action) {
+void edgeclient_update_register()
+{
     bool start_registration = false;
-    //Depending on the situation, mutex can already be owned by the thread in this point
-    //The mutex_action variable can be used to avoid deadlocks when the mutex is already owned
-    if (EDGECLIENT_LOCK_MUTEX == mutex_action) {
-        edgeclient_mutex_wait();
-    }
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
     list_objects();
 #endif
@@ -566,9 +654,6 @@ void edgeclient_update_register(edgeclient_mutex_action_e mutex_action) {
     else {
         tr_debug("Client already registering, defer registration");
     }
-    if (EDGECLIENT_LOCK_MUTEX == mutex_action) {
-        edgeclient_mutex_release();
-    }
     if (start_registration) {
         client->start_update_registration();
     }
@@ -576,11 +661,9 @@ void edgeclient_update_register(edgeclient_mutex_action_e mutex_action) {
 
 bool edgeclient_endpoint_exists(const char *endpoint_name) {
     bool ret = true;
-    edgeclient_mutex_wait();
     if (edgeclient_get_endpoint(endpoint_name) == NULL) {
         ret = false;
     }
-    edgeclient_mutex_release();
     return ret;
 }
 
@@ -589,10 +672,8 @@ void edgeclient_add_object_to_registration(M2MBase *object)
     if (object == NULL) {
         return;
     }
-    edgeclient_mutex_wait();
     client_data->pending_objects.push_back(object);
-    edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
-    edgeclient_mutex_release();
+    edgeclient_set_update_register_needed();
 }
 
 bool edgeclient_add_endpoint(const char *endpoint_name, void *ctx) {
@@ -618,8 +699,7 @@ bool edgeclient_remove_endpoint(const char *endpoint_name)
     int found_index;
     bool found = false;
     M2MBaseList *found_list;
-    edgeclient_mutex_wait();
-    edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
+    edgeclient_set_update_register_needed();
     tr_debug("Remove endpoint %s", endpoint_name);
     M2MEndpoint *endpoint = edgeclient_get_endpoint_with_index(endpoint_name, &found_list, &found_index);
     // Remove from list
@@ -628,7 +708,6 @@ bool edgeclient_remove_endpoint(const char *endpoint_name)
         (*found_list).erase(found_index);
     }
     client_data->pending_objects.push_back(endpoint);
-    edgeclient_mutex_release();
     // Mark deleted, ultimate deletion happens in registration update callback.
     if (endpoint) {
         endpoint->set_deleted();
@@ -747,12 +826,12 @@ EDGE_LOCAL M2MResourceBase::ResourceType resolve_resource_type(Lwm2mResourceType
 bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id,
                   const uint16_t resource_id, Lwm2mResourceType resource_type, int opr, void *connection)
 {
-    ExecuteCallbackParamsBase* ecp = NULL;
-    tr_debug("add_resource from endpoint: %s, object_id: %u, object_instance_id: %u, resource_id: %u",
-        endpoint_name,
-        object_id,
-        object_instance_id,
-        resource_id);
+    AsyncCallbackParamsBase *acp = NULL;
+    tr_debug("add_resource for endpoint: %s, object_id: %u, object_instance_id: %u, resource_id: %u",
+             endpoint_name,
+             object_id,
+             object_instance_id,
+             resource_id);
     if (edgelient_get_resource(endpoint_name, object_id, object_instance_id, resource_id) != NULL) {
         return false;
     }
@@ -769,9 +848,9 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
     if (res == NULL) {
         return false;
     }
-    res->set_operation((M2MBase::Operation)opr);
+    res->set_operation((M2MBase::Operation) opr);
 
-    if (opr & OPERATION_EXECUTE) {
+    if (opr & (OPERATION_EXECUTE | OPERATION_WRITE)) {
         void *context = NULL;
 
         M2MObject *object = edgeclient_get_object(endpoint_name, object_id);
@@ -789,29 +868,24 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
                 tr_err("Got context without endpoint name - Illegal state!");
                 return false;
             }
-            ecp = (ExecuteCallbackParamsBase *) new ExecuteCallbackParams(context);
-            if (!((ExecuteCallbackParams *) ecp)->set_uri(endpoint_name, object_id, object_instance_id, resource_id)) {
-                tr_err("Cannot set the uri for endpoint resource - setting execte callback failed!");
-                delete ecp;
+            acp = (AsyncCallbackParamsBase *) new AsyncCallbackParams(context);
+            if (!((AsyncCallbackParams *) acp)->set_uri(endpoint_name, object_id, object_instance_id, resource_id)) {
+                tr_err("Cannot set the uri for endpoint resource - setting execute callback failed!");
+                delete acp;
                 return false;
             }
-            res->set_execute_function(
-                    FP1<void, void *>((ExecuteCallbackParams *) ecp, &ExecuteCallbackParams::execute));
         } else {
-            ecp = (ExecuteCallbackParamsBase *) new EdgeCoreCallbackParams();
-            if (!((EdgeCoreCallbackParams *) ecp)->set_uri(object_id, object_instance_id, resource_id)) {
-                tr_err("Cannot set the uri for Edge Core resource - setting execte callback failed!");
-                delete ecp;
+            acp = (AsyncCallbackParamsBase *) new EdgeCoreCallbackParams();
+            if (!((EdgeCoreCallbackParams *) acp)->set_uri(object_id, object_instance_id, resource_id)) {
+                tr_err("Cannot set the uri for Edge Core resource - setting execute callback failed!");
+                delete acp;
                 return false;
             }
-
-            res->set_execute_function(
-                    FP1<void, void *>((EdgeCoreCallbackParams *) ecp, &EdgeCoreCallbackParams::execute));
         }
+        res->set_async_coap_request_cb(edgeclient_handle_async_coap_request_cb, acp);
     }
-
     // need to reclaim this memory when resource is removed
-    ResourceListObject_t* res_list_obj = new ResourceListObject_t();
+    ResourceListObject_t *res_list_obj = new ResourceListObject_t();
     res_list_obj->initialized = true;
     // If endpoint name not null, strip 'd/'
     if (endpoint_name) {
@@ -820,77 +894,121 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
     tr_debug("Add resource %s to resource list!", res_list_obj->uri);
     res_list_obj->resource = res;
     res_list_obj->connection = connection;
-    res_list_obj->ecp = ecp;
+    res_list_obj->acp = acp;
 
     client_data->resource_list.push_back(res_list_obj);
-
-    // if endpoint resource and PUT allowed, set the value update handler to hook the value update for PT
-    if (endpoint_name && (opr & M2MBase::PUT_ALLOWED)) {
-        res->set_value_set_callback(edgeclient_endpoint_value_set_handler);
-    }
 
     return true;
 }
 
-pt_api_result_code_e edgeclient_set_delayed_response(const char *endpoint_name,
-                                                     const uint16_t object_id,
-                                                     const uint16_t object_instance_id,
-                                                     const uint16_t resource_id,
-                                                     bool delayed_response)
+EDGE_LOCAL void edgeclient_handle_async_coap_request_cb(const M2MBase &base,
+                                                        M2MBase::Operation operation,
+                                                        const uint8_t *token,
+                                                        const uint8_t token_len,
+                                                        const uint8_t *buffer,
+                                                        size_t buffer_size,
+                                                        void *client_args)
 {
-    pt_api_result_code_e result = PT_API_SUCCESS;
-    M2MResource *resource = edgelient_get_resource(endpoint_name, object_id, object_instance_id, resource_id);
-    if (resource) {
-        resource->set_delayed_response(delayed_response);
+    tr_debug("edgeclient_handle_async_coap_request_cb: operation: %d, uri: %s, payload_size=%d, "
+             "token_len=%d",
+             operation,
+             base.uri_path(),
+             (int32_t) buffer_size,
+             (int32_t) token_len);
+    edge_rc_status_e rc_status;
+    AsyncCallbackParamsBase *acp = (AsyncCallbackParamsBase *) client_args;
+    M2MBase::BaseType type = base.base_type();
+    if (type == M2MBase::Resource) {
+        M2MResource *resource = (M2MResource *) &base;
+        if (resource->operation() & operation) {
+            if ((operation == M2MBase::PUT_ALLOWED) || (operation == M2MBase::POST_ALLOWED)) {
+                uint8_t *copied_token = (uint8_t *) malloc(token_len);
+                memcpy(copied_token, token, token_len);
+                uint8_t *copied_buffer = (uint8_t *) malloc(buffer_size);
+                memcpy(copied_buffer, buffer, buffer_size);
+                if (!acp->async_request(resource,
+                                        operation,
+                                        copied_buffer,
+                                        buffer_size,
+                                        copied_token,
+                                        token_len,
+                                        &rc_status)) {
+                    // Clean up, because handling the request failed for example, because it could not allocate memory.
+                    M2MBase *base_ptr = (M2MBase *) &base;
+                    tr_err("Async request couldn't be handled.");
+                    coap_response_code_e coap_response_code;
+                    switch (rc_status) {
+                        case EDGE_RC_STATUS_INVALID_VALUE_FORMAT:
+                            coap_response_code = COAP_RESPONSE_BAD_REQUEST;
+                            break;
+                        default:
+                            coap_response_code = COAP_RESPONSE_INTERNAL_SERVER_ERROR;
+                            break;
+                    }
+
+                    (void) base_ptr->send_async_response_with_code(NULL, 0, token, token_len, coap_response_code);
+                }
+            } else if (M2MBase::GET_ALLOWED == operation) {
+                // We can receive asynchronous get request to resource. In this case we respond immediately.
+                uint8_t *value = NULL;
+                uint32_t value_len = 0;
+                resource->get_value(value, value_len);
+
+                (void) resource->send_async_response_with_code(value,
+                                                               value_len,
+                                                               token,
+                                                               token_len,
+                                                               COAP_RESPONSE_CONTENT);
+                free(value);
+            }
+        } else {
+            tr_err("Operation %d is not allowed", operation);
+            (void) resource->send_async_response_with_code(NULL, 0, token, token_len, COAP_RESPONSE_METHOD_NOT_ALLOWED);
+        }
     } else {
-        result = PT_API_RESOURCE_NOT_FOUND;
+        tr_err("Asynchronous CoAP request for non-resource type: %d", type);
+        M2MBase *base_ptr = (M2MBase *) &base;
+        (void) base_ptr->send_async_response_with_code(NULL, 0, token, token_len, COAP_RESPONSE_INTERNAL_SERVER_ERROR);
     }
-    return result;
 }
 
-pt_api_result_code_e edgeclient_send_delayed_response(const char *endpoint_name,
-                                                      const uint16_t object_id,
-                                                      const uint16_t object_instance_id,
-                                                      const uint16_t resource_id)
+pt_api_result_code_e edgeclient_send_asynchronous_response(const char *endpoint_name,
+                                                           const uint16_t object_id,
+                                                           const uint16_t object_instance_id,
+                                                           const uint16_t resource_id,
+                                                           uint8_t *token,
+                                                           uint8_t token_len,
+                                                           coap_response_code_e code)
 {
     pt_api_result_code_e result = PT_API_SUCCESS;
     M2MResource *resource = edgelient_get_resource(endpoint_name, object_id, object_instance_id, resource_id);
     if (resource) {
-        if (!resource->send_delayed_post_response()) {
+        AsyncCallbackParamsBase *acp = NULL;
+        M2MCallbackAssociation *association = M2MCallbackStorage::
+                get_association_item(*resource, M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback);
+        if (association) {
+            acp = (AsyncCallbackParamsBase *) (association->_client_args);
+        }
+        if (acp) {
+            tr_debug("Sending asynchronous response - token_len=%d", token_len);
+            bool resource_success = resource->send_async_response_with_code(NULL, 0, token, token_len, code);
+            if (!resource_success) {
+                result = PT_API_INTERNAL_ERROR;
+            }
+        } else {
+            tr_err("Can't find async callback params for d/%s/%d/%d/%d !",
+                   endpoint_name,
+                   object_id,
+                   object_instance_id,
+                   resource_id);
             result = PT_API_INTERNAL_ERROR;
         }
     } else {
-        result = PT_API_RESOURCE_NOT_FOUND;
-    }
-    return result;
-}
-
-pt_api_result_code_e edgeclient_set_value_update_callback(const uint16_t object_id,
-                                                          const uint16_t object_instance_id,
-                                                          const uint16_t resource_id,
-                                                          edge_value_updated_callback callback)
-{
-    pt_api_result_code_e result = PT_API_SUCCESS;
-    M2MResource *resource = edgelient_get_resource(NULL, object_id, object_instance_id, resource_id);
-    if (resource) {
-        resource->set_value_updated_function(callback);
-    } else {
-        result = PT_API_RESOURCE_NOT_FOUND;
-    }
-    return result;
-}
-
-pt_api_result_code_e edgeclient_set_execute_callback(const uint16_t object_id,
-                                                     const uint16_t object_instance_id,
-                                                     const uint16_t resource_id,
-                                                     edge_execute_callback callback)
-{
-    pt_api_result_code_e result = PT_API_SUCCESS;
-    M2MResource *resource = edgelient_get_resource(NULL, object_id, object_instance_id, resource_id);
-    if (resource) {
-        resource->set_execute_function(callback);
-    }
-    else {
+        tr_err("edgeclient_send_asynchronous_response - resource wasn't found for d/%s/%d/%d/%d !",
+               endpoint_name,
+               object_id,
+               object_instance_id,
+               resource_id);
         result = PT_API_RESOURCE_NOT_FOUND;
     }
     return result;
@@ -1200,7 +1318,7 @@ EDGE_LOCAL void edgeclient_add_client_objects_for_registering()
     M2MBaseList::iterator it;
     for (it = client_data->pending_objects.begin(); it != client_data->pending_objects.end(); it++) {
         client_data->registering_objects.push_back(*it);
-        edgeclient_set_update_register_needed(EDGECLIENT_DONT_LOCK_MUTEX);
+        edgeclient_set_update_register_needed();
     }
     // Clear objects from pending list
     client_data->pending_objects.clear();
@@ -1386,21 +1504,15 @@ EDGE_LOCAL bool edgeclient_is_registration_needed()
     return ret;
 }
 
-EDGE_LOCAL void edgeclient_set_update_register_needed(edgeclient_mutex_action_e mutex_action)
+EDGE_LOCAL void edgeclient_set_update_register_needed()
 {
-    if (EDGECLIENT_LOCK_MUTEX == mutex_action) {
-        edgeclient_mutex_wait();
-    }
     tr_debug("set_update_register_client_needed");
     client_data->m2m_resources_added_or_removed = true;
-    if(EDGECLIENT_LOCK_MUTEX == mutex_action) {
-        edgeclient_mutex_release();
-    }
 }
 
-void edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx)
+int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx)
 {
-    client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
+    return client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
 }
 
 const char* edgeclient_get_internal_id()

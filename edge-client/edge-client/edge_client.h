@@ -32,14 +32,8 @@ extern "C" {
 #include "common/pt_api_error_codes.h"
 #include "edge-client/edge_client_byoc.h"
 #include "edge-client/request_context.h"
-
-/**
- * \brief Used to specify if mutex should be reserved during calling a function.
- */
-typedef enum {
-    EDGECLIENT_DONT_LOCK_MUTEX,
-    EDGECLIENT_LOCK_MUTEX
-} edgeclient_mutex_action_e;
+#include "sn_coap_header.h"
+#include "mbed-client/coap_response.h"
 
 /**
  * \brief Used to read resource attributes
@@ -90,8 +84,10 @@ typedef struct {
  * \brief Calls Edge Client's Protocol Translator handle write call-back function.
  * \param request_context current request context data
  * \param ctx Endpoint context data.
+ * \return 0 if request was successfully sent.
+ *         1 if request couldn't be sent.
  */
-void edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
+int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
 
 /**
  * \brief Loads the Device Management Client credentials (either your own CA or a developer certificate) and sets up the
@@ -114,7 +110,7 @@ void edgeclient_connect();
  * \brief Starts the Device Management Client registration update flow and publishes the resources created since the last update/registration.
  * \param mutex_action May be used to lock the mutex to avoid race condition.
  */
-void edgeclient_update_register(edgeclient_mutex_action_e mutex_action);
+void edgeclient_update_register();
 
 /**
  * \brief Starts the Device Management Client registration update flow only if it's necessary. See
@@ -324,40 +320,27 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
                                                    void *ctx);
 
 /**
- * \brief Set delayed response on the given resource. This API needs to be used if processing a resource callback of a
- *        POST request takes more than 1 second.
- * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
+ * \brief Send asynchronous response for the given resource. Use this API to send the asynchronous response after
+ *        getting a post or a request callback.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource
+ *        under Edge itself.
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
- * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
+ *                           integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
- * \param delayed_response The delayed response value. If set true the client is responsible to call
- *        edgeclient_send_delayed_response when he has processed the callback from the cloud.
+ * \param token The token of the request given by the cloud client.
+ * \param token_len The token length.
+ * \param code The response code for this request.
  * \return #PT_API_SUCCESS on success
  *         Other codes on failure
  */
-pt_api_result_code_e edgeclient_set_delayed_response(const char *endpoint_name,
-                                                     const uint16_t object_id,
-                                                     const uint16_t object_instance_id,
-                                                     const uint16_t resource_id,
-                                                     bool delayed_response);
-
-/**
- * \brief Send delayed response for the given resource. Use is API to send the delayed response after getting post
- *        request callback when you have set the delayed response on the resource by using
- *        edgeclient_set_delayed_response.
- * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
- * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
- * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
- * \param resource_id The ID of the resource, a 16-bit unsigned integer.
- * \param delayed_response The delayed response value. If set true the client is responsible to call
- *        edgeclient_send_delayed_response when he has processed the callback from the cloud.
- * \return #PT_API_SUCCESS on success
- *         Other codes on failure
- */
-pt_api_result_code_e edgeclient_send_delayed_response(const char *endpoint_name,
-                                                      const uint16_t object_id,
-                                                      const uint16_t object_instance_id,
-                                                      const uint16_t resource_id);
+pt_api_result_code_e edgeclient_send_asynchronous_response(const char *endpoint_name,
+                                                           const uint16_t object_id,
+                                                           const uint16_t object_instance_id,
+                                                           const uint16_t resource_id,
+                                                           uint8_t *token,
+                                                           uint8_t token_len,
+                                                           coap_response_code_e code);
 
 /**
  * \brief Get a pointer to the resource value buffer with given path, consisting of endpoint_name (optional), object_id, object_instance_id and resource_id.
@@ -432,19 +415,6 @@ const char* edgeclient_get_endpoint_name();
  *         false if shutdown proces hasn't been started.
  */
 bool edgeclient_is_shutting_down();
-
-typedef void(*edge_execute_callback) (void *arguments);
-typedef void(*edge_value_updated_callback) (const char* object_name);
-
-pt_api_result_code_e edgeclient_set_value_update_callback(const uint16_t object_id,
-                                                          const uint16_t object_instance_id,
-                                                          const uint16_t resource_id,
-                                                          edge_value_updated_callback callback);
-
-pt_api_result_code_e edgeclient_set_execute_callback(const uint16_t object_id,
-                                                     const uint16_t object_instance_id,
-                                                     const uint16_t resource_id,
-                                                     edge_execute_callback callback);
 
 #ifdef __cplusplus
 }

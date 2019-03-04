@@ -38,18 +38,18 @@ extern "C" {
 #endif
 
 /**
- * \brief Called when the Execute request succeeded.
+ * \brief Called when the asynchronous request succeeded.
  *        This currently only traces information about the request.
  * \param ctx Data and state relating to the execute request.
  */
-void edgecore_execute_success(edgeclient_request_context_t *ctx);
+void edgecore_async_cb_success(edgeclient_request_context_t *ctx);
 
 /**
- * \brief Called when the Execute request failed.
+ * \brief Called when the asynchronous request failed.
  *        This currently only traces information about the request.
  * \param ctx Data and state relating to the execute request.
  */
-void edgecore_execute_failure(edgeclient_request_context_t *ctx);
+void edgecore_async_cb_failure(edgeclient_request_context_t *ctx);
 
 #ifdef __cplusplus
 }

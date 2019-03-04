@@ -57,7 +57,9 @@ bool edge_io_file_exists(const char *path)
 bool edge_io_acquire_lock_for_socket(const char *path, int *lock_fd)
 {
     char *lock_filename = NULL;
-    asprintf(&lock_filename, "%s.lock", path);
+    if (-1 == asprintf(&lock_filename, "%s.lock", path)) {
+        return false;
+    }
 
     // Open the lock file.
     *lock_fd = open(lock_filename, O_RDONLY | O_CREAT, 0600);
@@ -83,18 +85,24 @@ cannot_create_socket:
     return false;
 }
 
-void edge_io_release_lock_for_socket(const char *path, int lock_fd)
+bool edge_io_release_lock_for_socket(const char *path, int lock_fd)
 {
+    bool ret_val = true;
     char *lock_filename = NULL;
-    asprintf(&lock_filename, "%s.lock", path);
+    if (-1 == asprintf(&lock_filename, "%s.lock", path)) {
+        return false;
+    }
     int ret = flock(lock_fd, LOCK_UN | LOCK_NB);
     if (ret != 0) {
         tr_err("Cannot unlock the socket lock: %s", lock_filename);
+        ret_val = false;
     }
     if (0 != edge_io_unlink(lock_filename)) {
         tr_err("Cannot remove the socket lock file: %s", lock_filename);
+        ret_val = false;
     }
     free(lock_filename);
+    return ret_val;
 }
 
 int edge_io_unlink(const char *path)

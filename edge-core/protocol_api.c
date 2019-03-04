@@ -465,6 +465,17 @@ int write_value(json_t *request, json_t *json_params, json_t **result, void *use
 
         return 1;
     }
+
+    if (!edgeclient_endpoint_exists(device_id)) {
+        if (edgeserver_get_number_registered_endpoints_count() >= edgeserver_get_number_registered_endpoints_limit()) {
+            tr_warn("Write value failed. The maximum number of registered endpoints is already in use.");
+            *result = jsonrpc_error_object(PT_API_REGISTERED_ENDPOINT_LIMIT_REACHED,
+                                           pt_api_get_error_message(PT_API_REGISTERED_ENDPOINT_LIMIT_REACHED),
+                                           json_string("Write value failed. Endpoint limit reached."));
+            return 1;
+        }
+    }
+
     const char *error_detail = NULL;
     pt_api_result_code_e ret = update_device_values_from_json(json_params,
                                                               connection,

@@ -26,7 +26,7 @@
 #include "common/edge_mutex.h"
 #include "m2mresourceinstance.h"
 #include "edge-client/edge_client.h"
-#include "edge-client/execute_cb_params_base.h"
+#include "edge-client/async_cb_params_base.h"
 #include "edge-client/edge_client_byoc.h"
 #include <event2/event.h>
 
@@ -35,7 +35,7 @@ typedef struct {
     const char* uri;
     void *connection; // used to identify which Protocol API this resource belongs to.
     M2MResource* resource;
-    ExecuteCallbackParamsBase *ecp;
+    AsyncCallbackParamsBase *acp;
 } ResourceListObject_t;
 
 typedef enum {
@@ -44,6 +44,11 @@ typedef enum {
     REGISTERED,
     ERROR
 } edgeClientStatus_e;
+
+typedef struct edgeclient_error_callback_params {
+    int error_code;
+    const char *error_description;
+} edgeclient_error_callback_params_t;
 
 typedef struct edgeclient_data_s {
     edgeclient_data_s() : m2m_resources_added_or_removed(false),
@@ -71,7 +76,6 @@ typedef struct edgeclient_data_s {
 } edgeclient_data_t;
 
 #ifdef BUILD_TYPE_TEST
-extern edge_mutex_t edgeclient_mutex;
 class EdgeClientImpl;
 extern EdgeClientImpl *client;
 
@@ -108,9 +112,19 @@ size_t value_to_text_format(Lwm2mResourceType resource_type, const uint8_t* valu
 
 extern edgeclient_data_t *client_data;
 EDGE_LOCAL void edgeclient_update_register_msg_cb(void *arg);
+EDGE_LOCAL void edgeclient_on_unregistered_callback_safe(void *arg);
+EDGE_LOCAL void edgeclient_on_error_callback_safe(edgeclient_error_callback_params_t *params);
+EDGE_LOCAL void edgeclient_handle_async_coap_request_cb(const M2MBase &base,
+                                                        M2MBase::Operation operation,
+                                                        const uint8_t *token,
+                                                        const uint8_t token_len,
+                                                        const uint8_t *buffer,
+                                                        size_t buffer_size,
+                                                        void *client_args);
 EDGE_LOCAL void edgeclient_on_unregistered_callback(void);
+EDGE_LOCAL void edgeclient_on_registered_callback_safe(void *arg);
 EDGE_LOCAL void edgeclient_on_registered_callback(void);
-EDGE_LOCAL void edgeclient_set_update_register_needed(edgeclient_mutex_action_e mutex_action);
+EDGE_LOCAL void edgeclient_set_update_register_needed();
 EDGE_LOCAL bool edgeclient_is_registration_needed();
 EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *byoc_data);
 EDGE_LOCAL M2MEndpoint *edgeclient_get_endpoint_with_index(const char *endpoint_name, M2MBaseList **found_list, int *found_index);
@@ -119,8 +133,9 @@ EDGE_LOCAL M2MObject *edgeclient_get_object(const char *endpoint_name, const uin
 EDGE_LOCAL M2MObjectInstance *edgeclient_get_object_instance(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id);
 EDGE_LOCAL M2MResource *edgelient_get_resource(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id, const uint16_t resource_id);
 EDGE_LOCAL void edgeclient_add_client_objects_for_registering();
-EDGE_LOCAL void edgeclient_endpoint_value_set_handler(const M2MResourceBase *resource_base,
-                                                 uint8_t *value,
-                                                 const uint32_t value_length);
+EDGE_LOCAL void edgeclient_execute_success(edgeclient_request_context_t *ctx);
+EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx);
+EDGE_LOCAL void edgeclient_write_success(edgeclient_request_context_t *ctx);
+EDGE_LOCAL void edgeclient_write_failure(edgeclient_request_context_t *ctx);
 
 #endif /* EDGE_CLIENT_INTERNAL_H_ */

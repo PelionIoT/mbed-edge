@@ -319,7 +319,6 @@ void M2MResourceBase::report()
     if((M2MBase::O_Attribute & parent_observation_level) == M2MBase::O_Attribute ||
        (M2MBase::OI_Attribute & parent_observation_level) == M2MBase::OI_Attribute) {
         tr_debug("M2MResourceBase::report() -- object/instance level");
-        M2MObjectInstance& object_instance = get_parent_resource().get_parent_object_instance();
         object_instance.notification_update((M2MBase::Observation)parent_observation_level);
     }
 
@@ -357,7 +356,7 @@ void M2MResourceBase::report()
         }
     } else {
         if (is_observable() || is_auto_observable()) {
-            tr_warn("M2MResourceBase::report() - resource %s is observable but not yet subscribed!", uri_path());
+            tr_debug("M2MResourceBase::report() - resource %s is observable but not yet subscribed!", uri_path());
         }
         tr_debug("M2MResourceBase::report() - mode = %d, is_observable = %d", mode(), is_observable());
     }
@@ -480,12 +479,16 @@ int64_t M2MResourceBase::get_value_int() const
         // -9223372036854775808 - +9223372036854775807
         // max length of int64_t string is 20 bytes + nil
         // The +1 here is there in case the string was already zero terminated.
-        char temp[REGISTRY_INT64_STRING_MAX_LEN + 1];
 
-        memcpy(temp, value_string, value_len);
-        temp[value_len] = 0;
-
-        value_int = atoll(temp);
+        
+        bool success = String::convert_ascii_to_int(value_string, value_len, value_int);
+        if (!success) {
+            // note: the convert_ascii_to_int() actually allows one to pass the conversion
+            // onwards, but this get_value_int() does not. Lets just dump error to log, but
+            // do not log the value as that might be part of a attack. Same reason (valid or not)
+            // is behind the selection of log level
+            tr_warn("M2MResourceBase::get_value_int(): conversion failed");
+        }
     }
     return value_int;
 }
@@ -660,8 +663,8 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
         } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
             tr_debug("M2MResourceBase::handle_put_request() - Request Content-type: %d", coap_content_type);
 
-            if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
-               COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type) {
+            if(COAP_CONTENT_OMA_OPAQUE_TYPE != coap_content_type &&
+               COAP_CONTENT_OMA_PLAIN_TEXT_TYPE != coap_content_type) {
                 msg_code = COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
             } else {
 #ifndef DISABLE_BLOCK_MESSAGE
@@ -691,21 +694,16 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                     msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                 } else if ((strcmp(uri_path(), SERVER_LIFETIME_PATH) == 0)) {
                     // Check that lifetime can't go below 60s
-                    char *query = (char*)alloc_string_copy(received_coap_header->payload_ptr,
-                                                           received_coap_header->payload_len);
-
-                    if (query) {
-                        int32_t lifetime = atol(query);
-                        if (lifetime < MINIMUM_REGISTRATION_TIME) {
+                    if(received_coap_header->payload_ptr) {
+                        int64_t lifetime;
+                        bool success = String::convert_ascii_to_int((char*)received_coap_header->payload_ptr, received_coap_header->payload_len, lifetime);
+                        if ((success == false) || (lifetime < MINIMUM_REGISTRATION_TIME)) {
                             tr_error("M2MResourceBase::handle_put_request() - lifetime value % " PRId32 " not acceptable", lifetime);
                             msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                         }
-                        free(query);
-                    }
-                    else {
-                        // memory allocation for query fails
-                        tr_error("M2MResourceBase::handle_put_request() - Out of memory !!!");
-                        msg_code = COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR;
+                    } else {
+                        tr_error("M2MResourceBase::handle_put_request() - empty lifetime payload not acceptable");
+                        msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                     }
                 }
 

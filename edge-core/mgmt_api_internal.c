@@ -403,15 +403,21 @@ int write_resource(json_t *request, json_t *json_params, json_t **result, void *
     }
     mgmt_ctx->request_id = strdup(json_string_value(json_object_get(request, "id")));
     mgmt_ctx->connection = ((struct json_message_t *) userdata)->connection;
-    asprintf(&uri_with_device, "d/%s%s", endpoint_name, uri);
+    if (-1 == asprintf(&uri_with_device, "d/%s%s", endpoint_name, uri)) {
+        goto error_exit;
+    }
+    edge_rc_status_e rc_status;
     request_ctx = edgeclient_allocate_request_context(uri_with_device,
                                                       parsed_value,
                                                       parsed_value_length,
+                                                      NULL, /* No token needed */
+                                                      0,    /* token_len*/
                                                       EDGECLIENT_VALUE_IN_BINARY,
                                                       OPERATION_WRITE,
                                                       attributes.type,
                                                       mgmt_api_write_success,
                                                       mgmt_api_write_failure,
+                                                      &rc_status,
                                                       (void *) mgmt_ctx);
     if (request_ctx) {
         tr_debug("write_resource: edgeclient request_context allocated.");

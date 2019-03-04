@@ -58,8 +58,10 @@ bool edge_io_acquire_lock_for_socket(const char *path, int *lock_fd);
  *        The lock file will the given socket path with '.lock' appended to it.
  * \param path Path to the Unix Domain Socket file.
  * \param lock_fd The file corresponding to the lock file that was returned by edge_io_acquire_lock_for_socket.
+ * \return true  Releasing the lock for the socket succeeded.
+ *         false Releasing the lock for the socket failed.
  */
-void edge_io_release_lock_for_socket(const char *path, int lock_fd);
+bool edge_io_release_lock_for_socket(const char *path, int lock_fd);
 
 /**
  * \brief Removes the file for the given path
