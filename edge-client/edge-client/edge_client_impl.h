@@ -29,6 +29,9 @@
 #include "MbedCloudClient.h"
 #include "mbed-trace/mbed_trace.h"
 
+//the network interface string
+extern char** __net_interface;
+
 class EdgeClientImpl : MbedCloudClientCallback {
 public:
 
@@ -41,7 +44,7 @@ public:
     EdgeClientImpl() :
     _interrupt_received(false),
     _registered(false),
-    _network_interface(EDGE_PRIMARY_NETWORK_INTERFACE_ID)
+    _network_interface(*__net_interface)
     {
         _cloud_client.on_registered(this, &EdgeClientImpl::client_registered);
         _cloud_client.on_registration_updated(this, &EdgeClientImpl::client_registration_updated);

@@ -58,6 +58,7 @@ EDGE_LOCAL struct event ev_sigterm;
 EDGE_LOCAL struct event ev_sigusr2;
 EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data);
 EDGE_LOCAL edgeclient_create_parameters_t edgeclient_create_params = {0};
+char** __net_interface = &(edgeclient_create_params.net_interface);
 
 EDGE_LOCAL const char *cloud_connection_status_in_string(struct context *ctx)
 {
@@ -585,6 +586,7 @@ int testable_main(int argc, char **argv)
         edgeclient_create_params.handle_register_cb = register_cb;
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
         edgeclient_create_params.handle_error_cb = error_cb;
+        edgeclient_create_params.net_interface = args.net_interface;
 
         // args.cbor_conf is in stack
         #ifdef DEVELOPER_MODE

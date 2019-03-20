@@ -78,6 +78,7 @@ typedef struct {
     handle_unregister_cb handle_unregister_cb;
     handle_error_cb handle_error_cb;
     bool reset_storage;
+    char* net_interface;
 } edgeclient_create_parameters_t;
 
 /**
