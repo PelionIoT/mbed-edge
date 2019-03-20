@@ -585,6 +585,7 @@ int testable_main(int argc, char **argv)
         edgeclient_create_params.handle_register_cb = register_cb;
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
         edgeclient_create_params.handle_error_cb = error_cb;
+        edgeclient_create_params.net_interface = args.net_interface;
 
         // args.cbor_conf is in stack
         #ifdef DEVELOPER_MODE

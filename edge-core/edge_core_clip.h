@@ -40,6 +40,7 @@ typedef struct {
     char *cbor_conf;
     char *edge_pt_domain_socket;
     char *http_port;
+    char *net_interface;
     /* special */
     const char *usage_pattern;
     const char *help_message;
@@ -55,6 +56,7 @@ const char help_message[] =
 "\n"
 "Options:\n"
 "  -h --help                            Show this screen.\n"
+"  -i --interface                       The interface to use for network communication [default: " EDGE_PRIMARY_NETWORK_INTERFACE_ID "].\n"
 "  -v --version                         Show the version number\n"
 "  --color-log                          Use ANSI colors in log.\n"
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
@@ -309,6 +311,9 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
         } else if (!strcmp(option->olong, "--http-port")) {
             if (option->argument)
                 args->http_port = option->argument;
+        } else if (!strcmp(option->olong, "--interface")) {
+            if (option->argument)
+                args->net_interface = option->argument;
         }
     }
     /* commands */
@@ -330,7 +335,8 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
         0, 0, 0, 0, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
-        usage_pattern, help_message
+        (char*) EDGE_PRIMARY_NETWORK_INTERFACE_ID, usage_pattern,
+        help_message
     };
     Tokens ts;
     Command commands[] = {
@@ -344,9 +350,10 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-v", "--version", 0, 0, NULL},
         {"-c", "--cbor-conf", 1, 0, NULL},
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
-        {"-o", "--http-port", 1, 0, NULL}
+        {"-o", "--http-port", 1, 0, NULL},
+        {"-i", "--interface", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 7, commands, arguments, options};
+    Elements elements = {0, 0, 8, commands, arguments, options};
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))

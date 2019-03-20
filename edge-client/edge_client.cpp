@@ -572,6 +572,12 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         client->set_on_registration_updated_callback(edgeclient_on_registered_callback);
         client->set_on_unregistered_callback(edgeclient_on_unregistered_callback);
         client->set_on_error_callback(edgeclient_on_error_callback);
+
+        if (params->net_interface) {
+            client->set_net_interface(params->net_interface);
+        }
+
+        tr_debug("using network interface: %s", params->net_interface);
         tr_debug("create_client - client = %p", client);
     }
 }

@@ -57,6 +57,11 @@ public:
     virtual ~EdgeClientImpl() {
     }
 
+    void set_net_interface(const char *network_interface)
+    {
+        _network_interface = network_interface;
+    }
+
     void set_interrupt_received()
     {
         _interrupt_received = true;
