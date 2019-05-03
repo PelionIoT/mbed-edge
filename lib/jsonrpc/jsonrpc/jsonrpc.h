@@ -56,5 +56,8 @@ char *jsonrpc_handler(const char *input,
 
 json_t *jsonrpc_error_object(int code, const char *message, json_t *data);
 json_t *jsonrpc_error_object_predefined(int code, json_t *data);
+json_t *jsonrpc_validate_request(json_t *json_request, const char **str_method, json_t **json_params, json_t **json_id);
+json_t *jsonrpc_result_response(json_t *json_id, json_t *json_result);
+json_t *jsonrpc_error_response(json_t *json_id, json_t *json_error);
 
 #endif /* JSONRPC_H */

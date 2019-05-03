@@ -65,23 +65,23 @@ int apr_base64_encode_len(int len);
  * @param coded_dst The destination string for the encoded string.
  * @param plain_src The original string in plain text.
  * @param len_plain_src The length of the plain text string.
- * @return The length of the encoded string.
+ * @return The length of the encoded string. Including the \0 string termination character!
  */
 int apr_base64_encode_binary(char * coded_dst, const unsigned char *plain_src, int len_plain_src);
 
 /**
- * Determine the maximum buffer length required to decode the plain text
- * string given the encoded string.
+ * Determine the maximum buffer length required to decode the binary buffer
+ * given the encoded string.
  * @param coded_src The encoded string.
  * @return The maximum required buffer length for the plain text string.
  */
 int apr_base64_decode_len(const char * coded_src);
 
 /**
- * Decode an EBCDIC string to plain text.
- * @param plain_dst The destination string for the plain text.
+ * Decode an EBCDIC string to binary.
+ * @param plain_dst The destination buffer for the binary data.
  * @param coded_src The encoded string.
- * @return The length of the plain text string.
+ * @return The length of the decoded buffer.
  */
 int apr_base64_decode_binary(unsigned char * plain_dst, const char *coded_src);
 

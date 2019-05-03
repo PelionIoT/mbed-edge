@@ -56,6 +56,8 @@ typedef struct edgeclient_data_s {
                           g_handle_register_cb(NULL),
                           g_handle_unregister_cb(NULL),
                           g_handle_error_cb(NULL),
+                          g_handle_cert_renewal_status_cb(NULL),
+                          g_cert_renewal_ctx(NULL),
                           edgeclient_status(UNREGISTERED)
     {
     }
@@ -72,6 +74,8 @@ typedef struct edgeclient_data_s {
     handle_register_cb g_handle_register_cb;
     handle_unregister_cb g_handle_unregister_cb;
     handle_error_cb g_handle_error_cb;
+    handle_cert_renewal_status_cb g_handle_cert_renewal_status_cb;
+    void *g_cert_renewal_ctx;
     volatile edgeClientStatus_e edgeclient_status;
 } edgeclient_data_t;
 
@@ -137,5 +141,9 @@ EDGE_LOCAL void edgeclient_execute_success(edgeclient_request_context_t *ctx);
 EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx);
 EDGE_LOCAL void edgeclient_write_success(edgeclient_request_context_t *ctx);
 EDGE_LOCAL void edgeclient_write_failure(edgeclient_request_context_t *ctx);
+EDGE_LOCAL coap_response_code_e map_to_coap_error(int16_t jsonrpc_error_code);
+EDGE_LOCAL void edgeclient_on_certificate_renewal_callback(const char *certificate_name,
+                                                           ce_status_e status,
+                                                           ce_initiator_e initiator);
 
 #endif /* EDGE_CLIENT_INTERNAL_H_ */

@@ -1,5 +1,22 @@
 # Changelog for Edge
 
+## Release 0.9.0 (2019-04-19)
+
+ * Added handling for pending JSON RPC requests. The request are cleaned by sending an error response if the client
+   doesn't respond withing the maximum time limit that can be configured in `cmake/edge_configure.cmake` by modifying
+   values `SERVER_REQUEST_TIMEOUT_THRESHOLD_MS` for Edge Core and `CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS` for protocol
+   translator C-API v2 client. The entity which made the request will get `PT_API_REQUEST_TIMEOUT` error response.
+ * Added handling for pending JSON RPC requests in the case when the connection disconnects. The entity which made
+   the request will get `PT_API_REMOTE_DISCONNECTED` error response.
+ * MbedTLS updated to version 2.17.0.
+ * Add certificate renewal JSON RPC and C-APIs.
+ * Add KCM certificate get and KCM public key get JSON RPC APIs.
+ * Fix the decoding buffer size in our Base64 library.
+
+### Bugfixes
+
+ * Test that client sets the disconnect callback in `pt_client_create` in the v2 API.
+
 ## Release 0.8.0 (2019-02-27)
 
  * Updated Mbed TLS to version 2.15.1.

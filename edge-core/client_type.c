@@ -37,6 +37,7 @@ client_data_t *edge_core_create_client(enum client_type client_type)
     client_data->id = -1;
     client_data->name = NULL;
     client_data->registered = false;
+    ns_list_init(&client_data->certificate_list);
 
     if (client_type == PT) {
         client_data->_pre_destroy_client_data = edge_core_protocol_api_client_data_destroy;

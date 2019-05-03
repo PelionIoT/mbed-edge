@@ -29,6 +29,16 @@ endif()
 add_definitions ("-DRESOURCE_ATTRIBUTES_LIST=1")
 add_definitions ("-DENABLE_ASYNC_REST_RESPONSE")
 
+# Setting JSON RPC request time-outs
+
+# Edge Core
+SET (EDGE_SERVER_TIMEOUT_CHECK_INTERVAL_MS 5000)     # 5 seconds
+SET (EDGE_SERVER_REQUEST_TIMEOUT_THRESHOLD_MS 60000) # one minute
+
+# PT Client V2
+SET (EDGE_CLIENT_TIMEOUT_CHECK_INTERVAL_MS 5000)     # 5 seconds
+SET (EDGE_CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS 60000) # one minute
+
 # Select provisioning mode
 if (${DEVELOPER_MODE})
   MESSAGE ("Developer mode provisioning set.")

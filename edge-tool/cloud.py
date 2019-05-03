@@ -177,7 +177,7 @@ def execute(device_id, resource_path):
         print("Execute on '{} | {}' returned: '{}'".format(device_id, resource_path, res))
     except CloudApiException as e:
         print(red("Exception catched when trying to execute"))
-        print(red("Reason: {} | status: {}".format(e.reason, e.status)))
+        print(red("Reason: {} | status: {} | msg: {}".format(e.reason, e.status, e.message)))
 
 
 KEYS_NEEDED_FOR_DEVICES = ("id", "name", "device_type", "device_execution_mode",
@@ -191,7 +191,7 @@ def write(device_id, resource_path, value):
         print("Write on '{} | {}' completed, new value: '{}'".format(device_id, resource_path, res))
     except CloudApiException as e:
         print(red("Exception catched when trying to write"))
-        print(red("Reason: {} | status: {}".format(e.reason, e.status)))
+        print(red("Reason: {} | status: {} | msg: {}".format(e.reason, e.status, e.message)))
 
 def device_object_to_dictionary(device):
     return {

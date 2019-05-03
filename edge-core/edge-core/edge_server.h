@@ -36,6 +36,17 @@ int32_t edgeserver_get_number_registered_endpoints_count();
 void edgeserver_change_number_registered_endpoints_by_delta(int32_t delta);
 struct event_base *edge_server_get_base();
 void edge_server_set_rfs_thread(pthread_t *thread);
+connection_elem_list *edge_server_get_registered_translators();
+
+/**
+ * \brief May be called from any thread to send the response.
+ *        Internally it sends a message to event loop where it checks that the
+ *        connection is still valid and sends the response.
+ */
+void edge_server_construct_and_send_response_safe(connection_id_t connection_id,
+                                                  json_t *response,
+                                                  rpc_free_func free_func,
+                                                  rpc_request_context_t *customer_callback_ctx);
 
 /**
  * \brief The function to initialize the mutex for mbed-trace.
@@ -80,6 +91,7 @@ struct lws_context *initialize_libwebsocket_context(struct event_base *ev_base,
                                                     int *lock_fd);
 void clean_resources(struct lws_context *lwsc, const char *edge_pt_socket, int lock_fd);
 void free_program_context_and_data();
+void safe_response_callback(void *data);
 
 #endif // end BUILD_TYPE_TEST
 

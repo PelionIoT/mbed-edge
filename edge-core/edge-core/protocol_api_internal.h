@@ -23,22 +23,28 @@
 
 #include "edge-rpc/rpc.h"
 #include "client_type.h"
+#include "edge-core/server.h"
 
 typedef struct transport_connection {
     void *transport;
     write_func write_function;
 } transport_connection_t;
 
-struct connection {
-    bool connected;
+
+typedef struct connection {
     struct context *ctx;
     client_data_t *client_data;
     transport_connection_t *transport_connection;
     void *userdata;
-};
+    connection_id_t id;
+    bool connected;
+} connection_t;
 
 void transport_connection_t_destroy(transport_connection_t **transport_connection);
 void edge_core_protocol_api_client_data_destroy(client_data_t *client_data);
+bool pt_api_check_request_id(struct json_message_t *jt);
+bool pt_api_check_service_availability(json_t **result);
+json_t *pt_api_allocate_response_common(char *request_id);
 
 extern struct jsonrpc_method_entry_t method_table[];
 

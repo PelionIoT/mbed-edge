@@ -87,6 +87,11 @@ public:
         _on_error_cb = cb;
     }
 
+    void set_on_certificate_renewal_callback(cert_renewal_cb_f renewal_cb)
+    {
+        _cloud_client.on_certificate_renewal(renewal_cb);
+    }
+
     const char *get_internal_id() {
         const ConnectorClientEndpointInfo *endpoint_info = _cloud_client.endpoint_info();
         if (endpoint_info) {
@@ -137,6 +142,11 @@ public:
     const M2MBaseList *get_object_list()
     {
         return _cloud_client.get_object_list();
+    }
+
+    ce_status_e certificate_renew(const char *certificate_name)
+    {
+        return _cloud_client.certificate_renew(certificate_name);
     }
 
     void start_registration()

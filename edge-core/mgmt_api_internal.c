@@ -283,14 +283,6 @@ static void mgmt_write_free_func(rpc_request_context_t *userdata)
     free(mgmt_context);
 }
 
-static json_t *allocate_response_common(mgmt_api_request_context_t *mgmt_context)
-{
-    json_t *response = json_object();
-    json_object_set_new(response, "id", json_string(mgmt_context->request_id));
-    json_object_set_new(response, "jsonrpc", json_string("2.0"));
-    return response;
-}
-
 static void mgmt_send_response_common(mgmt_api_request_context_t *mgmt_context, json_t *response)
 {
     int ret_code = rpc_construct_and_send_response(mgmt_context->connection,
@@ -318,7 +310,7 @@ EDGE_LOCAL void mgmt_api_write_success(edgeclient_request_context_t *ctx)
                                                                         ctx->value,
                                                                         ctx->value_len);
 
-    json_t *response = allocate_response_common(mgmt_context);
+    json_t *response = pt_api_allocate_response_common(mgmt_context->request_id);
     if (PT_API_SUCCESS == result_code) {
         json_object_set_new(response, "result", json_string("ok"));
     } else {
@@ -339,7 +331,7 @@ EDGE_LOCAL void mgmt_api_write_failure(edgeclient_request_context_t *ctx)
              ctx->object_id,
              ctx->object_instance_id,
              ctx->resource_id);
-    json_t *response = allocate_response_common(mgmt_context);
+    json_t *response = pt_api_allocate_response_common(mgmt_context->request_id);
     json_t *result = NULL;
     set_write_resource_error_result(&result, PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED);
     json_object_set_new(response, "error", result);
@@ -441,7 +433,7 @@ int write_resource(json_t *request, json_t *json_params, json_t **result, void *
         goto error_exit;
     }
     free(uri_with_device);
-    return -1; // OK so far, but response is provided later.
+    return -1; // OK so far, but the response is provided later.
 error_exit:
     free(parsed_value);
     free(uri_with_device);

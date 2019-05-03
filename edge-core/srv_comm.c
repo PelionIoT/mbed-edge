@@ -49,6 +49,24 @@ static bool remove_connection_from_list(struct connection *connection, connectio
     return conn_found;
 }
 
+/**
+ * \brief Finds the connection from registered translators.
+ *        Note: it doesn't find it from not registered_translators though!
+ */
+connection_t *srv_comm_find_connection(connection_id_t connection_id)
+{
+    connection_t *connection = NULL;
+    ns_list_foreach_safe(struct connection_list_elem, cur, edge_server_get_registered_translators())
+    {
+        if (connection_id == cur->conn->id) {
+            connection = cur->conn;
+            break;
+        }
+    }
+
+    return connection;
+}
+
 static bool remove_connection_from_lists(struct connection *connection)
 {
     struct ctx_data *ctx_data = connection->ctx->ctx_data;
@@ -128,6 +146,11 @@ void edge_core_process_data_frame_websocket(struct connection *connection,
                                             size_t len,
                                             const char *data)
 {
-    (void) rpc_handle_message(data, len, connection, connection->client_data->method_table,
-                              edge_core_write_data_frame_websocket, protocol_error);
+    (void) rpc_handle_message(data,
+                              len,
+                              connection,
+                              connection->client_data->method_table,
+                              edge_core_write_data_frame_websocket,
+                              protocol_error,
+                              false /* mutex_acquired */);
 }

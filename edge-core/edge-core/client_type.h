@@ -22,11 +22,19 @@
 #define CLIENT_TYPE_H
 
 #include <stdbool.h>
+#include "ns_list.h"
 
 enum client_type {
     PT,
     MGMT
 };
+
+typedef struct string_list_entry {
+    char *string;
+    ns_list_link_t link;
+} string_list_entry_t;
+
+typedef NS_LIST_HEAD(string_list_entry_t, link) string_list_t;
 
 struct client_data;
 
@@ -37,6 +45,7 @@ typedef struct client_data {
     bool registered;
     int id;
     void *method_table;
+    string_list_t certificate_list;
     pre_destroy_client_data _pre_destroy_client_data;
 } client_data_t;
 

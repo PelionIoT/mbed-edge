@@ -200,12 +200,12 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
  * \return 0 if the response was successfully sent.\n
  *        -1 if the response couldn't be allocated.\n
  *        -2 if the response couldn't be sent.
- */ int32_t
-rpc_construct_and_send_response(struct connection *connection,
-                                json_t *response,
-                                rpc_free_func free_func,
-                                rpc_request_context_t *customer_callback_ctx,
-                                write_func write_function);
+ */
+int32_t rpc_construct_and_send_response(struct connection *connection,
+                                        json_t *response,
+                                        rpc_free_func free_func,
+                                        rpc_request_context_t *customer_callback_ctx,
+                                        write_func write_function);
 
 /**
  * \brief Handles the incoming raw json-rpc string from the connection.
@@ -216,6 +216,7 @@ rpc_construct_and_send_response(struct connection *connection,
  * \param write_func The function to use for writing data back.
  * \param protocol_error The flag is set to true if the frame data cannot be parsed or response message cannot be
  *                       matched. Otherwise it is set to false.
+ * \param mutex_acquired The flag telling wheter the `rpc_mutex` is already acquired.
  * \return 0 for success.\n
  *         1 for failure.
  */
@@ -224,7 +225,8 @@ int rpc_handle_message(const char *data,
                        struct connection *connection,
                        struct jsonrpc_method_entry_t *method_table,
                        write_func write_function,
-                       bool *protocol_error);
+                       bool *protocol_error,
+                       bool mutex_acquired);
 
 /**
  * \brief Destroys all messages that are waiting for processing.
@@ -247,6 +249,20 @@ void rpc_add_message_entry_to_list(void *message_entry);
  * `rpc_construct_message`.
  */
 void rpc_dealloc_message_entry(void *message_entry);
+
+/**
+ * \brief Handles the the requests which have been pending for too long by sending timeout response.
+ *
+ * \param max_response_time_ms The threshold duration until which we trigger the timeout response.
+ */
+void rpc_timeout_unresponded_messages(int32_t max_response_time_ms);
+
+/**
+ * \brief Should be called when the connection is disconnected.
+ *        It handles the pending requests by sending the remote disconnected error response.
+ * \param connection The connection which disconnected.
+ */
+void rpc_remote_disconnected(struct connection *connection);
 
 /**
  * @}

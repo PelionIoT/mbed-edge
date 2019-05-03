@@ -50,7 +50,7 @@ include (cmake/edge_include_directories.cmake)
 include(git_details.cmake)
 
 ADD_DEFINITIONS(-D__STDC_FORMAT_MACROS)
-if (NOT (CMAKE_BUILD_TYPE STREQUAL release))
+if (NOT (CMAKE_BUILD_TYPE STREQUAL Release))
     SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
     SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 endif ()

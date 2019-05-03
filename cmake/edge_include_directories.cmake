@@ -50,6 +50,7 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/ns-hal-pal)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/nanostack-libservice/)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/nanostack-libservice/mbed-client-libservice)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/sal-stack-nanostack-eventloop/nanostack-event-loop)
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/sal-stack-nanostack-eventloop)
 
 # mbed-trace for logging
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-trace)
@@ -59,8 +60,13 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurato
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/fcc-bundle-handler/fcc-bundle-handler)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/fcc-output-info-handler/fcc-output-info-handler)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/key-config-manager/key-config-manager)
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/key-config-manager)
+
+# certificate enrollment client headers:
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/certificate-enrollment-client)
 
 # pal headers
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client-pal/Source)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client-pal/Source/PAL-Impl/Services-API)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client-pal/Configs/pal_config)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client-pal/Configs/pal_config/Linux)

@@ -24,15 +24,19 @@
 #include <assert.h>
 #include "libwebsockets.h"
 #include <event2/event_struct.h>
+#include <event2/event.h>
 
 #include "edge-client/edge_client.h"
 #include "edge-client/edge_client_byoc.h"
 #include "edge-core/client_type.h"
 #include "edge-core/protocol_api.h"
+#include "edge-core/protocol_crypto_api.h"
 #include "edge-core/server.h"
+#include "edge-core/protocol_api.h"
 #include "edge-core/srv_comm.h"
 #include "edge-core/edge_server.h"
 #include "edge-core/http_server.h"
+#include "edge-rpc/rpc.h"
 #include "common/websocket_comm.h"
 #include "common/edge_mutex.h"
 #include "common/edge_trace.h"
@@ -46,16 +50,20 @@
 #include "edge_core_clip.h"
 #include "edge-client/reset_factory_settings.h"
 #include "edge_version_info.h"
+#include "edge-rpc/rpc_timeout_api.h"
+#include "common/msg_api.h"
+
 #define TRACE_GROUP "serv"
 
 // current protocol API version
 #define SERVER_PT_WEBSOCKET_VERSION_PATH "/1/pt"
 #define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
 
+EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
 EDGE_LOCAL struct context *g_program_context = NULL;
-EDGE_LOCAL struct event ev_sigint;
-EDGE_LOCAL struct event ev_sigterm;
-EDGE_LOCAL struct event ev_sigusr2;
+EDGE_LOCAL struct event ev_sigint = {0};
+EDGE_LOCAL struct event ev_sigterm = {0};
+EDGE_LOCAL struct event ev_sigusr2 = {0};
 EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data);
 EDGE_LOCAL edgeclient_create_parameters_t edgeclient_create_params = {0};
 
@@ -82,13 +90,61 @@ EDGE_LOCAL const char *cloud_connection_status_in_string(struct context *ctx)
 
 static struct connection *initialize_client_connection(client_data_t *client_data)
 {
-    struct connection *connection = (struct connection *)calloc(1, sizeof(struct connection));
+    struct connection *connection = (struct connection *) calloc(1, sizeof(struct connection));
     if (!connection) {
         tr_err("Could not allocate connection structure.");
     }
     connection->client_data = client_data;
+    connection->id = g_connection_id_counter;
+    g_connection_id_counter++;
     connection->ctx = g_program_context;
     return connection;
+}
+
+typedef struct {
+    connection_id_t connection_id;
+    json_t *response;
+    rpc_free_func free_func;
+    rpc_request_context_t *customer_callback_ctx;
+} safe_response_params_t;
+
+EDGE_LOCAL void safe_response_callback(void *data)
+{
+    safe_response_params_t *params = (safe_response_params_t *) data;
+    connection_t *connection = srv_comm_find_connection(params->connection_id);
+    if (connection) {
+        (void) rpc_construct_and_send_response(connection,
+                                               params->response,
+                                               params->free_func,
+                                               params->customer_callback_ctx,
+                                               connection->transport_connection->write_function);
+    } else {
+        tr_warn("safe_response_callback: response not send because connection id %d no longer exists",
+                params->connection_id);
+        json_decref(params->response);
+        params->free_func(params->customer_callback_ctx);
+    }
+    free(params);
+}
+
+void edge_server_construct_and_send_response_safe(connection_id_t connection_id,
+                                                  json_t *response,
+                                                  rpc_free_func free_func,
+                                                  rpc_request_context_t *customer_callback_ctx)
+{
+    safe_response_params_t *params = calloc(1, sizeof(safe_response_params_t));
+    if (params) {
+        params->connection_id = connection_id;
+        params->response = response;
+        params->free_func = free_func;
+        params->customer_callback_ctx = customer_callback_ctx;
+        if (!msg_api_send_message(g_program_context->ev_base, params, safe_response_callback)) {
+            tr_err("edge_server_construct_and_send_response_safe: couldn't send response back to client");
+            json_decref(response);
+            free(params);
+            free_func(customer_callback_ctx);
+        }
+    }
 }
 
 transport_connection_t *initialize_transport_connection(websocket_connection_t *websocket_connection)
@@ -213,6 +269,7 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
             tr_warn("lws_callback_closed: client went away: server wsi %p", wsi);
             if (websocket_connection) {
                 struct connection *connection = (struct connection*) websocket_connection->conn;
+                rpc_remote_disconnected(connection);
                 close_connection(connection);
             }
             break;
@@ -357,6 +414,25 @@ void *edgeserver_graceful_shutdown()
     return NULL;
 }
 
+EDGE_LOCAL bool setup_signal_handler(struct event *event,
+                                     struct event_base *ev_base,
+                                     evutil_socket_t fd,
+                                     const char *desc)
+{
+    int ret_val = event_assign(event, ev_base, fd, EV_SIGNAL | EV_PERSIST, shutdown_handler, NULL);
+    if (ret_val != 0) {
+        tr_err("setup_signal_handler: event_assign returned %d for fd: %d '%s'", ret_val, fd, desc);
+        return false;
+    }
+
+    ret_val = event_add(event, NULL);
+    if (ret_val != 0) {
+        tr_err("setup_signal_handler: event_add returned %d for fd: %d '%s'", ret_val, fd, desc);
+        return false;
+    }
+    return true;
+}
+
 #ifndef BUILD_TYPE_TEST
 EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
 {
@@ -369,17 +445,21 @@ EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
                 ret_val,
                 errno,
                 strerror(errno));
+        return false;
     }
 
     // use libevent signal handler for shut down
-    (void)event_assign(&ev_sigint, ev_base, SIGINT, EV_SIGNAL|EV_PERSIST, shutdown_handler, NULL);
-    (void)event_add(&ev_sigint, NULL);
+    if (!setup_signal_handler(&ev_sigint, ev_base, SIGINT, "SIGINT")) {
+        return false;
+    }
 
-    (void)event_assign(&ev_sigterm, ev_base, SIGTERM, EV_SIGNAL|EV_PERSIST, shutdown_handler, NULL);
-    (void)event_add(&ev_sigterm, NULL);
+    if (!setup_signal_handler(&ev_sigterm, ev_base, SIGTERM, "SIGTERM")) {
+        return false;
+    }
 
-    (void)event_assign(&ev_sigusr2, ev_base, SIGUSR2, EV_SIGNAL|EV_PERSIST, shutdown_handler, NULL);
-    (void)event_add(&ev_sigusr2, NULL);
+    if (!setup_signal_handler(&ev_sigusr2, ev_base, SIGUSR2, "SIGUSR2")) {
+        return false;
+    }
 
     return true;
 }
@@ -473,6 +553,11 @@ struct event_base *edge_server_get_base()
     return g_program_context->ev_base;
 }
 
+connection_elem_list *edge_server_get_registered_translators()
+{
+    return &(g_program_context->ctx_data->registered_translators);
+}
+
 void edgeserver_rfs_customer_code_succeeded()
 {
     g_program_context->ctx_data->rfs_customer_code_succeeded = true;
@@ -542,6 +627,7 @@ EDGE_LOCAL void clean_resources(struct lws_context *lwsc, const char *edge_pt_so
     }
     clean(g_program_context);
     free_program_context_and_data();
+    rpc_destroy_messages();
     rpc_deinit();
 }
 
@@ -564,10 +650,12 @@ int testable_main(int argc, char **argv)
     char* edge_pt_socket = args.edge_pt_domain_socket;
     int http_port = atoi(args.http_port);
     int lock_fd = -1;
+    rpc_request_timeout_hander_t *timeout_handler = NULL;
 
     for (counter = 0; counter < 1; counter ++) {
         // Initialize trace and trace mutex
         edge_trace_init(args.color_log);
+        tr_info("Edge Core starting... pid: %d", getpid());
         create_program_context_and_data();
         struct ctx_data *ctx_data = g_program_context->ctx_data;
         ns_list_init(&ctx_data->registered_translators);
@@ -579,12 +667,23 @@ int testable_main(int argc, char **argv)
             break;
         }
 
+        timeout_handler = rpc_request_timeout_api_start(g_program_context->ev_base,
+                                                        SERVER_TIMEOUT_CHECK_INTERVAL_MS,
+                                                        SERVER_REQUEST_TIMEOUT_THRESHOLD_MS);
+
+        if (!timeout_handler) {
+            // error message already printed.
+            break;
+        }
         // Create client
         tr_info("Starting Device Management Edge Cloud Client");
         edgeclient_create_params.handle_write_to_pt_cb = write_to_pt;
         edgeclient_create_params.handle_register_cb = register_cb;
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
         edgeclient_create_params.handle_error_cb = error_cb;
+        edgeclient_create_params.handle_cert_renewal_status_cb = (handle_cert_renewal_status_cb)
+                certificate_renewal_notifier;
+        edgeclient_create_params.cert_renewal_ctx = &g_program_context->ctx_data->registered_translators;
 
         // args.cbor_conf is in stack
         #ifdef DEVELOPER_MODE
@@ -602,6 +701,9 @@ int testable_main(int argc, char **argv)
         // Connect client
         edgeclient_connect();
 
+        // Need to initialize crypto RPC API after client as we use tasklet to
+        // synchronise crypto operations
+        crypto_api_protocol_init();
 #ifndef BUILD_TYPE_TEST
         if (!setup_signals(g_program_context->ev_base)) {
             tr_err("Failed to setup signals.");
@@ -620,6 +722,8 @@ int testable_main(int argc, char **argv)
             break;
         }
     }
+    crypto_api_protocol_destroy();
+    rpc_request_timeout_api_stop(timeout_handler);
     clean_resources(lwsc, edge_pt_socket, lock_fd);
     libevent_global_shutdown();
     edge_trace_destroy();

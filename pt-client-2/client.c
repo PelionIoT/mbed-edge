@@ -1,6 +1,6 @@
 /*
  * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright 2019 ARM Ltd.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -37,9 +37,11 @@
 #include "pt-client-2/pt_api_internal.h"
 
 #include "mbed-trace/mbed_trace.h"
+#include "edge-rpc/rpc_timeout_api.h"
 #define TRACE_GROUP "clnt"
 
 #define CLIENT_JSONRPC_WEBSOCKET_VERSION_PATH "/1/pt"
+
 connection_list_t connection_list;
 connection_id_t next_connection_id = 1;
 
@@ -207,7 +209,8 @@ pt_status_t pt_client_shutdown(pt_client_t *client)
 
 static int check_protocol_translator_callbacks(const protocol_translator_callbacks_t *pt_cbs)
 {
-    if (pt_cbs->connection_ready_cb == NULL || pt_cbs->connection_shutdown_cb == NULL) {
+    if (pt_cbs->connection_ready_cb == NULL || pt_cbs->connection_shutdown_cb == NULL ||
+        pt_cbs->certificate_renewal_notifier_cb == NULL || pt_cbs->disconnected_cb == NULL) {
         return 1;
     }
     return 0;
@@ -234,7 +237,8 @@ int pt_client_read_data(connection_t *connection, char *data, size_t len)
                                 connection,
                                 (struct jsonrpc_method_entry_t *) connection->client->method_table,
                                 connection->transport_connection->write_function,
-                                &protocol_error);
+                                &protocol_error,
+                                false /* mutex_acquired */);
     if (protocol_error) {
         return 1;
     }
@@ -265,6 +269,18 @@ EDGE_LOCAL void create_connection_cb(void *arg)
     api_unlock();
 }
 
+static void destroy_connection_and_structures(connection_t *connection)
+{
+    transport_connection_t *transport_connection = connection->transport_connection;
+    websocket_connection_t *websocket_conn = (websocket_connection_t *) transport_connection->transport;
+
+    websocket_connection_t_destroy(&websocket_conn);
+    transport_connection_t_destroy(&transport_connection);
+    connection->transport_connection = NULL;
+    connection->client = NULL;
+    connection_destroy(connection);
+}
+
 static void trigger_reconnection_or_exit(pt_client_t *client)
 {
     if (!client->close_client) {
@@ -291,15 +307,7 @@ static void trigger_reconnection_or_exit(pt_client_t *client)
 void destroy_connection_and_restart_reconnection_timer(connection_t *connection)
 {
     pt_client_t *client = connection->client;
-    transport_connection_t *transport_connection = connection->transport_connection;
-    websocket_connection_t *websocket_conn = (websocket_connection_t *) transport_connection->transport;
-
-    websocket_connection_t_destroy(&websocket_conn);
-    transport_connection_t_destroy(&transport_connection);
-    connection->transport_connection = NULL;
-    connection->client = NULL;
-    connection_destroy(connection);
-
+    destroy_connection_and_structures(connection);
     trigger_reconnection_or_exit(client);
 }
 
@@ -313,8 +321,9 @@ EDGE_LOCAL void pt_client_disconnected_cb(void *arg)
     connection_id_t connection_id = client->connection_id;
 
     api_lock();
+    connection_t *connection = find_connection(connection_id);
+
     if (!client->close_condition_impl(client, client->close_client)) {
-        connection_t *connection = find_connection(connection_id);
         if (connection) {
             destroy_connection_and_restart_reconnection_timer(connection);
         } else {
@@ -322,6 +331,9 @@ EDGE_LOCAL void pt_client_disconnected_cb(void *arg)
         }
     } else {
         tr_err("Client close requested - exiting loop in pt_client_disconnected_cb.");
+        if (connection) {
+            destroy_connection_and_structures(connection);
+        }
         event_base_loopexit(client->ev_base, NULL);
     }
 
@@ -336,6 +348,7 @@ EDGE_LOCAL void websocket_disconnected(websocket_connection_t *websock_conn)
     if (connection) {
         tr_debug("websocket_disconnected: connection %p", connection);
         connection->connected = false;
+        rpc_remote_disconnected(connection);
         connection->client->protocol_translator_callbacks->disconnected_cb(get_connection_id(connection),
                                                                            connection->client->userdata);
 
@@ -707,6 +720,7 @@ int pt_client_start(pt_client_t *client,
                     const char *name,
                     void *userdata)
 {
+    rpc_request_timeout_hander_t *timeout_handler = NULL;
     if (NULL == client) {
         tr_err("Protocol translator client cannot be NULL.");
         return 1;
@@ -741,7 +755,14 @@ int pt_client_start(pt_client_t *client,
     client->ev_base = ev_base;
 
     websocket_set_log_level_and_emit_function();
+    timeout_handler = rpc_request_timeout_api_start(ev_base,
+                                                    CLIENT_TIMEOUT_CHECK_INTERVAL_MS,
+                                                    CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS);
 
+    if (!timeout_handler) {
+        // error message already printed.
+        goto cleanup;
+    }
     tr_debug("Connecting to Edge Core.");
     if (!msg_api_send_message(ev_base, client, create_connection_cb)) {
         tr_err("Cannot send the initial connection message");
@@ -758,6 +779,7 @@ int pt_client_start(pt_client_t *client,
 
     tr_info("Protocol translator api eventloop closed.");
 cleanup:
+    rpc_request_timeout_api_stop(timeout_handler);
     client->protocol_translator_callbacks->connection_shutdown_cb(client->connection_id, client->userdata);
     event_base_free(ev_base);
     libevent_global_shutdown();

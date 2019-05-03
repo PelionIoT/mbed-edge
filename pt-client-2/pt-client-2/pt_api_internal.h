@@ -1,6 +1,6 @@
 /*
  * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright 2019 ARM Ltd.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -104,15 +104,21 @@ typedef struct {
     bool last;
 } device_cb_data_t;
 
+/* Needed to convert the data type to customer callback */
+typedef enum {
+    PT_CUSTOMER_CALLBACK_T,        /* pt_customer_callback_t */
+    PT_DEVICE_CUSTOMER_CALLBACK_T, /* pt_device_customer_callback_t */
+} send_message_type_e;
+
 typedef struct send_message_params {
     ns_list_link_t link;
     json_t *json_message;
+    void *customer_callback_data;
     rpc_response_handler success_handler;
     rpc_response_handler failure_handler;
-    pt_customer_callback_t *base_customer_callback_data;
-    pt_device_customer_callback_t *device_customer_callback_data;
     rpc_free_func free_func;
     device_cb_data_t *device_cb_data_context;
+    send_message_type_e type; // Used to determine type of customer_callback_data
 } send_message_params_t;
 
 typedef NS_LIST_HEAD(send_message_params_t, link) send_message_list_t;
@@ -313,6 +319,31 @@ pt_status_t pt_register_protocol_translator(connection_id_t connection_id,
                                             const char *name,
                                             void *userdata);
 
+pt_customer_callback_t *allocate_customer_callback(connection_id_t connection_id,
+                                                   pt_response_handler success_handler,
+                                                   pt_response_handler failure_handler,
+                                                   void *userdata);
+
+void customer_callback_free_func(rpc_request_context_t *callback_data);
+
+pt_status_t construct_and_send_outgoing_message(connection_id_t connection_id,
+                                                json_t *json_message,
+                                                rpc_response_handler success_handler,
+                                                rpc_response_handler failure_handler,
+                                                rpc_free_func free_func,
+                                                send_message_type_e type,
+                                                void *customer_callback_data);
+
+send_message_params_t *construct_outgoing_message(json_t *json_message,
+                                                  rpc_response_handler success_handler,
+                                                  rpc_response_handler failure_handler,
+                                                  rpc_free_func free_func,
+                                                  send_message_type_e type,
+                                                  void *customer_callback_data,
+                                                  pt_status_t *status);
+
+pt_status_t send_message_to_event_loop(connection_id_t connection_id, send_message_params_t *message);
+
 #ifdef BUILD_TYPE_TEST
 extern edge_mutex_t api_mutex;
 #include "common/websocket_comm.h"
@@ -378,12 +409,12 @@ pt_status_t check_write_value_data_allocated(json_t *request,
                                              struct pt_device_customer_callback *customer_callback);
 
 void device_customer_callback_free_func(rpc_request_context_t *callback_data);
-void customer_callback_free_func(rpc_request_context_t *callback_data);
 
 void pt_init_check_close_condition_function(pt_client_t *client, pt_f_close_condition func);
 
 // Service API
 int pt_receive_write_value(json_t *request, json_t *json_params, json_t **result, void *userdata);
+int pt_receive_certificate_renewal_result(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 #endif
 

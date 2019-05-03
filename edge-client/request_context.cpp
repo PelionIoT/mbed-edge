@@ -77,7 +77,7 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
         return NULL;
     }
 
-    ctx = (edgeclient_request_context_t*) malloc(sizeof(edgeclient_request_context_t));
+    ctx = (edgeclient_request_context_t *) calloc(1, sizeof(edgeclient_request_context_t));
     if (!ctx) {
         tr_err("Could not allocate request context structure.");
         *rc_status = EDGE_RC_STATUS_CANNOT_ALLOCATE_MEMORY;

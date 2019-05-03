@@ -73,6 +73,7 @@ EDGE_LOCAL void edgeclient_handle_async_coap_request_cb(const M2MBase &base,
                                                         size_t buffer_size,
                                                         void *client_args);
 
+
 typedef bool (*context_check_fn)(struct context *checked_ctx, struct context *given_ctx);
 
 EDGE_LOCAL void edgeclient_data_init()
@@ -146,13 +147,14 @@ EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx)
             ctx->object_id,
             ctx->object_instance_id,
             ctx->resource_id);
+    coap_response_code_e coap_response_code = map_to_coap_error(ctx->jsonrpc_error_code);
     edgeclient_send_asynchronous_response(ctx->device_id,
                                           ctx->object_id,
                                           ctx->object_instance_id,
                                           ctx->resource_id,
                                           ctx->token,
                                           ctx->token_len,
-                                          COAP_RESPONSE_INTERNAL_SERVER_ERROR);
+                                          coap_response_code);
     edgeclient_deallocate_request_context(ctx);
 }
 
@@ -189,16 +191,34 @@ EDGE_LOCAL void edgeclient_write_success(edgeclient_request_context_t *ctx)
     edgeclient_deallocate_request_context(ctx);
 }
 
+EDGE_LOCAL coap_response_code_e map_to_coap_error(int16_t jsonrpc_error_code)
+{
+    coap_response_code_e resp;
+    switch (jsonrpc_error_code) {
+        case PT_API_REQUEST_TIMEOUT:
+            resp = COAP_RESPONSE_GATEWAY_TIMEOUT;
+            break;
+        case PT_API_REMOTE_DISCONNECTED:
+            resp = COAP_RESPONSE_NOT_FOUND;
+            break;
+        default:
+            resp = COAP_RESPONSE_INTERNAL_SERVER_ERROR;
+            break;
+    }
+    return resp;
+}
+
 EDGE_LOCAL void edgeclient_write_failure(edgeclient_request_context_t *ctx)
 {
     tr_warn("Writing to protocol translator failed");
+    coap_response_code_e coap_response_code = map_to_coap_error(ctx->jsonrpc_error_code);
     edgeclient_send_asynchronous_response(ctx->device_id,
                                           ctx->object_id,
                                           ctx->object_instance_id,
                                           ctx->resource_id,
                                           ctx->token,
                                           ctx->token_len,
-                                          COAP_RESPONSE_INTERNAL_SERVER_ERROR);
+                                          coap_response_code);
     edgeclient_deallocate_request_context(ctx);
 }
 
@@ -327,7 +347,7 @@ EDGE_LOCAL void edgeclient_on_registered_callback_safe(void *arg)
 {
     (void) arg;
     tr_debug("edgeclient_on_registered_callback client_data = %p", client_data);
-    bool start_registration = false;
+    bool start_registration = edgeclient_is_registration_needed();
     tr_debug("on_registered_callback");
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
     list_objects();
@@ -424,6 +444,33 @@ void edgeclient_on_error_callback(int error_code, const char *error_description)
         }
     }
     tr_err("edgeclient_on_error_callback - cannot send message!");
+}
+
+EDGE_LOCAL void edgeclient_on_certificate_renewal_callback(const char *certificate_name,
+                                                           ce_status_e status,
+                                                           ce_initiator_e initiator)
+{
+    int ret_val = client_data->g_handle_cert_renewal_status_cb(certificate_name, status, initiator, client_data->g_cert_renewal_ctx);
+    (void) ret_val;
+    // TODO FIXME: what to do if the protocol translator write failed?
+}
+
+pt_api_result_code_e edgeclient_renew_certificate(const char *certificate_name, int *detailed_error)
+{
+    pt_api_result_code_e ret = PT_API_SUCCESS;
+    if (client != NULL) {
+        ce_status_e status = client->certificate_renew(certificate_name);
+        if (detailed_error != NULL) {
+            *detailed_error = status;
+        }
+        if (status != CE_STATUS_SUCCESS) {
+            ret = PT_API_CERTIFICATE_RENEWAL_ERROR;
+            if (status == CE_STATUS_DEVICE_BUSY) {
+                ret = PT_API_CERTIFICATE_RENEWAL_BUSY;
+            }
+        }
+    }
+    return ret;
 }
 
 /**
@@ -568,10 +615,13 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         client_data->g_handle_register_cb = params->handle_register_cb;
         client_data->g_handle_unregister_cb = params->handle_unregister_cb;
         client_data->g_handle_error_cb = params->handle_error_cb;
+        client_data->g_handle_cert_renewal_status_cb = params->handle_cert_renewal_status_cb;
+        client_data->g_cert_renewal_ctx = params->cert_renewal_ctx;
         client->set_on_registered_callback(edgeclient_on_registered_callback);
         client->set_on_registration_updated_callback(edgeclient_on_registered_callback);
         client->set_on_unregistered_callback(edgeclient_on_unregistered_callback);
         client->set_on_error_callback(edgeclient_on_error_callback);
+        client->set_on_certificate_renewal_callback(edgeclient_on_certificate_renewal_callback);
         tr_debug("create_client - client = %p", client);
     }
 }

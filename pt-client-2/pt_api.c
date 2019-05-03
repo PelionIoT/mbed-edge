@@ -1,6 +1,6 @@
 /*
  * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright 2019 ARM Ltd.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -53,14 +53,6 @@ EDGE_LOCAL void object_set_changed(pt_object_t *object, pt_changed_status_e chan
 EDGE_LOCAL void object_instance_set_changed(pt_object_instance_t *instance, pt_changed_status_e changed_status);
 EDGE_LOCAL void resource_set_changed(pt_resource_t *resource, pt_changed_status_e changed_status);
 static device_cb_data_t *alloc_device_cb_data(devices_cb_data_t *devices_data);
-EDGE_LOCAL send_message_params_t *construct_outgoing_message(
-        json_t *json_message,
-        rpc_response_handler success_handler,
-        rpc_response_handler failure_handler,
-        rpc_free_func free_func,
-        pt_customer_callback_t *customer_callback_data,
-        pt_device_customer_callback_t *device_customer_callback_data,
-        pt_status_t *status);
 static void free_event_loop_send_message(send_message_params_t *message, bool /* customer callback called */);
 static void unable_to_send_message(send_message_params_t *message, bool call_failure_cb);
 EDGE_LOCAL pt_status_t write_data_frame(send_message_params_t *message);
@@ -121,7 +113,7 @@ EDGE_LOCAL pt_status_t pt_api_send_to_event_loop(connection_id_t connection_id,
     return status;
 }
 
-static pt_status_t send_message_to_event_loop(connection_id_t connection_id, send_message_params_t *message)
+pt_status_t send_message_to_event_loop(connection_id_t connection_id, send_message_params_t *message)
 {
     pt_status_t status = pt_api_send_to_event_loop(connection_id, message, event_loop_send_message_callback);
     if (status != PT_STATUS_SUCCESS) {
@@ -189,7 +181,7 @@ void device_customer_callback_free(pt_device_customer_callback_t *customer_callb
     free(customer_callback);
 }
 
-EDGE_LOCAL void customer_callback_free_func(rpc_request_context_t *callback_data)
+void customer_callback_free_func(rpc_request_context_t *callback_data)
 {
     pt_customer_callback_t *customer_callback = (pt_customer_callback_t *) callback_data;
     customer_callback_free(customer_callback);
@@ -325,14 +317,13 @@ EDGE_LOCAL void pt_handle_device_unregister_failure(json_t *response, void *call
                                        customer_callback->userdata);
 }
 
-EDGE_LOCAL send_message_params_t *construct_outgoing_message(
-        json_t *json_message,
-        rpc_response_handler success_handler,
-        rpc_response_handler failure_handler,
-        rpc_free_func free_func,
-        pt_customer_callback_t *customer_callback_data,
-        pt_device_customer_callback_t *device_customer_callback_data,
-        pt_status_t *status)
+send_message_params_t *construct_outgoing_message(json_t *json_message,
+                                                  rpc_response_handler success_handler,
+                                                  rpc_response_handler failure_handler,
+                                                  rpc_free_func free_func,
+                                                  send_message_type_e type,
+                                                  void *customer_callback_data,
+                                                  pt_status_t *status)
 {
     *status = PT_STATUS_SUCCESS;
     send_message_params_t *message = calloc(1, sizeof(send_message_params_t));
@@ -341,22 +332,19 @@ EDGE_LOCAL send_message_params_t *construct_outgoing_message(
         return NULL;
     }
     message->json_message = json_message;
+    message->type = type;
     message->success_handler = success_handler;
     message->failure_handler = failure_handler;
     message->free_func = free_func;
-    message->base_customer_callback_data = customer_callback_data;
-    message->device_customer_callback_data = device_customer_callback_data;
+    message->customer_callback_data = customer_callback_data;
 
     return message;
 }
 
 static void free_event_loop_send_message(send_message_params_t *message, bool customer_callback_called)
 {
-    if (message->base_customer_callback_data) {
-        message->free_func((rpc_request_context_t *) (message->base_customer_callback_data));
-    }
-    if (message->device_customer_callback_data) {
-        message->free_func((rpc_request_context_t *) (message->device_customer_callback_data));
+    if (message->customer_callback_data) {
+        message->free_func((rpc_request_context_t *) (message->customer_callback_data));
     }
     json_decref(message->json_message);
     if (!customer_callback_called) {
@@ -369,17 +357,22 @@ static void unable_to_send_message(send_message_params_t *message, bool call_cb)
 {
     bool customer_callback_called =false;
     if (call_cb) {
-        if (message->base_customer_callback_data) {
-            pt_customer_callback_t *customer_cb_data = message->base_customer_callback_data;
-            customer_cb_data->failure_handler(customer_cb_data->userdata);
-            customer_callback_called = true;
-        }
-        if (message->device_customer_callback_data) {
-            pt_device_customer_callback_t *device_customer_cb_data = message->device_customer_callback_data;
-            device_customer_cb_data->failure_handler(device_customer_cb_data->connection_id,
-                                                     device_customer_cb_data->device_id,
-                                                     device_customer_cb_data->userdata);
-            customer_callback_called = true;
+        switch (message->type) {
+            case PT_CUSTOMER_CALLBACK_T: {
+                pt_customer_callback_t *customer_cb_data = message->customer_callback_data;
+                customer_cb_data->failure_handler(customer_cb_data->userdata);
+                customer_callback_called = true;
+            } break;
+            case PT_DEVICE_CUSTOMER_CALLBACK_T: {
+                pt_device_customer_callback_t *device_customer_cb_data = message->customer_callback_data;
+                device_customer_cb_data->failure_handler(device_customer_cb_data->connection_id,
+                                                         device_customer_cb_data->device_id,
+                                                         device_customer_cb_data->userdata);
+                customer_callback_called = true;
+            } break;
+            default:
+                assert(0);
+                break;
         }
     }
     free_event_loop_send_message(message, customer_callback_called);
@@ -391,14 +384,7 @@ static void call_message_handler(send_message_params_t *message,
                                  void *userdata)
 {
     (void) userdata;
-    pt_customer_callback_t *cb_data = NULL;
-    if (message->base_customer_callback_data) {
-        cb_data = message->base_customer_callback_data;
-    } else {
-        cb_data = (pt_customer_callback_t *) (message->device_customer_callback_data);
-    }
-
-    (*cb)(response, cb_data);
+    (*cb)(response, message->customer_callback_data);
 }
 
 static void message_success_handler(json_t *response, void *userdata)
@@ -416,13 +402,7 @@ static void message_failure_handler(json_t *response, void *userdata)
 static void message_free_func(rpc_request_context_t *data)
 {
     send_message_params_t *message = (send_message_params_t *) data;
-    pt_customer_callback_t *cb_data = NULL;
-    if (message->base_customer_callback_data) {
-        cb_data = message->base_customer_callback_data;
-    } else {
-        cb_data = (pt_customer_callback_t *) (message->device_customer_callback_data);
-    }
-    message->free_func((rpc_request_context_t *) cb_data);
+    message->free_func((rpc_request_context_t *) message->customer_callback_data);
     free(message);
 }
 
@@ -430,11 +410,7 @@ EDGE_LOCAL pt_status_t write_data_frame(send_message_params_t *message)
 {
     api_lock();
     pt_customer_callback_t *cb_data = NULL;
-    if (message->base_customer_callback_data) {
-        cb_data = message->base_customer_callback_data;
-    } else {
-        cb_data = (pt_customer_callback_t *) (message->device_customer_callback_data);
-    }
+    cb_data = message->customer_callback_data;
     connection_t *connection = find_connection(cb_data->connection_id);
 
     if ((!connection) || (!(connection->connected))) {
@@ -461,6 +437,28 @@ EDGE_LOCAL pt_status_t write_data_frame(send_message_params_t *message)
         return PT_STATUS_ERROR;
     }
     return PT_STATUS_SUCCESS;
+}
+
+pt_status_t construct_and_send_outgoing_message(connection_id_t connection_id,
+                                                json_t *json_message,
+                                                rpc_response_handler success_handler,
+                                                rpc_response_handler failure_handler,
+                                                rpc_free_func free_func,
+                                                send_message_type_e type,
+                                                void *customer_callback_data)
+{
+    pt_status_t status;
+    send_message_params_t *message = construct_outgoing_message(json_message,
+                                                                success_handler,
+                                                                failure_handler,
+                                                                free_func,
+                                                                type,
+                                                                customer_callback_data,
+                                                                &status);
+    if (PT_STATUS_SUCCESS == status) {
+        status = send_message_to_event_loop(connection_id, message);
+    }
+    return status;
 }
 
 pt_status_t pt_register_protocol_translator(connection_id_t connection_id,
@@ -500,19 +498,13 @@ pt_status_t pt_register_protocol_translator(connection_id_t connection_id,
     }
 
     json_object_set_new(params, "name", json_name);
-    pt_status_t status;
-    send_message_params_t *message = construct_outgoing_message(register_msg,
-                                                                pt_handle_pt_register_success,
-                                                                pt_handle_pt_register_failure,
-                                                                customer_callback_free_func,
-                                                                customer_callback,
-                                                                NULL,
-                                                                &status);
-    if (PT_STATUS_SUCCESS == status) {
-        status = send_message_to_event_loop(connection_id, message);
-    }
-
-    return status;
+    return construct_and_send_outgoing_message(connection_id,
+                                               register_msg,
+                                               pt_handle_pt_register_success,
+                                               pt_handle_pt_register_failure,
+                                               customer_callback_free_func,
+                                               PT_CUSTOMER_CALLBACK_T,
+                                               customer_callback);
 }
 
 static char* convert_resource_type_to_str(Lwm2mResourceType resource_type)
@@ -671,7 +663,7 @@ static send_message_params_t *pt_device_register_common_by_device(connection_t *
                                                                     pt_handle_device_register_success,
                                                                     pt_handle_device_register_failure,
                                                                     device_customer_callback_free_func,
-                                                                    NULL,
+                                                                    PT_DEVICE_CUSTOMER_CALLBACK_T,
                                                                     customer_callback,
                                                                     status);
         return message;
@@ -778,7 +770,7 @@ static send_message_params_t *pt_device_unregister_common_by_device(connection_t
                                           pt_handle_device_unregister_success,
                                           pt_handle_device_unregister_failure,
                                           device_customer_callback_free_func,
-                                          NULL,
+                                          PT_DEVICE_CUSTOMER_CALLBACK_T,
                                           customer_callback,
                                           status);
     } else {
@@ -1291,7 +1283,7 @@ static send_message_params_t *pt_device_write_values_common(connection_id_t conn
                                                                 pt_handle_pt_write_values_success,
                                                                 pt_handle_pt_write_values_failure,
                                                                 device_customer_callback_free_func,
-                                                                NULL,
+                                                                PT_DEVICE_CUSTOMER_CALLBACK_T,
                                                                 customer_callback,
                                                                 status);
     if (PT_STATUS_SUCCESS != *status) {

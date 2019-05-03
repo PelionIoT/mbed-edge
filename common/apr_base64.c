@@ -58,9 +58,9 @@ int apr_base64_decode_len(const char *bufcoded)
     while (pr2six[*(bufin++)] <= 63);
 
     nprbytes = (bufin - (const unsigned char *) bufcoded) - 1;
-    nbytesdecoded = (((int)nprbytes + 3) / 4) * 3;
+    nbytesdecoded = ((((int) nprbytes) / 4) * 3) + (nprbytes % 4) * 3 / 4;
 
-    return nbytesdecoded + 1;
+    return nbytesdecoded;
 }
 
 /* This is the same as apr_base64_decode() except on EBCDIC machines, where
@@ -107,7 +107,6 @@ int apr_base64_decode_binary(unsigned char *bufplain,
         (unsigned char) (pr2six[bufin[2]] << 6 | pr2six[bufin[3]]);
     }
 
-    *(bufout++) = '\0'; // NULL-terminate
     nbytesdecoded -= (4 - nprbytes) & 3;
     return nbytesdecoded;
 }

@@ -43,6 +43,9 @@ struct context {
     struct ctx_data *ctx_data;
 };
 
+typedef struct connection connection_t;
+typedef int32_t connection_id_t;
+
 /**
  * \brief Enumeration of Edge statuses.
  */
@@ -75,7 +78,7 @@ typedef enum {
 #define PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID 1
 
 struct connection_list_elem {
-    struct connection *conn;
+    connection_t *conn;
     ns_list_link_t link;
 };
 
@@ -120,6 +123,14 @@ uint32_t connection_free(struct connection *connection);
  * \param http_port The port of the HTTP server to listen to.
  */
 bool create_server_event_loop(struct context *ctx, int http_port);
+
+/**
+ * \brief Finds the connection given the connection ID.
+ * \param connection_id ID of the connection.
+ * \return The connection if the connection is found.
+ *         Otherwise it returns NULL.
+ */
+connection_t *srv_comm_find_connection(connection_id_t connection_id);
 
 /**
  * @}

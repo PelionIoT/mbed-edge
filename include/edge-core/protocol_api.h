@@ -23,6 +23,9 @@
 
 #include "jsonrpc/jsonrpc.h"
 #include "common/pt_api_error_codes.h"
+#include "edge-core/server.h"
+#include "certificate-enrollment-client/ce_status.h"
+#include "certificate-enrollment-client/ce_defs.h"
 
 /**
  * \ingroup EDGE_SERVER Edge functionality and RPC API.
@@ -96,6 +99,31 @@ int device_unregister(json_t *request, json_t *json_params, json_t **result, voi
 int write_value(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
+ * \brief Set list of certificates to receive renewal status updates for.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \param userdata The user-supplied context data pointer.
+ * \return 0 if setting the list succeeded.\n
+ *         1 if an error occurred. Details are in the result parameter.
+ */
+int certificate_renewal_list_set(json_t *request, json_t *json_params, json_t **result, void *userdata);
+
+/**
+ * \brief Initiate certificate renewal operation for a certificate.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \param userdata The user-supplied context data pointer.
+ * \return 0 if the renewal operation started successfully.\n
+ *         1 if an error occurred. Details are in the result parameter.
+ */
+int renew_certificate(json_t *request, json_t *json_params, json_t **result, void *userdata);
+
+
+/**
  * \brief The edgeclient request context data.
  */
 typedef struct edgeclient_request_context edgeclient_request_context_t;
@@ -110,6 +138,20 @@ typedef struct edgeclient_request_context edgeclient_request_context_t;
  *         1 if the values couldn't be written.
  */
 int write_to_pt(edgeclient_request_context_t *ctx, void *userdata);
+
+/**
+ * \brief Writes the certificate renewal status to the protocol translator.
+ *
+ * \param certificate_name Name of certificate whose renewal process finished.
+ * \param status Status of the finished renewal process.
+ * \param initiator Initiator of the renewal process.\n
+ *                  0 for PT initiated renew
+ *                  1 for cloud initiated renew
+ * \param ctx Context pointer passed from server when initializing the client.
+ * \return 0 if status was written successfully.\n
+ *         1 if the status couldn't be written.
+ */
+int certificate_renewal_notifier(const char *certificate_name, ce_status_e status, ce_initiator_e initiator, void *ctx);
 
 /**
  * @}

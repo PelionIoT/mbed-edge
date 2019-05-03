@@ -28,6 +28,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -36,6 +37,7 @@
 
 #include "mbed-trace/mbed_trace.h"
 #include "common/edge_time.h"
+#include "common/pt_api_error_codes.h"
 
 #define TRACE_GROUP "rpc"
 
@@ -56,11 +58,14 @@ typedef struct message {
     rpc_response_handler success_handler;
     rpc_response_handler failure_handler;
     rpc_free_func free_func;
+    uint64_t creation_timestamp_in_ms;
 } message_t;
 
 edge_mutex_t rpc_mutex;
 
-static message_t *_remove_message_for_connection_and_id(struct connection *connection, const char *message_id);
+static message_t *_remove_message_for_connection_and_id(struct connection *connection,
+                                                        const char *message_id,
+                                                        bool acquire_mutex);
 
 void rpc_init()
 {
@@ -126,14 +131,14 @@ static message_t *alloc_message(json_t *json_message,
                                 struct connection *connection)
 {
     if (request_context == NULL) {
-        tr_err("Error: No request context, or could not allocate message struct.");
-        return NULL;
+        tr_warn("No request context for RPC request.");
     }
     message_t *entry = calloc(1, sizeof(message_t));
     if (entry == NULL) {
         tr_err("Error: Out of memory.");
         return NULL;
     }
+    entry->creation_timestamp_in_ms = edgetime_get_monotonic_in_ms();
     entry->json_message = json_message;
     entry->success_handler = success_handler;
     entry->failure_handler = failure_handler;
@@ -312,7 +317,7 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
     int32_t ret = write_function(connection, data, data_len);
     if (ret != 0) {
         tr_err("write_function returned %d", ret);
-        message_t *found = _remove_message_for_connection_and_id(connection, message_id);
+        message_t *found = _remove_message_for_connection_and_id(connection, message_id, true /* acquire_mutex */);
         rpc_dealloc_message_entry(found);
         return -2; // the message_couldn't be sent
     }
@@ -358,11 +363,15 @@ void rpc_add_message_entry_to_list(void *message_entry)
     }
 }
 
-static message_t *_remove_message_for_connection_and_id(struct connection *connection, const char *message_id)
+static message_t *_remove_message_for_connection_and_id(struct connection *connection,
+                                                        const char *message_id,
+                                                        bool acquire_mutex)
 {
     message_t *found = NULL;
     tr_debug("_remove_message_for_connection_and_id connection: %p id: %s", connection, message_id);
-    rpc_mutex_wait();
+    if (acquire_mutex) {
+        rpc_mutex_wait();
+    }
     ns_list_foreach_safe(message_t, cur, &messages)
     {
         json_t *id_obj = json_object_get(cur->json_message, "id");
@@ -373,11 +382,16 @@ static message_t *_remove_message_for_connection_and_id(struct connection *conne
             break;
         }
     }
-    rpc_mutex_release();
+    if (acquire_mutex) {
+        rpc_mutex_release();
+    }
     return found;
 }
 
-static message_t *remove_message_for_response(struct connection *connection, json_t *response, const char **response_id)
+static message_t *remove_message_for_response(struct connection *connection,
+                                              json_t *response,
+                                              const char **response_id,
+                                              bool acquire_mutex)
 {
     json_t *response_id_obj = json_object_get(response, "id");
     if (response_id_obj == NULL) {
@@ -386,16 +400,16 @@ static message_t *remove_message_for_response(struct connection *connection, jso
     }
 
     *response_id = json_string_value(response_id_obj);
-    return _remove_message_for_connection_and_id(connection, *response_id);
+    return _remove_message_for_connection_and_id(connection, *response_id, acquire_mutex);
 }
 
-static int handle_response(struct connection *connection, json_t *response)
+static int handle_response_common(struct connection *connection, json_t *response, bool acquire_mutex)
 {
     int rc;
     const char *response_id = NULL;
     message_t *found;
 
-    found = remove_message_for_response(connection, response, &response_id);
+    found = remove_message_for_response(connection, response, &response_id, acquire_mutex);
     if (found != NULL) {
         json_t *result_obj = json_object_get(response, "result");
 
@@ -432,21 +446,37 @@ static int handle_response(struct connection *connection, json_t *response)
     return rc;
 }
 
+static int handle_response(struct connection *connection, json_t *response)
+{
+    return handle_response_common(connection, response, true /* acquire_mutex */);
+}
+
+static int handle_response_without_mutex(struct connection *connection, json_t *response)
+{
+    return handle_response_common(connection, response, false /* acquire_mutex */);
+}
+
 int rpc_handle_message(const char *data,
                        size_t len,
                        struct connection *connection,
                        struct jsonrpc_method_entry_t *method_table,
                        write_func write_function,
-                       bool *protocol_error)
+                       bool *protocol_error,
+                       bool mutex_acquired)
 {
     *protocol_error = false;
+    jsonrpc_response_handler response_handler = handle_response;
+
+    if (mutex_acquired) {
+        response_handler = handle_response_without_mutex;
+    }
     struct json_message_t *json_message = alloc_json_message_t(data, len, connection);
     if (!json_message) {
         tr_err("Cannot allocate json_message in rpc_handle_message");
         return 1;
     }
     jsonrpc_handler_e rc;
-    char *response = jsonrpc_handler(data, len, method_table, handle_response, json_message, &rc);
+    char *response = jsonrpc_handler(data, len, method_table, response_handler, json_message, &rc);
 
     switch (rc) {
         case JSONRPC_HANDLER_REQUEST_NOT_MATCHED:
@@ -467,6 +497,83 @@ int rpc_handle_message(const char *data,
         return 1;
     }
     return write_function(connection, response, strlen(response));
+}
+
+static void send_error_response(json_t *json_id, json_t *result, struct connection *connection)
+{
+    json_t *json_response = jsonrpc_error_response(json_id, result);
+    size_t size = json_dumpb(json_response, NULL, 0, JSON_COMPACT | JSON_SORT_KEYS);
+    if (size > 0) {
+        char *buf = malloc(size);
+        if (buf) {
+            size = json_dumpb(json_response, buf, size, JSON_COMPACT | JSON_SORT_KEYS);
+            bool protocol_error = false;
+            rpc_handle_message(buf, size, connection, NULL, NULL, &protocol_error, true /* mutex_acquired */);
+        }
+        free(buf);
+    }
+    json_decref(json_response);
+}
+
+void rpc_timeout_unresponded_messages(int32_t max_response_time_ms)
+{
+    uint64_t current_time = edgetime_get_monotonic_in_ms();
+    rpc_mutex_wait();
+    ns_list_foreach_safe(message_t, cur, &messages)
+    {
+        if (current_time - cur->creation_timestamp_in_ms >= max_response_time_ms) {
+            char *desc = NULL;
+            asprintf(&desc, "Timeout response with timeout threshold %d ms", max_response_time_ms);
+            if (desc) {
+                json_t *json_id;
+                json_t *json_params;
+                const char *str_method;
+
+                json_t *json_response = jsonrpc_validate_request(cur->json_message,
+                                                                 &str_method,
+                                                                 &json_params,
+                                                                 &json_id);
+                // The request should still be valid.
+                assert(NULL == json_response);
+                assert(NULL != json_id);
+                assert(NULL != str_method);
+
+                json_t *result = jsonrpc_error_object(PT_API_REQUEST_TIMEOUT,
+                                                      pt_api_get_error_message(PT_API_REQUEST_TIMEOUT),
+                                                      json_string(desc));
+                tr_warn("Timeout for request id: %s", json_string_value(json_id));
+                send_error_response(json_id, result, cur->connection);
+                free(desc);
+            }
+        }
+    }
+    rpc_mutex_release();
+}
+
+void rpc_remote_disconnected(struct connection *connection)
+{
+    rpc_mutex_wait();
+    ns_list_foreach_safe(message_t, cur, &messages)
+    {
+        if (cur->connection == connection) {
+            json_t *json_id;
+            json_t *json_params;
+            const char *str_method;
+
+            json_t *json_response = jsonrpc_validate_request(cur->json_message, &str_method, &json_params, &json_id);
+            // The request should still be valid.
+            assert(NULL == json_response);
+            assert(NULL != json_id);
+            assert(NULL != str_method);
+
+            json_t *result = jsonrpc_error_object(PT_API_REMOTE_DISCONNECTED,
+                                                  pt_api_get_error_message(PT_API_REMOTE_DISCONNECTED),
+                                                  json_string("Remote disconnected"));
+            tr_warn("Remote disconnected, request id: %s", json_string_value(json_id));
+            send_error_response(json_id, result, cur->connection);
+        }
+    }
+    rpc_mutex_release();
 }
 
 void rpc_destroy_messages()

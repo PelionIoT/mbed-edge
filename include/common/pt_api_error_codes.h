@@ -89,6 +89,16 @@ typedef enum {
      */
     PT_API_EDGE_CORE_SHUTTING_DOWN = -30006,
 
+    /**
+     * \brief The request timed out.
+     */
+    PT_API_REQUEST_TIMEOUT = -30007,
+
+    /**
+     * \brief The request timed out.
+     */
+    PT_API_REMOTE_DISCONNECTED = -30008,
+
     /*
      * Error codes related to client state.
      */
@@ -102,8 +112,9 @@ typedef enum {
      * \brief An illegal value was given to write
      */
     PT_API_ILLEGAL_VALUE = -30101,
+
     /**
-     * \brief The given resouce was not found.
+     * \brief The given resource was not found.
      */
     PT_API_RESOURCE_NOT_FOUND = -30102,
 
@@ -125,7 +136,18 @@ typedef enum {
     /**
      * \brief Write to protocol translator failed.
      */
-    PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED = -30106
+    PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED = -30106,
+
+    /**
+     * \brief Certificate renewal failed because one is already in progress.
+     */
+    PT_API_CERTIFICATE_RENEWAL_BUSY = -30107,
+
+    /**
+     * \brief Certificate renewal failed to internal error.
+     */
+    PT_API_CERTIFICATE_RENEWAL_ERROR = -30108
+
 } pt_api_result_code_e;
 
 /**

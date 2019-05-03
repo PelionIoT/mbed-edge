@@ -25,6 +25,7 @@
 #include <assert.h>
 
 #include "edge-core/protocol_api.h"
+#include "edge-core/protocol_crypto_api.h"
 
 #include "jsonrpc/jsonrpc.h"
 #include "edge-rpc/rpc.h"
@@ -35,6 +36,8 @@
 #include "edge-core/edge_server.h"
 #include "edge-core/srv_comm.h"
 #include "mbedtls/base64.h"
+#include "common/pt_api_error_parser.h"
+
 
 #include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
@@ -46,10 +49,12 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "device_register", device_register, "o" },
     { "device_unregister", device_unregister, "o" },
     { "write", write_value, "o" },
+    { "certificate_renewal_list_set", certificate_renewal_list_set, "o" },
+    { "renew_certificate", renew_certificate, "o" },
+    { "crypto_get_certificate", crypto_api_get_certificate, "o" },
+    { "crypto_get_public_key", crypto_api_get_public_key, "o" },
     { NULL, NULL, "o" }
 };
-
-static bool check_service_availability(json_t **result);
 
 typedef enum {
     PT_TRANSLATOR_ALREADY_REGISTERED,
@@ -70,6 +75,7 @@ static int update_device_values_from_json(json_t *structure,
                                           struct connection *connection,
                                           const char **error_detail,
                                           pt_update_device_values_flags_e flags);
+static void certificate_list_clear(client_data_t *client_data);
 
 void init_protocol()
 {
@@ -97,7 +103,7 @@ static bool is_protocol_translator_registered(const char* name_val, const struct
     return false;
 }
 
-static bool check_request_id(struct json_message_t *jt)
+bool pt_api_check_request_id(struct json_message_t *jt)
 /**
  * \brief Checks if the request id is in the JSON request.
  * \return true  - request id is found
@@ -113,6 +119,14 @@ static bool check_request_id(struct json_message_t *jt)
         return false;
     }
     return true;
+}
+
+json_t *pt_api_allocate_response_common(char *request_id)
+{
+    json_t *response = json_object();
+    json_object_set_new(response, "id", json_string(request_id));
+    json_object_set_new(response, "jsonrpc", json_string("2.0"));
+    return response;
 }
 
 static void initialize_pt_resources(char *name, int pt_id){
@@ -135,9 +149,10 @@ void edge_core_protocol_api_client_data_destroy(client_data_t *client_data)
     if (pt_id != -1) {
         edgeclient_remove_object_instance(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id);
     }
+    certificate_list_clear(client_data);
 }
 
-static bool check_service_availability(json_t **result)
+bool pt_api_check_service_availability(json_t **result)
 /**
  * \return true  if service is available.
  *         false if service is unavailable
@@ -161,11 +176,11 @@ int protocol_translator_register(json_t *request, json_t *json_params, json_t **
     struct connection *connection = jt->connection;
     struct ctx_data *ctx_data = connection->ctx->ctx_data;
 
-    if (!check_service_availability(result)) {
+    if (!pt_api_check_service_availability(result)) {
         return 1;
     }
 
-    if (!check_request_id(jt)) {
+    if (!pt_api_check_request_id(jt)) {
         tr_err("No id_obj on protocol translator registration request: \"%s\"", jt->data);
         // FIXME: write back an error response and close the connection.
         *result = jsonrpc_error_object_predefined(
@@ -327,14 +342,14 @@ int device_register(json_t *request, json_t *json_params, json_t **result, void 
     struct connection* connection = jt->connection;
     tr_debug("Device register.");
 
-    if (!check_request_id(jt)) {
+    if (!pt_api_check_request_id(jt)) {
         tr_warn("Device registration failed. No request id was given");
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
                                                   json_string("Device registration failed. No request id was given."));
         return 1;
     }
 
-    if (!check_service_availability(result)) {
+    if (!pt_api_check_service_availability(result)) {
         return 1;
     }
 
@@ -398,14 +413,14 @@ int device_unregister(json_t *request, json_t *json_params, json_t **result, voi
     struct connection* connection = jt->connection;
     tr_debug("Device unregister.");
 
-    if (!check_request_id(jt)) {
+    if (!pt_api_check_request_id(jt)) {
         tr_warn("Device unregistration failed. No request id was given");
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
                                                   json_string("Device unregistration failed. No request id was given."));
         return 1;
     }
 
-    if (!check_service_availability(result)) {
+    if (!pt_api_check_service_availability(result)) {
         return 1;
     }
     // Not registered
@@ -420,11 +435,21 @@ int device_unregister(json_t *request, json_t *json_params, json_t **result, voi
         tr_error("Device unregister failed. Field 'deviceId' was missing or value was either null or empty string");
         return 1;
     }
-    if (!edgeclient_remove_endpoint(device_id)) {
+    // Handle the pending requests before removing the object structure.
+    if (edgeclient_endpoint_exists(device_id)) {
+        rpc_remote_disconnected(connection);
+        if (!edgeclient_remove_endpoint(device_id)) {
+            tr_error("Device unregister failed: '%s'.", device_id);
+            *result = jsonrpc_error_object(PT_API_INTERNAL_ERROR,
+                                           pt_api_get_error_message(PT_API_INTERNAL_ERROR),
+                                           json_string("Failed to unregister device."));
+            return 1;
+        }
+    } else {
         tr_error("Device unregister failed: '%s'.", device_id);
-        *result = jsonrpc_error_object(PT_API_INTERNAL_ERROR,
-                                       pt_api_get_error_message(PT_API_INTERNAL_ERROR),
-                                       json_string("Failed to unregister device."));
+        *result = jsonrpc_error_object(PT_API_RESOURCE_NOT_FOUND,
+                                       pt_api_get_error_message(PT_API_RESOURCE_NOT_FOUND),
+                                       json_string("Endpoint was not found."));
         return 1;
     }
     update_device_amount_resource_by_delta(connection, -1);
@@ -443,7 +468,7 @@ int write_value(json_t *request, json_t *json_params, json_t **result, void *use
     struct json_message_t *jt = (struct json_message_t*) userdata;
     struct connection *connection = jt->connection;
     tr_debug("Write value.");
-    if (!check_service_availability(result)) {
+    if (!pt_api_check_service_availability(result)) {
         return 1;
     }
     if (get_protocol_translator_registration_status(connection) != PT_TRANSLATOR_ALREADY_REGISTERED) {
@@ -453,7 +478,7 @@ int write_value(json_t *request, json_t *json_params, json_t **result, void *use
                                        json_string("Write value failed. Protocol translator not registered."));
         return 1;
     }
-    if (!check_request_id(jt)) {
+    if (!pt_api_check_request_id(jt)) {
         tr_warn("Write value failed. No request id was given");
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
                                                   json_string("Write value failed. No request id was given."));
@@ -719,6 +744,7 @@ static void handle_write_to_pt_failure(json_t *response, void* userdata)
 {
     tr_debug("Handling write to protocol translator failure");
     edgeclient_request_context_t *ctx = (edgeclient_request_context_t*) userdata;
+    pt_api_error_parser_parse_error_response(response, ctx);
     ctx->failure_handler(ctx);
 }
 
@@ -828,4 +854,256 @@ write_to_pt_cleanup:
     free(json_value);
 
     return ret_val;
+}
+
+static void certificate_list_clear(client_data_t *client_data)
+{
+    string_list_entry_t *temp;
+    ns_list_foreach_safe(string_list_entry_t, entry, &client_data->certificate_list) {
+        temp = entry;
+        ns_list_remove(&client_data->certificate_list, entry);
+        free(temp->string);
+        free(temp);
+    }
+}
+
+static json_t *get_certificate_list(json_t *json_params, json_t **result)
+{
+    json_t *cert_list_obj = json_object_get(json_params, "certificates");
+    if (!json_is_array(cert_list_obj)) {
+        *result = jsonrpc_error_object_predefined(
+                JSONRPC_INVALID_PARAMS,
+                json_string("Missing 'certificates' field or it is of wrong type, should be array."));
+        return NULL;
+    }
+    return cert_list_obj;
+}
+
+static void handle_cert_renewal_status_success(json_t *response, void *userdata)
+{
+    tr_debug("Cert renewal status sending to protocol translator success");
+}
+
+static void handle_cert_renewal_status_failure(json_t *response, void* userdata)
+{
+    // TODO FIXME: should we retry sending cert renewal message?
+    tr_error("Cert renewal status sending to protocol translator failure");
+}
+
+static void pt_cert_renewal_status_free_func(rpc_request_context_t *userdata)
+{
+    (void) userdata;
+    tr_debug("Handling cert renewal status protocol translator free operations. Nothing to do.");
+}
+
+/**
+ * \brief certificate renewal list set jsonrpc endpoint
+ *  \return 0 - success
+ *          1 - failure
+ */
+int certificate_renewal_list_set(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    struct connection *connection = jt->connection;
+    string_list_t *cert_list = &connection->client_data->certificate_list;
+
+    if (!pt_api_check_service_availability(result)) {
+        return 1;
+    }
+
+    if (!pt_api_check_request_id(jt)) {
+        tr_warn("Certificate renewal list setting failed. No request id was given.");
+        *result = jsonrpc_error_object_predefined(
+                JSONRPC_INVALID_PARAMS,
+                json_string("Certificate renewal list setting failed. No request id was given."));
+        return 1;
+    }
+
+    json_t *cert_list_handle = get_certificate_list(json_params, result);
+    if (NULL == cert_list_handle) {
+        tr_warn("Certificate renewal list setting failed. Certificate list invalid.");
+        return 1;
+    }
+
+    certificate_list_clear(connection->client_data);
+
+    size_t cert_count = json_array_size(cert_list_handle);
+    tr_debug("JSON parsed certificate count = %zu", cert_count);
+    char *cert_name = NULL;
+    const char *cert_name_value = NULL;
+    size_t cert_index = 0;
+    json_t *cert_name_handle = NULL;
+    string_list_entry_t *new_entry = NULL;
+    json_array_foreach(cert_list_handle, cert_index, cert_name_handle) {
+        cert_name_value = json_string_value(cert_name_handle);
+        if (json_string_length(cert_name_handle) > 0 && cert_name_value != NULL) {
+            cert_name = strdup(cert_name_value);
+            new_entry = calloc(1, sizeof(string_list_entry_t));
+            if (cert_name != NULL && new_entry != NULL) {
+                new_entry->string = cert_name;
+                ns_list_add_to_end(cert_list, new_entry);
+            }
+            else {
+                free(new_entry);
+                free(cert_name);
+                tr_warn("Could not set certificate list, out of memory.");
+                certificate_list_clear(connection->client_data);
+                *result = jsonrpc_error_object_predefined(JSONRPC_INTERNAL_ERROR,
+                                                          json_string("Certificate list setting failed, out of memory"));
+                return 1;
+            }
+        }
+    }
+
+    *result = json_string("ok");
+
+    return 0;
+}
+
+/**
+ * \brief renew certificate jsonrpc endpoint
+ * \return 0 - success
+ *         1 - failure
+ */
+int renew_certificate(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    struct connection *connection = jt->connection;
+    string_list_t *cert_list = &connection->client_data->certificate_list;
+
+    if (!pt_api_check_service_availability(result)) {
+        return 1;
+    }
+
+    if (!pt_api_check_request_id(jt)) {
+        tr_warn("Certificate renewal failed. No request id was given.");
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                                  json_string("Certificate renewal failed. No request id was given."));
+        return 1;
+    }
+
+    json_t *cert_name_handle = json_object_get(json_params, "certificate");
+    if (cert_name_handle == NULL || json_string_length(cert_name_handle) == 0) {
+        tr_warn("Certificate renewal failed. Missing or empty certificate field.");
+        *result = jsonrpc_error_object_predefined(
+                JSONRPC_INVALID_PARAMS,
+                json_string("Certificate renewal failed. Missing or empty `certificate` field."));
+        return 1;
+    }
+
+    bool cert_found = false;
+    const char *cert_name = json_string_value(cert_name_handle);
+    ns_list_foreach(string_list_entry_t, entry, cert_list) {
+        if (strcmp(cert_name, entry->string) == 0) {
+            cert_found = true;
+            break;
+        }
+    }
+
+    if (!cert_found) {
+        tr_warn("Certificate renewal failed. Certificate not in renewal status list.");
+        *result = jsonrpc_error_object_predefined(
+                JSONRPC_INVALID_PARAMS,
+                json_string("Certificate renewal failed. Certificate not in renewal status list."));
+        return 1;
+    }
+
+    int detailed_error = 0;
+    pt_api_result_code_e status = edgeclient_renew_certificate(cert_name, &detailed_error);
+    if (status != PT_API_SUCCESS) {
+        tr_warn("Certificate renewal failed. Certificate enrollment client gave error %d", detailed_error);
+        *result = jsonrpc_error_object(
+                status,
+                pt_api_get_error_message(status),
+                json_sprintf("Certificate renewal failed. Certificate enrollment client gave error %d.",
+                             detailed_error));
+        return 1;
+    }
+
+    *result = json_string("ok");
+
+    return 0;
+}
+
+typedef struct {
+    ce_status_e status;
+    const char *description;
+} ce_enum_map_t;
+
+static const char *map_ce_status_to_string(ce_status_e status)
+{
+    const char *result = NULL;
+    static ce_enum_map_t enum_map[] = {{CE_STATUS_SUCCESS, "CE_STATUS_SUCCESS"},
+                                       {CE_STATUS_ERROR, "CE_STATUS_ERROR"},
+                                       {CE_STATUS_INVALID_PARAMETER, "CE_STATUS_INVALID_PARAMETER"},
+                                       {CE_STATUS_INSUFFICIENT_BUFFER, "CE_STATUS_INSUFFICIENT_BUFFER"},
+                                       {CE_STATUS_OUT_OF_MEMORY, "CE_STATUS_OUT_OF_MEMORY"},
+                                       {CE_STATUS_ITEM_NOT_FOUND, "CE_STATUS_ITEM_NOT_FOUND"},
+                                       {CE_STATUS_DEVICE_BUSY, "CE_STATUS_DEVICE_BUSY"},
+                                       {CE_STATUS_BAD_INPUT_FROM_SERVER, "CE_STATUS_BAD_INPUT_FROM_SERVER"},
+                                       {CE_STATUS_EST_ERROR, "CE_STATUS_EST_ERROR"},
+                                       {CE_STATUS_STORAGE_ERROR, "CE_STATUS_STORAGE_ERROR"},
+                                       {CE_STATUS_RENEWAL_ITEM_VALIDATION_ERROR,
+                                        "CE_STATUS_RENEWAL_ITEM_VALIDATION_ERROR"},
+                                       {CE_STATUS_BACKUP_ITEM_ERROR, "CE_STATUS_BACKUP_ITEM_ERROR"},
+                                       {CE_STATUS_ORIGINAL_ITEM_ERROR, "CE_STATUS_ORIGINAL_ITEM_ERROR"},
+                                       {CE_STATUS_RESTORE_BACKUP_ERROR, "CE_STATUS_RESTORE_BACKUP_ERROR"},
+                                       {CE_STATUS_RENEWAL_STATUS_ERROR, "CE_STATUS_RENEWAL_STATUS_ERROR"},
+                                       {CE_STATUS_FORBIDDEN_REQUEST, "CE_STATUS_FORBIDDEN_REQUEST"},
+                                       {CE_STATUS_ITEM_IS_EMPTY, "CE_STATUS_ITEM_IS_EMPTY"},
+                                       {CE_STATUS_NOT_INITIALIZED, "CE_STATUS_NOT_INITIALIZED"},
+                                       {CE_STATUS_INIT_FAILED, "CE_STATUS_INIT_FAILED"},
+                                       {(ce_status_e) -1, "unknown status"}};
+
+    int32_t index;
+    for (index = 0; enum_map[index].status != (ce_status_e) -1; index++) {
+        if (status == enum_map[index].status) {
+            break;
+        }
+    }
+    result = enum_map[index].description;
+    return result;
+}
+
+int certificate_renewal_notifier(const char *certificate_name, ce_status_e status, ce_initiator_e initiator, void *ctx)
+{
+    if (ctx == NULL) {
+        tr_warn("Ignored certificate renewal result, no pt list");
+        return 1;
+    }
+
+    connection_elem_list *pt_list = (connection_elem_list *) ctx;
+    tr_debug("Certificate renewal process finished for certificate '%s'", certificate_name);
+    ns_list_foreach(struct connection_list_elem, cur, pt_list) {
+        struct connection *connection = cur->conn;
+        string_list_t *cert_list = &connection->client_data->certificate_list;
+        ns_list_foreach(string_list_entry_t, cert, cert_list) {
+            if (strcmp(certificate_name, cert->string) == 0) {
+                tr_debug("Notifying pt '%s' of renewal status", connection->client_data->name);
+                json_t *request = allocate_base_request("certificate_renewal_result");
+                json_t *params = json_object_get(request, "params");
+
+                json_object_set_new(params, "certificate", json_string(certificate_name));
+                json_object_set_new(params, "initiator", json_integer(initiator));
+                json_object_set_new(params, "status", json_integer(status));
+                json_object_set_new(params, "description", json_string(map_ce_status_to_string(status)));
+
+                int ret_val = rpc_construct_and_send_message(connection,
+                                                             request,
+                                                             handle_cert_renewal_status_success,
+                                                             handle_cert_renewal_status_failure,
+                                                             pt_cert_renewal_status_free_func,
+                                                             NULL,
+                                                             connection->transport_connection->write_function);
+                if (ret_val != 0) {
+                    // Ignore if PT could not be notified
+                    tr_error("certificate_renewal_notifier: Could not send RPC, error was %d", ret_val);
+                    return 1;
+                }
+                break;
+            }
+        }
+    }
+
+    return 0;
 }

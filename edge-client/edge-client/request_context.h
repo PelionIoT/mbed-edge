@@ -70,6 +70,7 @@ typedef struct edgeclient_request_context {
     edgeclient_response_handler success_handler; /**< The success handler to call on success response */
     edgeclient_response_handler failure_handler; /**< The failure handler to call on failure response */
     void *connection; /**< The connection context */
+    int16_t jsonrpc_error_code; /**< The request response error code. This is mapped to COAP error */
 } edgeclient_request_context_t;
 
 /**

@@ -1,6 +1,6 @@
 /*
  * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright 2019 ARM Ltd.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -32,9 +32,11 @@
 #define TRACE_GROUP "clnt"
 
 EDGE_LOCAL int pt_receive_write_value(json_t *request, json_t *json_params, json_t **result, void *userdata);
+EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 struct jsonrpc_method_entry_t pt_service_method_table[] = {
   { "write", pt_receive_write_value, "o" },
+  { "certificate_renewal_result", pt_receive_certificate_renewal_result, "o" },
   { NULL, NULL, "o" }
 };
 
@@ -258,3 +260,52 @@ EDGE_LOCAL int pt_receive_write_value(json_t *request, json_t *json_params, json
     return 0;
 }
 
+EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    (void) request;
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    tr_debug("Received certificate renewal result.");
+
+    if (!check_request_id(jt, result) != 0) {
+        return 1;
+    }
+
+    json_t *cert_handle = json_object_get(json_params, "certificate");
+    json_t *initiator_handle = json_object_get(json_params, "initiator");
+    json_t *status_handle = json_object_get(json_params, "status");
+    json_t *description_handle = json_object_get(json_params, "description");
+    if (cert_handle == NULL || initiator_handle == NULL || status_handle == NULL || description_handle == NULL) {
+        tr_warning("Certificate renewal result missing fields.");
+        *result = jsonrpc_error_object(
+                JSONRPC_INVALID_PARAMS,
+                "Invalid params. Missing 'params', 'initiator', 'status' or 'description' field from request.",
+                NULL);
+        return 1;
+    }
+
+    const char *cert_name = json_string_value(cert_handle);
+    int initiator = json_integer_value(initiator_handle);
+    int status = json_integer_value(status_handle);
+    const char *description = json_string_value(description_handle);
+
+    tr_debug("Certificate renewal result, (certificate '%s', initiator '%d', status '%d', description '%s')",
+             cert_name,
+             initiator,
+             status,
+             description);
+
+    connection_t *connection = jt->connection;
+    pt_client_t *client = connection->client;
+    if (client->protocol_translator_callbacks->certificate_renewal_notifier_cb) {
+        client->protocol_translator_callbacks->certificate_renewal_notifier_cb(connection->id,
+                                                                               cert_name,
+                                                                               initiator,
+                                                                               status,
+                                                                               description,
+                                                                               client->userdata);
+    } else {
+        tr_err("Cannot notify certificate renewal result!");
+    }
+    *result = json_string("ok");
+    return 0;
+}

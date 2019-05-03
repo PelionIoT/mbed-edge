@@ -41,6 +41,10 @@ struct error_message_entry_t ERROR_MESSAGES[] =
          {PT_API_ENDPOINT_ALREADY_REGISTERED, "Cannot register endpoint, because it's already registered."},
          {PT_API_WRITE_TO_PROTOCOL_TRANSLATOR_FAILED, "Write request to protocol translator failed."},
          {PT_API_EDGE_CORE_SHUTTING_DOWN, "Edge Core is shutting down."},
+         {PT_API_REQUEST_TIMEOUT, "Request timeout."},
+         {PT_API_REMOTE_DISCONNECTED, "Remote disconnected."},
+         {PT_API_CERTIFICATE_RENEWAL_BUSY, "Certificate renewal failed. Certificate enrollment client is busy."},
+         {PT_API_CERTIFICATE_RENEWAL_ERROR, "Certificate renewal failed. Certificate enrollment client internal error."},
          {PT_API_UNKNOWN_ERROR, NULL}};
 
 const char *pt_api_get_error_message(pt_api_result_code_e code)

@@ -125,10 +125,13 @@ int pt_client_read_data(connection_t *connection, char *data, size_t len)
 {
     tr_debug("Reading data from connection.");
     bool protocol_error;
-    int rc = rpc_handle_message(data, len, connection,
-                                (struct jsonrpc_method_entry_t*) connection->client_data->method_table,
+    int rc = rpc_handle_message(data,
+                                len,
+                                connection,
+                                (struct jsonrpc_method_entry_t *) connection->client_data->method_table,
                                 connection->transport_connection->write_function,
-                                &protocol_error);
+                                &protocol_error,
+                                false /* mutex_acquired */);
     if (protocol_error) {
         return 1;
     }

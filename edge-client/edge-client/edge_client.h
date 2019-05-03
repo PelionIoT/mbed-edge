@@ -34,6 +34,8 @@ extern "C" {
 #include "edge-client/request_context.h"
 #include "sn_coap_header.h"
 #include "mbed-client/coap_response.h"
+#include "certificate-enrollment-client/ce_status.h"
+#include "certificate-enrollment-client/ce_defs.h"
 
 /**
  * \brief Used to read resource attributes
@@ -69,6 +71,19 @@ typedef void(*handle_unregister_cb) (void);
 typedef void(*handle_error_cb) (int error_code, const char *error_description);
 
 /**
+ * \brief callback for handling certificate renewal status callback.
+ * \param certificate_name Name of certificate whose renewal process finished.
+ * \param status Status of the finished renewal process.
+ * \param initiator Initiator of the renewal process.
+ * \return 0 - for successful write to protocol translator.
+ *         1 - for failed write to protocol translator.
+ */
+typedef int (*handle_cert_renewal_status_cb)(const char *certificate_name,
+                                             ce_status_e status,
+                                             ce_initiator_e initiator,
+                                             void *ctx);
+
+/**
  * \brief Parameters required for edgeclient_create.
  * \param reset_storage specifies if Edge Client should remove and recreate the Device Management Client configuration data.
  */
@@ -77,6 +92,8 @@ typedef struct {
     handle_register_cb handle_register_cb;
     handle_unregister_cb handle_unregister_cb;
     handle_error_cb handle_error_cb;
+    handle_cert_renewal_status_cb handle_cert_renewal_status_cb;
+    void *cert_renewal_ctx;
     bool reset_storage;
 } edgeclient_create_parameters_t;
 
@@ -88,6 +105,16 @@ typedef struct {
  *         1 if request couldn't be sent.
  */
 int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
+
+/**
+ * \brief Calls Edge Client's Protocol Translator handle cert renewal status callback.
+ * \param certificate_name Name of certificate whose renewal process finished.
+ * \param status Status of the finished renewal process.
+ * \param initiator Initiator of the renewal process.
+ * \return 0 if status was successfully sent.
+ *         1 if status couldn't be sent.
+ */
+int edgeclient_send_cert_renewal_status(const char *certificate_name, int status, int initiator);
 
 /**
  * \brief Loads the Device Management Client credentials (either your own CA or a developer certificate) and sets up the
@@ -384,6 +411,14 @@ bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
                                                   uint8_t **value_out,
                                                   uint32_t *value_length_out,
                                                   edgeclient_resource_attributes_t *attributes);
+
+/**
+ * \brief Initiate certificate renewal process for a certificate.
+ * \param certificate_name The name of the certificate which should be renewed.
+ * \return true when the renewal process is successfully initiated.
+ *         false when the renewal process could not be initiated.
+ */
+pt_api_result_code_e edgeclient_renew_certificate(const char *certificate_name, int *detailed_error);
 
 /**
  * \brief Get the internal id assigned to Edge Core device from Device Management.
