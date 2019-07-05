@@ -1,5 +1,7 @@
 #################################################################################
-#  Copyright 2016, 2017 ARM Ltd.
+#  Copyright 2016-2019 ARM Ltd.
+#  
+#  SPDX-License-Identifier: Apache-2.0
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -21,8 +23,6 @@ macro(SET_COMPILER_DBG_RLZ_FLAG flag value)
         SET(${flag}_RELEASE "${${flag}_RELEASE} ${value}")
 endmacro(SET_COMPILER_DBG_RLZ_FLAG)
 
-
-
 MACRO(SUBDIRLIST result curdir)
   FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
   SET(dirlist "")
@@ -35,9 +35,9 @@ MACRO(SUBDIRLIST result curdir)
 ENDMACRO()
 
 MACRO(ADD_GLOBALDIR dirname)
-  include_directories(${dirname})
+	include_directories(${dirname})
+	file(APPEND ${INCLUDE_FILE_NAME} "-I${dirname} ")
 ENDMACRO()
-
 
 MACRO(ADDSUBDIRS_CMAKE)
         SUBDIRLIST(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR})
@@ -69,8 +69,6 @@ macro(CREATE_LIBRARY NAME SOURCE_LIST DEFINES)
       endif()
       target_compile_definitions(${NAME} PRIVATE  ${DEFINES})
 endmacro()
-
-
 
 macro(CREATE_TEST_LIBRARY NAME SOURCE_LIST DEFINES)
       file(APPEND "${COMPILATION_DETAILS_FILE_NAME}" "\n${NAME}:\n${SOURCE_LIST}")

@@ -56,9 +56,9 @@ void crypto_api_protocol_destroy();
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
- * \return 0 if the certificate retrieval succeeded.\n
+ * \return JSONRPC_RETURN_CODE_SUCCESS if the certificate retrieval succeeded.\n
  *         1 if an error occurred. Details are in the result parameter.
- *         -1 if the response will be provided later.
+ *         JSONRPC_RETURN_CODE_NO_RESPONSE if the response will be provided later.
  */
 int crypto_api_get_certificate(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
@@ -69,11 +69,63 @@ int crypto_api_get_certificate(json_t *request, json_t *json_params, json_t **re
  * \param json_params The parameter portion of the jsonrpc request.
  * \param result The jsonrpc result object to fill.
  * \param userdata The user-supplied context data pointer.
- * \return 0 if the certificate retrieval succeeded.\n
- *         1 if an error occurred. Details are in the result parameter.
- *         -1 if the response will be provided later.
+ * \return JSONRPC_RETURN_CODE_SUCCESS if the certificate retrieval succeeded.\n
+ *         JSONRPC_RETURN_CODE_ERROR an error occurred. Details are in the result parameter.
+ *         JSONRPC_RETURN_CODE_NO_RESPONSE if the response will be provided later.
  */
 int crypto_api_get_public_key(json_t *request, json_t *json_params, json_t **result, void *userdata);
+
+/**
+ * \brief Generate a random buffer with the Edge crypto service.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \param userdata The user-supplied context data pointer.
+ * \return JSONRPC_RETURN_CODE_SUCCESS if the random buffer generation succeeded.\n
+ *         JSONRPC_RETURN_CODE_ERROR an error occurred. Details are in the result parameter.
+ *         JSONRPC_RETURN_CODE_NO_RESPONSE if the response will be provided later.
+ */
+int crypto_api_generate_random(json_t *request, json_t *json_params, json_t **result, void *userdata);
+
+/**
+ * \brief Perform a asymmetric signing operation with the Edge crypto service.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \param userdata The user-supplied context data pointer.
+ * \return JSONRPC_RETURN_CODE_SUCCESS if the asymmetric signing operation succeeded.\n
+ *         JSONRPC_RETURN_CODE_ERROR an error occurred. Details are in the result parameter.
+ *         JSONRPC_RETURN_CODE_NO_RESPONSE if the response will be provided later.
+ */
+int crypto_api_asymmetric_sign(json_t *request, json_t *json_params, json_t **result, void *userdata);
+
+/**
+ * \brief Perform a asymmetric verification operation with the Edge crypto service.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \param userdata The user-supplied context data pointer.
+ * \return JSONRPC_RETURN_CODE_SUCCESS if the asymmetric verification succeeded.\n
+ *         JSONRPC_RETURN_CODE_ERROR an error occurred. Details are in the result parameter.
+ *         JSONRPC_RETURN_CODE_NO_RESPONSE if the response will be provided later.
+ */
+int crypto_api_asymmetric_verify(json_t *request, json_t *json_params, json_t **result, void *userdata);
+
+/**
+ * \brief Perform an ECDH key agreement operation with the Edge crypto service.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \param userdata The user-supplied context data pointer.
+ * \return JSONRPC_RETURN_CODE_SUCCESS if the ECDH key agreement operation succeeded.\n
+ *         JSONRPC_RETURN_CODE_ERROR if an error occurred. Details are in the result parameter.
+ *         JSONRPC_RETURN_CODE_NO_RESPONSE if the response will be provided later.
+ */
+int crypto_api_ecdh_key_agreement(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * @}

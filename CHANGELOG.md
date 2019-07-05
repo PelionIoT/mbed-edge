@@ -1,21 +1,49 @@
 # Changelog for Edge
 
-## Release 0.9.0 (2019-04-19)
+## Release 0.10.0 (2019-05-07)
 
- * Added handling for pending JSON RPC requests. The request are cleaned by sending an error response if the client
-   doesn't respond withing the maximum time limit that can be configured in `cmake/edge_configure.cmake` by modifying
-   values `SERVER_REQUEST_TIMEOUT_THRESHOLD_MS` for Edge Core and `CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS` for protocol
-   translator C-API v2 client. The entity which made the request will get `PT_API_REQUEST_TIMEOUT` error response.
- * Added handling for pending JSON RPC requests in the case when the connection disconnects. The entity which made
-   the request will get `PT_API_REMOTE_DISCONNECTED` error response.
- * MbedTLS updated to version 2.17.0.
- * Add certificate renewal JSON RPC and C-APIs.
- * Add KCM certificate get and KCM public key get JSON RPC APIs.
- * Fix the decoding buffer size in our Base64 library.
+ * Changed Edge to use Device Management Client library default TLS configuration file instead of the TLS configuration file provided by Edge.
+   * Removed the now obsolete TLS configuration file (`/config/mbedtls_mbed_client_config.h`).
+ * Added KCM certificate `GET` and KCM public key `GET` C APIs.
+ * Updated Device Management Client to version 3.3.0.
+ * New KCM crypto JSON RPC APIs:
+   * `crypto_generate_random` API to generate a random buffer using KCM API.
+   * `crypto_asymmetric_sign` API to perform asymmetric sign operation using KCM API.
+   * `crypto_asymmetric_verify` API to perform asymmetric verify operation using KCM API.
+   * `crypto_ecdh_key_agreement` API to perform ECDH key agreement using KCM API.
+ * New KCM crypto PT C APIs:
+   * `pt_crypto_generate_random` API to generate a random buffer using KCM API.
+   * `pt_crypto_asymmetric_sign` API to perform asymmetric sign operation using KCM API.
+   * `pt_crypto_asymmetric_verify` API to perform asymmetric verify operation using KCM API.
+   * `pt_crypto_ecdh_key_agreement` API to perform ECDH key agreement operation using KCM API.
+ * Changed protocol translator client execute handling to send response through event. This allows sending an execute response payload by setting and writing the resource value inside the execute callback.
+ * Added new device certificate renewal PT C APIs to perform certificate renewal or certificate enrollment using CA in cloud:
+   * `pt_device_certificate_renew` API to initiate a certificate renewal or enrollment.
+   * `pt_free_certificate_chain_context` API to free a certificate chain context passed to the `pt_device_certificate_renew_response_handler`.
+   * `pt_device_certificate_renew_finish` API to finish a device certificate renewal or enrollment.
+   * `pt_device_certificate_renew_response_handler` callback API prototype for handling the certificate renewal or enrollment result.
+   * `pt_device_certificate_renew_request_handler` callback API prototype for handling the certificate renewal or enrollment request sent from the Cloud.
 
 ### Bugfixes
 
- * Test that client sets the disconnect callback in `pt_client_create` in the v2 API.
+ * Added NULL-checks for connection in various API calls. These prevent potential segfaults in situations where connection is missing.
+ * Fixed integer request ids in JSON RPC requests.
+
+## Release 0.9.0 (2019-04-19)
+
+ * Added handling for pending JSON RPC requests. Requests are cleaned with an error response if the client
+   doesn't respond within the maximum time limit. You can configure this timeout in `cmake/edge_configure.cmake` by modifying
+   values `SERVER_REQUEST_TIMEOUT_THRESHOLD_MS` for Edge Core and `CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS` for protocol
+   translator C-API v2 client. The entity that made the request receives a `PT_API_REQUEST_TIMEOUT` error response.
+ * Added handling for pending JSON RPC requests in the case of disconnection. The entity that made the request receives a `PT_API_REMOTE_DISCONNECTED` error response.
+ * Mbed TLS updated to version 2.17.0.
+ * Added certificate renewal JSON RPC and C-APIs.
+ * Added KCM certificate `get` and KCM public key `get` JSON RPC APIs.
+ * Fixed the decoding buffer size in our Base64 library.
+
+### Bugfixes
+
+ * Added test that client sets the disconnect callback in `pt_client_create` in the v2 API.
 
 ## Release 0.8.0 (2019-02-27)
 

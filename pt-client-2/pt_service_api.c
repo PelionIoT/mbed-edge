@@ -142,7 +142,8 @@ pt_status_t pt_devices_call_resource_callback(connection_id_t connection_id,
 }
 
 int update_device_values_from_json(struct connection *connection,
-                                   json_t *params, json_t **result)
+                                   json_t *params,
+                                   json_t **result)
 {
     if (!params) {
         *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
@@ -247,17 +248,46 @@ EDGE_LOCAL int pt_receive_write_value(json_t *request, json_t *json_params, json
     (void) request;
     struct json_message_t *jt = (struct json_message_t*) userdata;
     tr_debug("Write value to protocol translator.");
+    int status = 0;
 
     if (!check_request_id(jt, result) != 0) {
-        return 1;
+        return JSONRPC_RETURN_CODE_ERROR;
     }
 
-    if (update_device_values_from_json(jt->connection, json_params, result) != 0) {
-        return 1;
+    // Prepare response params context
+    response_params_t *params = (response_params_t *) calloc(1, sizeof(response_params_t));
+    json_t *response = json_object();
+    if (params == NULL || response == NULL) {
+        free(params);
+        json_decref(response);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    params->response = response;
+    connection_t *connection = jt->connection;
+    params->connection_id = connection->id;
+    json_object_set_new(response, "id", json_copy(json_object_get(request, "id")));
+    json_object_set_new(response, "jsonrpc", json_string("2.0"));
+
+    status = update_device_values_from_json(jt->connection, json_params, result);
+    if (status != 0) {
+        // Write failed, prepare error response and push to eventloop
+        if (*result == NULL) {
+            *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
+                                           "Invalid params.",
+                                           NULL);
+        }
+        json_object_set_new(response, "error", *result);
+    }
+    else {
+        // Write was success, prepare response and push it into eventloop
+        json_object_set_new(response, "result", json_string("ok"));
     }
 
-    *result = json_string("ok");
-    return 0;
+    if (pt_api_send_to_event_loop(connection->id, params, event_loop_send_response_callback) != PT_STATUS_SUCCESS) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    return JSONRPC_RETURN_CODE_NO_RESPONSE;
 }
 
 EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *json_params, json_t **result, void *userdata)
@@ -267,7 +297,7 @@ EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *js
     tr_debug("Received certificate renewal result.");
 
     if (!check_request_id(jt, result) != 0) {
-        return 1;
+        return JSONRPC_RETURN_CODE_ERROR;
     }
 
     json_t *cert_handle = json_object_get(json_params, "certificate");
@@ -280,7 +310,7 @@ EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *js
                 JSONRPC_INVALID_PARAMS,
                 "Invalid params. Missing 'params', 'initiator', 'status' or 'description' field from request.",
                 NULL);
-        return 1;
+        return JSONRPC_RETURN_CODE_ERROR;
     }
 
     const char *cert_name = json_string_value(cert_handle);
@@ -307,5 +337,5 @@ EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *js
         tr_err("Cannot notify certificate renewal result!");
     }
     *result = json_string("ok");
-    return 0;
+    return JSONRPC_RETURN_CODE_SUCCESS;
 }

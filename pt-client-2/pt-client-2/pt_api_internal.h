@@ -32,6 +32,7 @@
 #include "pt-client-2/pt_object_api_internal.h"
 #include "pt-client-2/pt_object_instance_api_internal.h"
 #include "pt-client-2/pt_resource_api_internal.h"
+#include "pt-client-2/pt_certificate_api_internal.h"
 #include "ns_list.h"
 #include "common/edge_mutex.h"
 #include "common/msg_api.h"
@@ -182,6 +183,9 @@ struct pt_device {
     pt_object_list_t *objects;
     pt_device_state_e state;
     uint8_t changed_status;
+    uint32_t features;
+    char *csr_request_id;
+    size_t csr_request_id_len;
 };
 
 typedef NS_LIST_HEAD(pt_device_t, link) pt_device_list_internal_t;
@@ -202,6 +206,11 @@ struct connection {
 };
 
 typedef NS_LIST_HEAD(connection_t, link) connection_list_t;
+
+typedef struct {
+    connection_id_t connection_id;
+    json_t *response;
+} response_params_t;
 
 void destroy_connection_and_restart_reconnection_timer(connection_t *connection);
 
@@ -344,9 +353,7 @@ send_message_params_t *construct_outgoing_message(json_t *json_message,
 
 pt_status_t send_message_to_event_loop(connection_id_t connection_id, send_message_params_t *message);
 
-#ifdef BUILD_TYPE_TEST
-extern edge_mutex_t api_mutex;
-#include "common/websocket_comm.h"
+void event_loop_send_response_callback(void *data);
 
 /**
  * \brief May be called from any thread to send a message to the event-loop thread.
@@ -355,6 +362,10 @@ extern edge_mutex_t api_mutex;
  * \param callback The callback to call in the event loop with the parameter.
  */
 pt_status_t pt_api_send_to_event_loop(connection_id_t connection_id, void *parameter, event_loop_callback_t callback);
+
+#ifdef BUILD_TYPE_TEST
+extern edge_mutex_t api_mutex;
+#include "common/websocket_comm.h"
 
 bool default_check_close_condition(pt_client_t *client, bool client_close);
 void create_connection_cb(void *arg);

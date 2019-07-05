@@ -1,5 +1,11 @@
 include_directories(Port/Platform-API)
+
+# This is so other modules could include pal.h
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR}/PAL-Impl/Services-API)
+
+# Add the current the directory of this of this file as a global dir pal.h could include more qualified paths 
+# and modules that use PAL could still include pal.h
+ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR})
 
 set (PAL_MODULES_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/PAL-Impl/Modules)
 set (PAL_PORT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Port/Reference-Impl/OS_Specific/${OS_BRAND})
@@ -88,6 +94,8 @@ set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/Flash/FlashOver
 # Add the platform independent noise implementation (used by the DRBG mdule)
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/pal_plat_drbg_noise.c)
 
+# Add PSA implementation for generating random buffer
+set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/PSA/pal_plat_drbg_psa.c)
 
 # Create the RTOS module library
 add_library(palRTOS STATIC "${PAL_RTOS_SRCS}")
@@ -107,8 +115,8 @@ add_library(palEntropy STATIC "${PAL_ENTROPY_SRCS}")
 
 # Create the TLS module library
 add_library(palTLS STATIC "${PAL_TLS_SRCS}")
-add_dependencies(palTLS ${TLS_LINK_LIBRARY} palTime)
-target_link_libraries(palTLS ${TLS_LINK_LIBRARY} palTime)
+add_dependencies(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager)
+target_link_libraries(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager)
 
 # Create the Crypto module library
 add_library(palCrypto STATIC "${PAL_CRYPTO_SRCS}")
@@ -167,5 +175,6 @@ endif()
 if (${OS_BRAND} MATCHES "FreeRTOS")
     target_link_libraries(pal board)
 endif()
+
 
 

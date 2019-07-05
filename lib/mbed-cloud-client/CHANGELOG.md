@@ -1,5 +1,98 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.3.0 (19.06.2019)
+
+#### Device Management Connect client
+
+* Updated Mbed CoAP to 4.8.0.
+* A fix to accommodate a null terminator space for managing a common name parameter (max 64 characters) in an `X.509` certificate.
+
+#### Factory configurator client
+
+New `kcm_item_get_size_and_data` API - combines `kcm_item_get_data_size` and `kcm_item_get_data` into one synchronous API.
+
+### Release 3.2.0 (12.06.2019)
+
+#### Device Management Connect client
+
+* Relaxed the enforcement of client configuration. Only `SN_COAP_MAX_BLOCKWISE_SIZE` is considered as a mandatory application configuration due to bootstrap and update (CoAP download) dependencies.
+  * `LIFETIME` (default 3600 seconds), `ENDPOINT_TYPE` ("default") and `TRANSPORT_MODE` (default TCP) now have defaults. The application does not need to define them if default values are acceptable.
+* Added new public APIs to the `MbedCloudClient` class to request Enrollment over Secure Transport (EST) (`est_request_enrollment`) and free the resulting certificate chain context (`est_free_cert_chain_context`).
+
+#### Device Management Update client
+
+* Added the delta update feature into Update client.
+* Fixed HTTP download for very small files.
+* Implemented a check to reject zero bytes firmware.
+* Fixed installation authorization logic which was proceeding without waiting for the application callback.
+* Fixed manifest manager to report correct error codes.
+* Fixed PAL include files.
+* Optimized flash and RAM footprint for CoAP source.
+* Added a check to ensure that `SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE` is aligned with the storage page size.
+* Added code to read the active firmware metadata header from file. This enables e-2-e testing with filesystem storage in a Linux host.
+* Added heap and stack statistic trace messages.
+
+#### Factory configurator client
+
+* Naming restrictions for KCM APIs are now identical for KVStore and Pelion Secure Storage solutions (ESFS-SOTP):
+  * `kcm_item_name` must only include characters `a`-`z`, `A`-`Z`, `0`-`9`, `_`, `-`, `.`.
+  * The max `kcm_item_name` length is 100 bytes.
+  * This deprecates Pelion Secure Storage naming restrictions.
+* New APIs:
+  * `kcm_asymmetric_sign` computes ECDSA raw signature on hash digest using associated private key name. Supports keys with EC SECP256R1 curve only.
+  * `kcm_asymmetric_verify` verifies ECDSA raw signature on hash digest using associated private key name. Supports keys with EC SECP256R1 curve only.
+  * `kcm_generate_random` generates a random number into a given buffer.
+  * `kcm_ecdh_key_agreement` computes a shared secret using the elliptic curve Diffie Hellman algorithm.
+* Fixed a bug in conversion of private key from DER to raw.
+* `kcm_item_close_handle` receives a pointer to the handle instead of the handle. This is a bugfix for crash when `kcm_item_close_handle` is called twice.
+
+#### Platform Adaptation Layer (PAL)
+
+New cryptographic APIs implemented for PSA and non-PSA variants:
+
+* `pal_parseECPrivateKeyFromHandle` parses EC private key from PAL private key handle.
+* `pal_parseECPublicKeyFromHandle` parses EC public key from PAL public key handle.
+* `pal_asymmetricSign` computes ECDSA raw signature of a previously hashed message. Supports keys with EC SECP256R1 curve only.
+* `pal_asymmetricVerify` verifies the ECDSA raw signature of a previously hashed message. Supports keys with EC SECP256R1 curve only.
+* `pal_ECDHKeyAgreement` computes raw shared secret key using elliptic curve Diffie–Hellman algorithm.
+
+Other changes:
+
+* Fixed unnessary dependencies to `SN_COAP_MAX_BLOCKWISE_SIZE` parameter.
+* Added `pal_x509CertCheckExtendedKeyUsage` that checks the usage of certificate against `extended-key-usage` extension.
+* [Linux] When creating threads, use the system provided `PTHREAD_STACK_MIN` as a minimum value. Previously, the application was allowed to define values smaller than the system-defined minimum.
+* Implemented **SSL session resume** feature. This feature is enabled by default. Use the `PAL_USE_SSL_SESSION_RESUME` flag to control it.
+
+### Yocto changes
+
+* Removed the dependency of requiring Mbed CLI to be globally installed. This allows also virtualenv installations of Mbed CLI to work with the provided meta-layers.
+  * Changed the meta-layer to use SSH authentication for Mbed CLI when needed. This is mostly needed when pulling in meta-layers from private repositories.
+  * Changed the `meta-mbed-cloud-client.lib` file to use `https` format instead of `ssh`.
+
+**Delta update related:**
+
+* Modified application makefiles to call the new script for building a `tar` package of `rootfs`.
+* Added the `build-raspberry-update-rootfs-tar.sh` script for building a `tar` package of `rootfs` contents to be used for delta purposes.
+* Edited the local configuration sample and `fstab` to set `rootfs` into "read-only" mode so that delta firmware update can be applied into the device.
+* Edited the Update client `metalayer recipe` to include the `Prepare` script in the image for delta processing.
+
+### Release 3.1.1 (13.05.2019)
+
+No changes.
+
+### Release 3.1.0 (26.04.2019)
+
+* Fixed client State machine for handling `pause()` handling. Fixes issues when `pause()` call was ignored when other operations were in effect.
+* Implemented network status callback handling for client library. Now client will react to changes in network status callbacks to speed up client connection recovery during reconnection.
+* Improved internal flagging of client library to enable further optimizations and modularization of client components.
+
+#### Platform Adaptation Layer (PAL)
+
+* Improved TLS configuration to optimize RAM usage.
+* Improvement header include handling inside PAL layer.
+* CMake improvements.
+* Improvements for PAL unit tests.
+
 ### Release 3.0.0 (27.03.2019)
 
 #### Device Management Connect client

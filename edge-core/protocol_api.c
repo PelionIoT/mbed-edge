@@ -53,6 +53,11 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "renew_certificate", renew_certificate, "o" },
     { "crypto_get_certificate", crypto_api_get_certificate, "o" },
     { "crypto_get_public_key", crypto_api_get_public_key, "o" },
+    { "crypto_generate_random", crypto_api_generate_random, "o" },
+    { "crypto_asymmetric_sign", crypto_api_asymmetric_sign, "o" },
+    { "crypto_asymmetric_verify", crypto_api_asymmetric_verify, "o" },
+    { "crypto_ecdh_key_agreement", crypto_api_ecdh_key_agreement, "o" },
+    { "est_request_enrollment", est_request_enrollment, "o" },
     { NULL, NULL, "o" }
 };
 
@@ -76,6 +81,34 @@ static int update_device_values_from_json(json_t *structure,
                                           const char **error_detail,
                                           pt_update_device_values_flags_e flags);
 static void certificate_list_clear(client_data_t *client_data);
+static const char *map_ce_status_to_string(ce_status_e status);
+
+void protocol_api_free_async_ctx_func(rpc_request_context_t *ctx)
+{
+    protocol_api_async_request_context_t *pt_api_ctx = (protocol_api_async_request_context_t *) ctx;
+    if (pt_api_ctx) {
+        free(pt_api_ctx->data_ptr);
+        free(pt_api_ctx->request_id);
+    }
+    free(pt_api_ctx);
+}
+
+protocol_api_async_request_context_t *protocol_api_prepare_async_ctx(const json_t *request, const connection_id_t connection_id)
+{
+    protocol_api_async_request_context_t *ctx = calloc(1, sizeof(protocol_api_async_request_context_t));
+    char *request_id = json_dumps(json_object_get(request, "id"), JSON_COMPACT|JSON_ENCODE_ANY);
+    if (ctx == NULL || request_id == NULL) {
+        free(ctx);
+        free(request_id);
+        return NULL;
+    }
+
+    ctx->request_id = request_id;
+    ctx->connection_id = connection_id;
+    ctx->data_ptr = NULL;
+    ctx->data_int = 0;
+    return ctx;
+}
 
 void init_protocol()
 {
@@ -121,10 +154,22 @@ bool pt_api_check_request_id(struct json_message_t *jt)
     return true;
 }
 
-json_t *pt_api_allocate_response_common(char *request_id)
+json_t *pt_api_allocate_response_common(const char *request_id)
 {
     json_t *response = json_object();
-    json_object_set_new(response, "id", json_string(request_id));
+    if (response == NULL) {
+        tr_err("Cannot allocate common response json object for request %s", request_id);
+        return NULL;
+    }
+
+    json_error_t json_error;
+    json_t *id = json_loads(request_id, JSON_COMPACT|JSON_DECODE_ANY, &json_error);
+    if (id == NULL) {
+        tr_err("Cannot load request_id %s for common response json object: %s", request_id, json_error.text);
+        return NULL;
+    }
+
+    json_object_set_new(response, "id", id);
     json_object_set_new(response, "jsonrpc", json_string("2.0"));
     return response;
 }
@@ -342,14 +387,14 @@ int device_register(json_t *request, json_t *json_params, json_t **result, void 
     struct connection* connection = jt->connection;
     tr_debug("Device register.");
 
+    if (!pt_api_check_service_availability(result)) {
+        return 1;
+    }
+
     if (!pt_api_check_request_id(jt)) {
         tr_warn("Device registration failed. No request id was given");
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
                                                   json_string("Device registration failed. No request id was given."));
-        return 1;
-    }
-
-    if (!pt_api_check_service_availability(result)) {
         return 1;
     }
 
@@ -413,6 +458,10 @@ int device_unregister(json_t *request, json_t *json_params, json_t **result, voi
     struct connection* connection = jt->connection;
     tr_debug("Device unregister.");
 
+    if (!pt_api_check_service_availability(result)) {
+        return 1;
+    }
+
     if (!pt_api_check_request_id(jt)) {
         tr_warn("Device unregistration failed. No request id was given");
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
@@ -420,9 +469,6 @@ int device_unregister(json_t *request, json_t *json_params, json_t **result, voi
         return 1;
     }
 
-    if (!pt_api_check_service_availability(result)) {
-        return 1;
-    }
     // Not registered
     if (get_protocol_translator_registration_status(connection) != PT_TRANSLATOR_ALREADY_REGISTERED) {
         *result = jsonrpc_error_object(PT_API_PROTOCOL_TRANSLATOR_NOT_REGISTERED,
@@ -1015,8 +1061,9 @@ int renew_certificate(json_t *request, json_t *json_params, json_t **result, voi
         *result = jsonrpc_error_object(
                 status,
                 pt_api_get_error_message(status),
-                json_sprintf("Certificate renewal failed. Certificate enrollment client gave error %d.",
-                             detailed_error));
+                json_sprintf("Certificate renewal failed. Certificate enrollment client gave error %d (%s).",
+                             detailed_error,
+                             map_ce_status_to_string(detailed_error)));
         return 1;
     }
 
@@ -1106,4 +1153,123 @@ int certificate_renewal_notifier(const char *certificate_name, ce_status_e statu
     }
 
     return 0;
+}
+
+int est_enrollment_result_notifier(est_enrollment_result_e result, struct cert_chain_context_s *cert_chain, void *ctx)
+{
+    if (ctx == NULL) {
+        tr_warn("EST enrollment result missing context!");
+        return 1;
+    }
+
+    protocol_api_async_request_context_t *pt_ctx = (protocol_api_async_request_context_t *) ctx;
+    json_t *response = pt_api_allocate_response_common(pt_ctx->request_id);
+
+    if (result != EST_ENROLLMENT_SUCCESS || cert_chain == NULL || cert_chain->chain_length == 0 || cert_chain->certs == NULL) {
+        json_object_set_new(response,
+                            "error",
+                            jsonrpc_error_object(PT_API_INTERNAL_ERROR,
+                                                 pt_api_get_error_message(PT_API_INTERNAL_ERROR),
+                                                 json_string("EST enrollment failed.")));
+        goto send;
+    }
+
+    bool success = true;
+    json_t *cert_array = json_array();
+    struct cert_context_s *cert = cert_chain->certs;
+    for (int i = 0; i < cert_chain->chain_length && cert != NULL && success; i++, cert = cert->next) {
+        char *encoded_cert = (char *) calloc(1, apr_base64_encode_len(cert->cert_length));
+        if (encoded_cert != NULL) {
+            apr_base64_encode_binary((char *) encoded_cert, cert->cert, cert->cert_length);
+            success = (json_array_append_new(cert_array, json_string(encoded_cert)) == 0);
+        }
+        else {
+            success = false;
+        }
+        free(encoded_cert);
+    }
+
+    if (success == false) {
+        json_decref(cert_array);
+        json_object_set_new(response,
+                            "error",
+                            jsonrpc_error_object(PT_API_INTERNAL_ERROR,
+                                                 pt_api_get_error_message(PT_API_INTERNAL_ERROR),
+                                                 json_string("Could not parse the EST enrollment certificate chain.")));
+        goto send;
+    }
+
+    json_t *json_result = json_object();
+    json_object_set_new(json_result, "certificate_data", cert_array);
+    json_object_set_new(response, "result", json_result);
+
+send:
+    (void) edge_server_construct_and_send_response_safe(pt_ctx->connection_id,
+                                                        response,
+                                                        protocol_api_free_async_ctx_func,
+                                                        (rpc_request_context_t *) ctx);
+    return 0;
+}
+
+/**
+ * \brief Request EST enrollment jsonrpc endpoint
+ * \return 0 - success
+ *         1 - failure
+ */
+int est_request_enrollment(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    struct connection *connection = jt->connection;
+
+    if (!pt_api_check_service_availability(result)) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    if (!pt_api_check_request_id(jt)) {
+        tr_warn("EST enrollment request failed. No request id was given.");
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                                  json_string("EST enrollment request renewal failed. No request id was given."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    json_t *cert_name_handle = json_object_get(json_params, "certificate_name");
+    const char *cert_name = json_string_value(cert_name_handle);
+    json_t *csr_handle = json_object_get(json_params, "csr");
+    const char *csr_encoded = json_string_value(csr_handle);
+
+    if (cert_name == NULL || strlen(cert_name) == 0 || csr_encoded == NULL || strlen(csr_encoded) == 0) {
+        tr_warn("EST enrollment request failed. Missing or empty certificate field.");
+        *result = jsonrpc_error_object_predefined(
+                JSONRPC_INVALID_PARAMS,
+                json_string("EST enrollment request failed. Missing or empty `certificate_name` or `csr` field."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    uint32_t decoded_len_max = apr_base64_decode_len(csr_encoded);
+    unsigned char *csr_decoded = (unsigned char *) malloc(decoded_len_max);
+    uint32_t decoded_len = apr_base64_decode_binary((unsigned char *) csr_decoded, csr_encoded);
+    assert(decoded_len_max >= decoded_len);
+
+    // Prepare async request context so that the response can be sent later
+    protocol_api_async_request_context_t *ctx = protocol_api_prepare_async_ctx(request, connection->id);
+    if (ctx == NULL) {
+        tr_warn("EST enrollment request failed. Memory allocation failed.");
+        *result = jsonrpc_error_object_predefined(
+            JSONRPC_INTERNAL_ERROR,
+            json_string("EST enrollment request failed. Memory allocation failed."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    pt_api_result_code_e status = edgeclient_request_est_enrollment(cert_name, csr_decoded, decoded_len, ctx);
+    free(csr_decoded);
+    if (status != PT_API_SUCCESS) {
+        protocol_api_free_async_ctx_func((rpc_request_context_t *) ctx);
+        tr_warn("Certificate renewal failed. Certificate enrollment client gave error %d (%s)", status, pt_api_get_error_message(status));
+        *result = jsonrpc_error_object(status,
+                                       pt_api_get_error_message(status),
+                                       NULL);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    return JSONRPC_RETURN_CODE_NO_RESPONSE;
 }

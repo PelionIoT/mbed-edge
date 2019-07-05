@@ -34,6 +34,7 @@ extern "C" {
 #include "edge-client/request_context.h"
 #include "sn_coap_header.h"
 #include "mbed-client/coap_response.h"
+#include "mbed-cloud-client/est_defs.h"
 #include "certificate-enrollment-client/ce_status.h"
 #include "certificate-enrollment-client/ce_defs.h"
 
@@ -84,6 +85,18 @@ typedef int (*handle_cert_renewal_status_cb)(const char *certificate_name,
                                              void *ctx);
 
 /**
+ * \brief callback for handling EST enrollment status callback.
+ * \param status Status of the finished EST enrollment process.
+ * \param cert_chain Certificate chain context containing the certificates that were enrolled.
+ * \param ctx User provided context.
+ * \return 0 - for successful write to protocol translator.
+ *         1 - for failed write to protocol translator.
+ */
+typedef int (*handle_est_status_cb)(est_enrollment_result_e result,
+                                    struct cert_chain_context_s *cert_chain,
+                                    void *ctx);
+
+/**
  * \brief Parameters required for edgeclient_create.
  * \param reset_storage specifies if Edge Client should remove and recreate the Device Management Client configuration data.
  */
@@ -93,6 +106,7 @@ typedef struct {
     handle_unregister_cb handle_unregister_cb;
     handle_error_cb handle_error_cb;
     handle_cert_renewal_status_cb handle_cert_renewal_status_cb;
+    handle_est_status_cb handle_est_status_cb;
     void *cert_renewal_ctx;
     bool reset_storage;
 } edgeclient_create_parameters_t;
@@ -419,6 +433,20 @@ bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
  *         false when the renewal process could not be initiated.
  */
 pt_api_result_code_e edgeclient_renew_certificate(const char *certificate_name, int *detailed_error);
+
+/**
+ * \brief Initiate EST enrollment request.
+ * \param certificate_name The name of the certificate which should be enrolled.
+ * \param csr The certificate signing request to use when enrolling.
+ * \param csr_length Length of the certificate signing request.
+ * \param context User-supplied context.
+ * \return true when the EST enrollment request is successfully initiated.
+ *         false when the EST enrollment request could not be initiated.
+ */
+pt_api_result_code_e edgeclient_request_est_enrollment(const char *certificate_name,
+                                                       uint8_t *csr,
+                                                       const size_t csr_length,
+                                                       void *context);
 
 /**
  * \brief Get the internal id assigned to Edge Core device from Device Management.

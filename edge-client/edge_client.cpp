@@ -72,6 +72,9 @@ EDGE_LOCAL void edgeclient_handle_async_coap_request_cb(const M2MBase &base,
                                                         const uint8_t *buffer,
                                                         size_t buffer_size,
                                                         void *client_args);
+EDGE_LOCAL void edgeclient_on_est_status_callback(est_enrollment_result_e result,
+                                                  struct cert_chain_context_s *cert_chain,
+                                                  void *context);
 
 
 typedef bool (*context_check_fn)(struct context *checked_ctx, struct context *given_ctx);
@@ -617,11 +620,13 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         client_data->g_handle_error_cb = params->handle_error_cb;
         client_data->g_handle_cert_renewal_status_cb = params->handle_cert_renewal_status_cb;
         client_data->g_cert_renewal_ctx = params->cert_renewal_ctx;
+        client_data->g_handle_est_status_cb = params->handle_est_status_cb;
         client->set_on_registered_callback(edgeclient_on_registered_callback);
         client->set_on_registration_updated_callback(edgeclient_on_registered_callback);
         client->set_on_unregistered_callback(edgeclient_on_unregistered_callback);
         client->set_on_error_callback(edgeclient_on_error_callback);
         client->set_on_certificate_renewal_callback(edgeclient_on_certificate_renewal_callback);
+        client->set_on_est_result_callback(edgeclient_on_est_status_callback);
         tr_debug("create_client - client = %p", client);
     }
 }
@@ -1041,7 +1046,13 @@ pt_api_result_code_e edgeclient_send_asynchronous_response(const char *endpoint_
         }
         if (acp) {
             tr_debug("Sending asynchronous response - token_len=%d", token_len);
-            bool resource_success = resource->send_async_response_with_code(NULL, 0, token, token_len, code);
+            uint8_t *value = NULL;
+            uint32_t value_len = 0;
+            if (resource->operation() & M2MBase::POST_ALLOWED) {
+                resource->get_value(value, value_len);
+            }
+            bool resource_success = resource->send_async_response_with_code(value, value_len, token, token_len, code);
+            free(value);
             if (!resource_success) {
                 result = PT_API_INTERNAL_ERROR;
             }
@@ -1705,4 +1716,31 @@ clean_device_list:
         edgeclient_destroy_device_list(devices);
     }
     return NULL;
+}
+
+EDGE_LOCAL void edgeclient_on_est_status_callback(est_enrollment_result_e result,
+                                                  struct cert_chain_context_s *cert_chain,
+                                                  void *context)
+{
+    int ret_val = client_data->g_handle_est_status_cb(result, cert_chain, context);
+    client->est_free_cert_chain_context(cert_chain);
+    (void) ret_val;
+}
+
+pt_api_result_code_e edgeclient_request_est_enrollment(const char *certificate_name,
+                                       uint8_t *csr,
+                                       const size_t csr_length,
+                                       void *context)
+{
+    est_status_e est_status = client->est_request_enrollment(certificate_name, csr, csr_length, context);
+    if (est_status == EST_STATUS_SUCCESS) {
+        return PT_API_SUCCESS;
+    }
+    else if (est_status == EST_STATUS_INVALID_PARAMETERS) {
+        return PT_API_CERTIFICATE_RENEWAL_INVALID_PARAMETERS;
+    }
+    else if (est_status == EST_STATUS_MEMORY_ALLOCATION_FAILURE) {
+        return PT_API_CERTIFICATE_RENEWAL_MEMORY_ALLOCATION_FAILURE;
+    }
+    return PT_API_INTERNAL_ERROR;
 }

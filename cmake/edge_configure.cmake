@@ -114,8 +114,8 @@ endif()
 # Custom mbedtls configuration header file can be given with argument -DMBEDTLS_CONFIG
 SET (TLS_LIBRARY "mbedTLS")
 if (NOT DEFINED MBEDTLS_CONFIG)
-  SET (MBEDTLS_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/mbedtls_mbed_client_config.h")
-  MESSAGE ("Using default mbedtls config: ${MBEDTLS_CONFIG}")
+  SET (MBEDTLS_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/mbed-client-pal/Configs/mbedTLS/mbedTLSConfig_Linux.h")
+  MESSAGE ("Using default client library mbedtls config: ${MBEDTLS_CONFIG}")
 endif()
 add_definitions ("-DMBEDTLS_CONFIG_FILE=\"${MBEDTLS_CONFIG}\"")
 
@@ -183,7 +183,6 @@ add_definitions("-DMBED_CLOUD_CLIENT_EDGE_EXTENSION")
 
 # Example application default configuration
 SET (MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE 40960)
-SET (MBEDTLS_USER_CONFIG_FILE "\"config/mbedtls_mbed_client_config.h\"")
 SET (MBED_CONF_MBED_CLIENT_DNS_THREAD_STACK_SIZE 131072)
 SET (SA_PV_PLAT_PC 1)
 SET (RESOURCE_ATTRIBUTES_LIST 1)

@@ -219,16 +219,6 @@ palStatus_t pal_plat_renegotiate(palTLSHandle_t palTLSHandle, uint64_t serverTim
  */
 palStatus_t pal_plat_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t* socket);
 
-/*! \brief Set your own certificate chain and private key.
- *
- * @param[in] palTLSConf: The TLS configuration context.
- * @param[in] ownCert: Your own public certificate chain.
- * @param[in] privateKey: Your own private key.
- *
- * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
- */
-palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey);
-
 /*! \brief Set your own certificate chain.
  *
  * @param[in] palTLSConf: The TLS configuration context.
@@ -324,4 +314,25 @@ palStatus_t pal_plat_setTimeCB(palTLSHandle_t* palTLSHandle, palTimerCtx_t timer
  */
 palStatus_t pal_plat_SetLoggingCb(palTLSConfHandle_t palTLSConf, palLogFunc_f palLogFunction, void *logContext);
 
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+
+/*! \brief Get the ssl session buffer.
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[out] buffer_size: Size of the session buffer.
+ *
+ * \return Buffer containing the session data. NULL in case of failure.
+ */
+uint8_t* pal_plat_GetSslSessionBuffer(palTLSHandle_t palTLSHandle, size_t *buffer_size);
+
+/*! \brief Set the ssl session.
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[in] session_buffer: Buffer containing the session data.
+ *
+ */
+void pal_plat_SetSslSession(palTLSHandle_t palTLSHandle, const uint8_t *session_buffer);
+#endif
 #endif //_PAL_PLAT_TLS_H_
+
+

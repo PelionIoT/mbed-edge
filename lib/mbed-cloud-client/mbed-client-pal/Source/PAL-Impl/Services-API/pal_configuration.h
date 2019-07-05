@@ -124,7 +124,7 @@
 
 //! The maximum number of interfaces that can be supported at a time.
 #ifndef PAL_MAX_SUPORTED_NET_INTERFACES
-    #define PAL_MAX_SUPORTED_NET_INTERFACES 10
+    #define PAL_MAX_SUPORTED_NET_INTERFACES 1
 #endif
 
 //! Stack size for thread created when calling pal_getAddressInfoAsync
@@ -494,5 +494,10 @@
 #define PAL_NOISE_SIZE_BYTES 48 //!< Maximum number of bytes for noise
 #define PAL_NOISE_SIZE_BITS (PAL_NOISE_SIZE_BYTES * CHAR_BIT) //!< Maximum number of bits for noise
 #define PAL_NOISE_BUFFER_LEN (PAL_NOISE_SIZE_BYTES / sizeof(int32_t)) //!< Length of the noise buffer
+
+// SSL session resume is enabled by default
+#ifndef PAL_USE_SSL_SESSION_RESUME
+    #define PAL_USE_SSL_SESSION_RESUME 1
+#endif
 
 #endif //_PAL_COFIGURATION_H

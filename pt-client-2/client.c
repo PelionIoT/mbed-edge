@@ -210,7 +210,8 @@ pt_status_t pt_client_shutdown(pt_client_t *client)
 static int check_protocol_translator_callbacks(const protocol_translator_callbacks_t *pt_cbs)
 {
     if (pt_cbs->connection_ready_cb == NULL || pt_cbs->connection_shutdown_cb == NULL ||
-        pt_cbs->certificate_renewal_notifier_cb == NULL || pt_cbs->disconnected_cb == NULL) {
+        pt_cbs->certificate_renewal_notifier_cb == NULL || pt_cbs->disconnected_cb == NULL ||
+        pt_cbs->device_certificate_renew_request_cb == NULL) {
         return 1;
     }
     return 0;

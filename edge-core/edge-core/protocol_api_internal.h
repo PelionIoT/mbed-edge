@@ -40,11 +40,20 @@ typedef struct connection {
     bool connected;
 } connection_t;
 
+typedef struct protocol_api_async_request_context_ {
+    uint8_t *data_ptr;
+    int data_int;
+    connection_id_t connection_id;
+    char *request_id;
+} protocol_api_async_request_context_t;
+
 void transport_connection_t_destroy(transport_connection_t **transport_connection);
 void edge_core_protocol_api_client_data_destroy(client_data_t *client_data);
 bool pt_api_check_request_id(struct json_message_t *jt);
 bool pt_api_check_service_availability(json_t **result);
-json_t *pt_api_allocate_response_common(char *request_id);
+json_t *pt_api_allocate_response_common(const char *request_id);
+void protocol_api_free_async_ctx_func(rpc_request_context_t *ctx);
+protocol_api_async_request_context_t *protocol_api_prepare_async_ctx(const json_t *request, const connection_id_t connection_id);
 
 extern struct jsonrpc_method_entry_t method_table[];
 

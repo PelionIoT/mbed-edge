@@ -48,6 +48,14 @@
 
 struct connection;
 
+/**
+ * \brief Enum describing the JSON RPC method return codes.
+ */
+typedef enum {
+    JSONRPC_RETURN_CODE_NO_RESPONSE = -1,
+    JSONRPC_RETURN_CODE_SUCCESS = 0,
+    JSONRPC_RETURN_CODE_ERROR = 1
+} jsonrpc_method_return_code_e;
 
 /**
  * \brief Describes customers request context. It can contain any data.
