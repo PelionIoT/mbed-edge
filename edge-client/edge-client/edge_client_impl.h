@@ -92,6 +92,28 @@ public:
         _cloud_client.on_certificate_renewal(renewal_cb);
     }
 
+    void set_on_est_result_callback(est_enrollment_result_cb est_result_cb)
+    {
+        _on_est_result_cb = est_result_cb;
+    }
+
+    void est_free_cert_chain_context(struct cert_chain_context_s *chain_ctx)
+    {
+        _cloud_client.est_free_cert_chain_context(chain_ctx);
+    }
+
+    const est_status_e est_request_enrollment(const char *cert_name,
+                                              uint8_t *csr,
+                                              const size_t csr_length,
+                                              void *context) const
+    {
+        if (_on_est_result_cb == NULL) {
+            return EST_STATUS_INVALID_PARAMETERS;
+        }
+        return _cloud_client.est_request_enrollment(cert_name, strlen(cert_name), csr, csr_length, _on_est_result_cb, context);
+    }
+
+
     const char *get_internal_id() {
         const ConnectorClientEndpointInfo *endpoint_info = _cloud_client.endpoint_info();
         if (endpoint_info) {
@@ -313,6 +335,7 @@ private:
     on_registration_updated_cb _on_registration_updated_cb;
     on_unregistered_cb _on_unregistered_cb;
     on_error_cb _on_error_cb;
+    est_enrollment_result_cb _on_est_result_cb;
     bool _interrupt_received;
     bool _registered;
     const char *_network_interface;

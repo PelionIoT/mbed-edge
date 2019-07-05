@@ -51,6 +51,7 @@ LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/mbed-client-pal/Configs/pal_config \
                     ${LOCAL_NAME}/mbed-client-pal/Configs/pal_config/SXOS \
                     ${LOCAL_NAME}/mbed-client-pal/Source/PAL-Impl/Services-API \
+                    ${LOCAL_NAME}/mbed-client-pal/Source \
                     ${LOCAL_NAME}/mbed-client-pal/Source/Port/Platform-API \
 # update client
 LOCAL_ADD_INCLUDE += \
@@ -63,6 +64,7 @@ LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/update-client-hub/modules/device-identity \
                     ${LOCAL_NAME}/update-client-hub/modules/firmware-manager \
                     ${LOCAL_NAME}/update-client-hub/modules/lwm2m-mbed \
+                    ${LOCAL_NAME}/update-client-hub/modules/lwm2m-mbed/update-client-lwm2m \
                     ${LOCAL_NAME}/update-client-hub/modules/manifest-manager \
                     ${LOCAL_NAME}/update-client-hub/modules/metadata-header \
                     ${LOCAL_NAME}/update-client-hub/modules/monitor \
@@ -92,6 +94,7 @@ LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/factory-configurator-client/crypto-service/source/include \
                     ${LOCAL_NAME}/factory-configurator-client/crypto-service/crypto-service \
                     ${LOCAL_NAME}/factory-configurator-client/storage/storage \
+                    ${LOCAL_NAME}/factory-configurator-client/storage/source/include \
                     ${LOCAL_NAME}/certificate-enrollment-client/source/include \
 
 # certificate enrollment client

@@ -29,6 +29,7 @@
 #include "pt-client-2/pt_api.h"
 #include "pt-client-2/pt_device_api_internal.h"
 #include "pt-client-2/pt_object_api_internal.h"
+#include "pt-client-2/pt_certificate_api_internal.h"
 #include "pt-client-2/pt_object_instance_api_internal.h"
 #include "pt-client-2/pt_resource_api_internal.h"
 
@@ -90,12 +91,31 @@ EDGE_LOCAL void event_loop_send_message_callback(void *arg)
     }
 }
 
-EDGE_LOCAL pt_status_t pt_api_send_to_event_loop(connection_id_t connection_id,
-                                                 void *parameter,
-                                                 event_loop_callback_t callback)
+void event_loop_send_response_callback(void *data)
+{
+    tr_debug("event_loop_send_response_callback");
+    response_params_t *params = (response_params_t *) data;
+    connection_t *connection = find_connection(params->connection_id);
+    if (connection) {
+        (void) rpc_construct_and_send_response(connection,
+                                               params->response,
+                                               (rpc_free_func)free,
+                                               NULL,
+                                               connection->transport_connection->write_function);
+    } else {
+        tr_warn("event_loop_send_response_callback: response not send because connection id %d no longer exists",
+                params->connection_id);
+        json_decref(params->response);
+    }
+    free(params);
+}
+
+pt_status_t pt_api_send_to_event_loop(connection_id_t connection_id,
+                                      void *parameter,
+                                      event_loop_callback_t callback)
 {
     pt_status_t status = PT_STATUS_SUCCESS;
-
+    tr_debug("pt_api_send_to_event_loop");
     api_lock();
     connection_t *connection = find_connection(connection_id);
     if (connection) {
@@ -202,7 +222,12 @@ EDGE_LOCAL void pt_handle_pt_register_success(json_t *response, void *callback_d
 
     api_lock();
     connection_t *connection = find_connection(connection_id);
-    connection->client->registered = true;
+    if (connection) {
+        connection->client->registered = true;
+    }
+    else {
+        tr_warn("Connection no longer found in pt_handle_pt_register_success");
+    }
     api_unlock();
 
     pt_customer_callback_t *pt_customer_callback = (pt_customer_callback_t *) callback_data;
@@ -218,8 +243,13 @@ EDGE_LOCAL void pt_handle_pt_register_failure(json_t *response, void *callback_d
 
     api_lock();
     connection_t *connection = find_connection(connection_id);
+    if (connection) {
+        connection->client->registered = false;
+    }
+    else {
+        tr_warn("Connection no longer found in pt_handle_pt_register_failure");
+    }
     api_unlock();
-    connection->client->registered = false;
 
     pt_customer_callback_t *pt_customer_callback = (pt_customer_callback_t *) callback_data;
     pt_customer_callback->failure_handler(pt_customer_callback->userdata);
@@ -806,7 +836,6 @@ pt_status_t pt_device_unregister(const connection_id_t connection_id,
     if (PT_STATUS_SUCCESS == status) {
         status = send_message_to_event_loop(connection_id, message);
     }
-    //api_unlock();
     return status;
 }
 
@@ -831,11 +860,12 @@ static void call_free_userdata_conditional(pt_userdata_t *userdata)
     }
 }
 
-pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
-                                    const char *device_id,
-                                    const uint32_t lifetime,
-                                    const queuemode_t queuemode,
-                                    pt_userdata_t *userdata)
+pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection_id,
+                                                const char *device_id,
+                                                const uint32_t lifetime,
+                                                const queuemode_t queuemode,
+                                                const uint32_t features,
+                                                pt_userdata_t *userdata)
 {
     if (NULL == device_id) {
         return PT_STATUS_INVALID_PARAMETERS;
@@ -871,13 +901,37 @@ pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
     device->queuemode = queuemode;
     device->userdata = userdata;
     device->devices_data = NULL;
+    device->features = features;
+    device->csr_request_id = NULL;
+    device->csr_request_id_len = 0;
 
     ns_list_init(objects);
     device->objects = objects;
 
     pt_devices_add_device(connection->client->devices, device);
+
+    if (device->features & PT_DEVICE_FEATURE_CERTIFICATE_RENEWAL) {
+        pt_status_t status = pt_device_init_certificate_renewal_resources(connection_id, device_id);
+        if (status != PT_STATUS_SUCCESS) {
+            tr_error("Initializing certificate renewal resource failed, status %d", status);
+            pt_devices_remove_and_free_device(connection->client->devices, device);
+            api_unlock();
+            return PT_STATUS_FEATURE_INITIALIZATION_FAIL;
+        }
+    }
+
     api_unlock();
     return PT_STATUS_SUCCESS;
+}
+
+
+pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
+                                           const char *device_id,
+                                           const uint32_t lifetime,
+                                           const queuemode_t queuemode,
+                                           pt_userdata_t *userdata)
+{
+    return pt_device_create_with_feature_flags(connection_id, device_id, lifetime, queuemode, PT_DEVICE_FEATURE_NONE, userdata);
 }
 
 pt_status_t pt_device_create(const connection_id_t connection_id,
@@ -921,6 +975,31 @@ void pt_device_free(pt_device_t *device)
         free(device);
     }
 }
+
+pt_status_t pt_device_get_feature_flags(const connection_id_t connection_id,
+                                        const char *device_id,
+                                        uint32_t *flags)
+{
+    api_lock();
+
+    connection_t *connection = find_connection(connection_id);
+    if (connection == NULL || connection->client == NULL) {
+        api_unlock();
+        return PT_STATUS_NOT_CONNECTED;
+    }
+
+    pt_device_t *device = pt_devices_find_device(connection->client->devices, device_id);
+    if (device == NULL) {
+        api_unlock();
+        return PT_STATUS_NOT_FOUND;
+    }
+
+    *flags = device->features;
+
+    api_unlock();
+    return PT_STATUS_SUCCESS;
+}
+
 
 // Note: this method is expecting that device is not NULL
 pt_object_t *pt_device_add_object_or_create(pt_device_t *device, const uint16_t id, pt_status_t *status)
@@ -1852,6 +1931,11 @@ bool pt_device_exists(const connection_id_t connection_id, const char *device_id
 {
     api_lock();
     connection_t *connection = find_connection(connection_id);
+    if (!connection) {
+        api_unlock();
+        tr_warn("Connection not found when checking device %s", device_id);
+        return false;
+    }
     bool exists = NULL != pt_devices_find_device(connection->client->devices, device_id);
     api_unlock();
     return exists;
@@ -1865,9 +1949,15 @@ bool pt_device_resource_exists(const connection_id_t connection_id,
 {
     api_lock();
     connection_t *connection = find_connection(connection_id);
+    if (!connection) {
+        api_unlock();
+        tr_warn("Connection not found when checking resource %d/%d/%d from device %s", object_id, object_instance_id, resource_id, device_id);
+        return false;
+    }
     pt_device_t *device = pt_devices_find_device(connection->client->devices, device_id);
     if (!device) {
         api_unlock();
+        tr_warn("Device not found when checking resource %d/%d/%d from device %s", object_id, object_instance_id, resource_id, device_id);
         return false;
     }
     bool exists = NULL != pt_device_find_resource(device, object_id, object_instance_id, resource_id);

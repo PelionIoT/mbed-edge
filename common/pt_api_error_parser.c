@@ -8,10 +8,10 @@ void pt_api_error_parser_parse_error_response(json_t *response, edgeclient_reque
     int32_t code = PT_API_INTERNAL_ERROR;
     json_t *error = json_object_get(response, "error");
     json_t *id_obj = json_object_get(response, "id");
-    const char *id = NULL;
+    char *id = NULL;
 
     if (id_obj) {
-        id = json_string_value(id_obj);
+        id = json_dumps(id_obj, JSON_COMPACT|JSON_ENCODE_ANY);
     }
 
     if (error) {
@@ -24,6 +24,7 @@ void pt_api_error_parser_parse_error_response(json_t *response, edgeclient_reque
     } else {
         tr_err("pt_api_error_parser_parse_error_response: missing error object for response, id: %s", id);
     }
+    free(id);
     ctx->jsonrpc_error_code = code;
 }
 

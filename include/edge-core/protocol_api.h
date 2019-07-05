@@ -24,6 +24,7 @@
 #include "jsonrpc/jsonrpc.h"
 #include "common/pt_api_error_codes.h"
 #include "edge-core/server.h"
+#include "est_defs.h"
 #include "certificate-enrollment-client/ce_status.h"
 #include "certificate-enrollment-client/ce_defs.h"
 
@@ -122,6 +123,16 @@ int certificate_renewal_list_set(json_t *request, json_t *json_params, json_t **
  */
 int renew_certificate(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
+/**
+ * \brief Requests an EST enrollment for a certificate.
+ *
+ * \param request The jsonrpc request.
+ * \param json_params The parameter portion of the jsonrpc request.
+ * \param result The jsonrpc result object to fill.
+ * \return 0 if the EST enrollment operation started successfully.\n
+ *         1 if an error occurred. Details are in the result parameter.
+ */
+int est_request_enrollment(json_t *request, json_t *json_params, json_t **result, void *userdata);
 
 /**
  * \brief The edgeclient request context data.
@@ -152,6 +163,17 @@ int write_to_pt(edgeclient_request_context_t *ctx, void *userdata);
  *         1 if the status couldn't be written.
  */
 int certificate_renewal_notifier(const char *certificate_name, ce_status_e status, ce_initiator_e initiator, void *ctx);
+
+/**
+ * \brief Sends the EST enrollment result to the protocol translator.
+ *
+ * \param result Result of the finished EST enrollment process.
+ * \param cert_chain Structure containing the enrolled certificate or certificates.
+ * \param ctx Context pointer passed from server when initializing the client.
+ * \return 0 if status was written successfully.\n
+ *         1 if the status couldn't be written.
+ */
+int est_enrollment_result_notifier(est_enrollment_result_e result, struct cert_chain_context_s *cert_chain, void *ctx);
 
 /**
  * @}

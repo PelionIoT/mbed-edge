@@ -45,6 +45,8 @@ struct error_message_entry_t ERROR_MESSAGES[] =
          {PT_API_REMOTE_DISCONNECTED, "Remote disconnected."},
          {PT_API_CERTIFICATE_RENEWAL_BUSY, "Certificate renewal failed. Certificate enrollment client is busy."},
          {PT_API_CERTIFICATE_RENEWAL_ERROR, "Certificate renewal failed. Certificate enrollment client internal error."},
+         {PT_API_CERTIFICATE_RENEWAL_INVALID_PARAMETERS, "Certificate renewal failed. Invalid parameters."},
+         {PT_API_CERTIFICATE_RENEWAL_MEMORY_ALLOCATION_FAILURE, "Certificate renewal failed. A memory allocation failed."},
          {PT_API_UNKNOWN_ERROR, NULL}};
 
 const char *pt_api_get_error_message(pt_api_result_code_e code)

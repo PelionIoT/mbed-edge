@@ -1,0 +1,13 @@
+{
+    "classId": "a0d514b5-57b3-531d-b44a-f3779c0ef2eb", 
+    "default-certificates": [
+        {
+            "file": "default.der"
+        }
+    ], 
+    "deviceURNs": [], 
+    "modelName": "TapaniModel", 
+    "private-key": "default.key.pem", 
+    "vendorDomain": "tapani.com", 
+    "vendorId": "a2824187-dbc7-591d-95a7-7e4b62bc4374"
+}

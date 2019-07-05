@@ -157,7 +157,8 @@
  * \param[in] resource_id The resource ID targetted.
  * \param[in] operation The operation, for example OPERATION_WRITE.
  * \param[in] value A pointer to the value buffer.\n
- *            The ownership of the value buffer is within the `pt_resource_t`.
+ *            The ownership of the value buffer is within the `pt_resource_t` and the pointer is only valid for the
+ *            duration of the function call.
  *            For different LwM2M data types there are byte-order restrictions as follows:\n
  *            \li \b String: UTF-8.
  *            \li \b Integer: A binary signed integer in network byte-order (64 bits).
@@ -228,6 +229,31 @@ pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
                                     pt_userdata_t *userdata);
 
 /**
+ * \brief Creates the device structure and enables additional features.
+ *
+ * \param[in] connection_id The ID of the connection of the requesting application.
+ * \param[in] device_id The unique device identifier.
+ * \param[in] lifetime The expected lifetime for the device. The device
+ *                     registrations must be updated. This parameter is reserved and currently not used.
+ *                     The translated endpoints are tracked withing the parent Edge device lifetime.
+ * \param[in] queuemode The queue mode before the time is elapsed. This parameter is reserved, but currently not used.
+ * \param[in] features The feature flags for enabling features this device supports. See `pt_device_feature_e` enum
+ *                     in `pt_common_api.h` for supported feature flags.
+ * \param[in] userdata The user data to add to the `pt_device_t` structure. Create this structure with
+ *                     `pt_api_create_device_userdata()`.
+ *
+ * \return `PT_STATUS_SUCCESS` in case of success. Other error codes for failure.
+ * Note! In case of an error where the status parameter returns something else than `PT_STATUS_SUCCESS`
+ * the userdata free function will NOT be called and the userdata should be freed by the user.
+ */
+pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection_id,
+                                                const char *device_id,
+                                                const uint32_t lifetime,
+                                                const queuemode_t queuemode,
+                                                const uint32_t features,
+                                                pt_userdata_t *userdata);
+
+/**
  * \brief Creates the device structure.
  *
  * \param[in] connection_id The ID of the connection of the requesting application.
@@ -240,16 +266,31 @@ pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
  * \return `PT_STATUS_SUCCESS` in case of success. Other error codes for failure.
  */
 pt_status_t pt_device_create(const connection_id_t connection_id,
-                      const char *device_id,
-                      const uint32_t lifetime,
-                      const queuemode_t queuemode);
+                             const char *device_id,
+                             const uint32_t lifetime,
+                             const queuemode_t queuemode);
+
+/**
+ * \brief Retrieves the feature flags of a device.
+ *
+ * \param[in] connection_id The ID of the connection of the requesting application.
+ * \param[in] device_id The unique device identifier.
+ * \param[out] features Pointer to a uint32_t variable, On success it will contain the feature flags.
+ *                      On failure the value will be undefined. See `pt_device_feature_e` enum
+ *                      in `pt_common_api.h` for supported feature flags.
+ *
+ * \return `PT_STATUS_SUCCESS` in case of success. Other error codes for failure.
+ */
+pt_status_t pt_device_get_feature_flags(const connection_id_t connection_id,
+                                        const char *device_id,
+                                        uint32_t *features);
 
 /**
  * \brief Endpoint device registration function. Every endpoint device must be registered with the protocol
  * translator and Device Management Edge before reading and writing device values.
  *
  * \param[in] connection_id The connection ID of the requesting application.
- * \param[in] device_id The structure containing structured information of the device to be registered.
+ * \param[in] device_id The device ID of the device to register.
  * \param[in] success_handler A function pointer that gets called when the device registration is successful.
  * \param[in] failure_handler A function pointer that gets called when the device registration fails.
  * \param[in] userdata The user-supplied context given as an argument to success and failure handler
@@ -270,7 +311,7 @@ pt_status_t pt_device_register(const connection_id_t connection_id,
  *        data will be freed from memory.
  *
  * \param[in] connection_id The connection ID of the requesting application.
- * \param[in] device_id The structure containing structured information of the device to be unregistered.
+ * \param[in] device_id The device ID of the device to unregister.
  * \param[in] success_handler A function pointer that gets called when the device unregistration is successful.
  * \param[in] failure_handler A function pointer that gets called when the device unregistration fails.
  * \param[in] userdata The user-supplied context given as an argument to success and failure handler

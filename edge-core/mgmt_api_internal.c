@@ -393,7 +393,7 @@ int write_resource(json_t *request, json_t *json_params, json_t **result, void *
         tr_debug("write_resource: management api request context malloc failure.");
         goto error_exit;
     }
-    mgmt_ctx->request_id = strdup(json_string_value(json_object_get(request, "id")));
+    mgmt_ctx->request_id = json_dumps(json_object_get(request, "id"), JSON_COMPACT|JSON_ENCODE_ANY);
     mgmt_ctx->connection = ((struct json_message_t *) userdata)->connection;
     if (-1 == asprintf(&uri_with_device, "d/%s%s", endpoint_name, uri)) {
         goto error_exit;

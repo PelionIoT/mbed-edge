@@ -57,6 +57,7 @@ typedef struct edgeclient_data_s {
                           g_handle_unregister_cb(NULL),
                           g_handle_error_cb(NULL),
                           g_handle_cert_renewal_status_cb(NULL),
+                          g_handle_est_status_cb(NULL),
                           g_cert_renewal_ctx(NULL),
                           edgeclient_status(UNREGISTERED)
     {
@@ -75,6 +76,7 @@ typedef struct edgeclient_data_s {
     handle_unregister_cb g_handle_unregister_cb;
     handle_error_cb g_handle_error_cb;
     handle_cert_renewal_status_cb g_handle_cert_renewal_status_cb;
+    handle_est_status_cb g_handle_est_status_cb;
     void *g_cert_renewal_ctx;
     volatile edgeClientStatus_e edgeclient_status;
 } edgeclient_data_t;

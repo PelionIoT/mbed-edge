@@ -56,7 +56,8 @@ typedef enum {
     PT_STATUS_INVALID_PARAMETERS,
     PT_STATUS_ALLOCATION_FAIL,
     PT_STATUS_NOT_CONNECTED,
-    PT_STATUS_NOT_FOUND
+    PT_STATUS_NOT_FOUND,
+    PT_STATUS_FEATURE_INITIALIZATION_FAIL
 } pt_status_t;
 
 /**
@@ -68,6 +69,14 @@ typedef enum {
     PT_STATE_REGISTERED,
     PT_STATE_UNREGISTERING
 } pt_device_state_e;
+
+/**
+ * \brief Enumeration contain device feature flags.
+ */
+typedef enum {
+    PT_DEVICE_FEATURE_NONE = 0,
+    PT_DEVICE_FEATURE_CERTIFICATE_RENEWAL = (1 << 1),
+} pt_device_feature_e;
 
 #endif
 

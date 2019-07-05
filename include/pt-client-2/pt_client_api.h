@@ -29,6 +29,7 @@
 #define PT_CLIENT_API_H
 
 #include "pt-client-2/pt_common_api.h"
+#include "pt-client-2/pt_certificate_api.h"
 
 /**
  * \addtogroup EDGE_PT_API_V2
@@ -92,26 +93,6 @@ typedef void (*pt_disconnected_cb)(connection_id_t connection_id, void *userdata
 typedef void (*pt_connection_shutdown_cb)(connection_id_t connection_id, void *userdata);
 
 /**
- * \brief Type definition for certificate renewal notification.
- *        This callback will be called to notify the status when a certificate renewal completes.
- * \param name The name of the certificate.
- * \param initiator 0 - device initiated the renewal \n
- *                  1 - cloud initiated the renewal
- * \param status Status of the certificate renewal.
- *               0 - for success. \n
- *               Non-zero if error happened. See error codes in `ce_status_e` in
- *                   `certificate-enrollment-client/ce_defs.h`.
- * \param description Description of the status in string form for human readability.
- * \param userdata. The Userdata which was passed to `pt_client_start`.
- */
-typedef void (*pt_certificate_renewal_notification_handler)(const connection_id_t connection_id,
-                                                            const char *name,
-                                                            int32_t initiator,
-                                                            int32_t status,
-                                                            const char *description,
-                                                            void *userdata);
-
-/**
  * \brief A structure to hold the callbacks of the protocol translator
  */
 typedef struct protocol_translator_callbacks {
@@ -119,6 +100,7 @@ typedef struct protocol_translator_callbacks {
     pt_disconnected_cb disconnected_cb;
     pt_connection_shutdown_cb connection_shutdown_cb;
     pt_certificate_renewal_notification_handler certificate_renewal_notifier_cb;
+    pt_device_certificate_renew_request_handler device_certificate_renew_request_cb;
 } protocol_translator_callbacks_t;
 
 /**

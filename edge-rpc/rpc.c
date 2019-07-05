@@ -261,9 +261,8 @@ int rpc_construct_response(json_t *response, char **data, size_t *data_len)
         tr_warn("A null response pointer was passed to rpc_construct_response.");
         return 1;
     }
-    const char *message_id = json_string_value(json_object_get(response, "id"));
 
-    if (data == NULL || message_id == NULL) {
+    if (data == NULL || json_object_get(response, "id") == NULL) {
         tr_warn("A null data or response id output param was passed to rpc_construct_response.");
         return 1;
     }
@@ -317,7 +316,7 @@ int32_t rpc_construct_and_send_message(struct connection *connection,
     int32_t ret = write_function(connection, data, data_len);
     if (ret != 0) {
         tr_err("write_function returned %d", ret);
-        message_t *found = _remove_message_for_connection_and_id(connection, message_id, true /* acquire_mutex */);
+        message_t *found = _remove_message_for_connection_and_id(connection, (const char*)message_id, true /* acquire_mutex */);
         rpc_dealloc_message_entry(found);
         return -2; // the message_couldn't be sent
     }
@@ -355,7 +354,9 @@ void rpc_add_message_entry_to_list(void *message_entry)
 #if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_DEBUG
         message_t *msg = (message_t *) message_entry;
         json_t *id_obj = json_object_get(msg->json_message, "id");
-        tr_debug("rpc_add_message_entry_to_list, connection: %p id : %s", msg->connection, json_string_value(id_obj));
+        char *id_string = json_dumps(id_obj, JSON_COMPACT|JSON_ENCODE_ANY);
+        tr_debug("rpc_add_message_entry_to_list, connection: %p id : %s", msg->connection, id_string);
+        free(id_string);
 #endif
         rpc_mutex_wait();
         ns_list_add_to_end(&messages, (message_t *) message_entry);
@@ -376,11 +377,14 @@ static message_t *_remove_message_for_connection_and_id(struct connection *conne
     {
         json_t *id_obj = json_object_get(cur->json_message, "id");
         assert(id_obj != NULL);
-        if (cur->connection == connection && strncmp(json_string_value(id_obj), message_id, strlen(message_id)) == 0) {
+        char *id_string = json_dumps(id_obj, JSON_COMPACT|JSON_ENCODE_ANY);
+        if (cur->connection == connection && id_string != NULL && strncmp(id_string, message_id, strlen(message_id)) == 0) {
             found = cur;
             ns_list_remove(&messages, found);
+            free(id_string);
             break;
         }
+        free(id_string);
     }
     if (acquire_mutex) {
         rpc_mutex_release();
@@ -390,7 +394,7 @@ static message_t *_remove_message_for_connection_and_id(struct connection *conne
 
 static message_t *remove_message_for_response(struct connection *connection,
                                               json_t *response,
-                                              const char **response_id,
+                                              char **response_id,
                                               bool acquire_mutex)
 {
     json_t *response_id_obj = json_object_get(response, "id");
@@ -399,14 +403,19 @@ static message_t *remove_message_for_response(struct connection *connection,
         return NULL;
     }
 
-    *response_id = json_string_value(response_id_obj);
-    return _remove_message_for_connection_and_id(connection, *response_id, acquire_mutex);
+    *response_id = json_dumps(response_id_obj, JSON_COMPACT|JSON_ENCODE_ANY);
+    if (response_id == NULL) {
+        tr_error("Can't allocate response id object");
+        return NULL;
+    }
+
+    return _remove_message_for_connection_and_id(connection, (const char*)*response_id, acquire_mutex);
 }
 
 static int handle_response_common(struct connection *connection, json_t *response, bool acquire_mutex)
 {
     int rc;
-    const char *response_id = NULL;
+    char *response_id = NULL;
     message_t *found;
 
     found = remove_message_for_response(connection, response, &response_id, acquire_mutex);
@@ -443,6 +452,7 @@ static int handle_response_common(struct connection *connection, json_t *respons
         tr_err("Did not find any matching request for the response with id: %s.", response_id);
         rc = -1;
     }
+    free(response_id);
     return rc;
 }
 
@@ -523,8 +533,7 @@ void rpc_timeout_unresponded_messages(int32_t max_response_time_ms)
     {
         if (current_time - cur->creation_timestamp_in_ms >= max_response_time_ms) {
             char *desc = NULL;
-            asprintf(&desc, "Timeout response with timeout threshold %d ms", max_response_time_ms);
-            if (desc) {
+            if (asprintf(&desc, "Timeout response with timeout threshold %d ms", max_response_time_ms) >= 0) {
                 json_t *json_id;
                 json_t *json_params;
                 const char *str_method;
@@ -541,8 +550,10 @@ void rpc_timeout_unresponded_messages(int32_t max_response_time_ms)
                 json_t *result = jsonrpc_error_object(PT_API_REQUEST_TIMEOUT,
                                                       pt_api_get_error_message(PT_API_REQUEST_TIMEOUT),
                                                       json_string(desc));
-                tr_warn("Timeout for request id: %s", json_string_value(json_id));
+                char *id_string = json_dumps(json_id, JSON_COMPACT|JSON_ENCODE_ANY);
+                tr_warn("Timeout for request id: %s", id_string);
                 send_error_response(json_id, result, cur->connection);
+                free(id_string);
                 free(desc);
             }
         }

@@ -12,6 +12,7 @@ LOCAL_API_DEPENDS := \
                     ${API_PLATFORM_DEPENDS} \
 
 LOCAL_ADD_INCLUDE := \
+                    ${LOCAL_NAME}/Source \
                     ${LOCAL_NAME}/Source/PAL-Impl \
                     ${LOCAL_NAME}/Source/PAL-Impl/Services-API \
                     ${LOCAL_NAME}/Source/Port/Platform-API \
@@ -29,6 +30,7 @@ LOCAL_ADD_INCLUDE += \
 LOCAL_ADD_INCLUDE += \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/factory-configurator-client/mbed-client-esfs/source/include \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/factory-configurator-client/storage/storage \
+                    ${MBED_CLOUD_SERVICE}/mbed-cloud-client/factory-configurator-client/storage/source/include \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/factory-configurator-client/key-config-manager/key-config-manager \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/factory-configurator-client/crypto-service/crypto-service \
 

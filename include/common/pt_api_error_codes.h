@@ -146,7 +146,17 @@ typedef enum {
     /**
      * \brief Certificate renewal failed to internal error.
      */
-    PT_API_CERTIFICATE_RENEWAL_ERROR = -30108
+    PT_API_CERTIFICATE_RENEWAL_ERROR = -30108,
+
+    /**
+     * \brief Certificate renewal failed to invalid parameters.
+     */
+    PT_API_CERTIFICATE_RENEWAL_INVALID_PARAMETERS = -30109,
+
+    /**
+     * \brief Certificate renewal failed because a  memory allocation failed.
+     */
+    PT_API_CERTIFICATE_RENEWAL_MEMORY_ALLOCATION_FAILURE = -30110
 
 } pt_api_result_code_e;
 
