@@ -28,6 +28,8 @@ Usage:
   edge_tool.py write   --device-id=<device-id> --resource-path=<resource-path> --new-resource-value=<value>
   edge_tool.py filter  (--host-edge=<device-id> | --edge-devices) [--connected]
   edge_tool.py convert-dev-cert (--development-certificate <path> --cbor <path>) --update-resource <path>
+  edge_tool.py add-custom-cert --custom-cert <name> --cbor <path>
+  edge_tool.py print-cbor --cbor <path>
   edge_tool.py --help
 
 Options:
@@ -39,7 +41,8 @@ Options:
   --connected                      Filter only currently connected devices.
   --development-certificate path>  The path to Device Management development certificate C source file.
   --update-resource <path>         The path to `update_default_resources.c` source file.
-  --cbor <path>                    The CBOR output file path.
+  --cbor <path>                    The CBOR output / input file path.
+  --custom-cert <name>             The custom certificate name.
 """
 
 import sys
@@ -56,7 +59,7 @@ from collections import namedtuple
 from cloud import observe_async, execute, read, write, \
     filter_edge_devices, filter_edge_hosted_devices
 
-from cbor_converter import CBORConverter
+from cbor_converter import CBORConverter, CBORUtils
 
 
 def main():
@@ -82,6 +85,10 @@ def main():
                                   args["--update-resource"],
                                   args["--cbor"])
         converter.convert_to_cbor()
+    if (args["add-custom-cert"]):
+        CBORUtils.add_custom_certificate(args["--cbor"], args["--custom-cert"])
+    if (args["print-cbor"]):
+        CBORUtils.print_cbor(args["--cbor"])
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ The Edge tool depends on
  * [Device Management SDK](https://cloud.mbed.com/docs/latest/mbed-cloud-sdk-python/index.html).
  * [CBOR2](https://pypi.org/project/cbor2)
  * [PyCLibrary](https://pypi.org/project/pyclibrary)
+ * [Cryptography](https://pypi.org/project/cryptography/)
 
 The dependencies will get installed by the [bootstrap-edge-tool-env.sh](./bootstrap-edge-tool-env.sh) to a virtual environment.
 
