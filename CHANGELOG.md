@@ -1,5 +1,10 @@
 # Changelog for Edge
 
+## Release 0.11.0 (2019-10-03)
+
+* Pelion Device Management Client library updated to version 3.4.0.
+* Mbed TLS updated to version 2.18.1.
+
 ## Release 0.10.0 (2019-05-07)
 
  * Changed Edge to use Device Management Client library default TLS configuration file instead of the TLS configuration file provided by Edge.
