@@ -19,5 +19,5 @@
 
 palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes)
 {
-    return pal_plat_osEntropyRead("/dev/random", randomBuf, bufSizeBytes, actualRandomSizeBytes);
+    return pal_plat_osEntropyRead("/dev/urandom", randomBuf, bufSizeBytes, actualRandomSizeBytes);
 }
