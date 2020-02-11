@@ -76,15 +76,11 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver& observer,
   _security_connection( new M2MConnectionSecurity( RESOLVE_SEC_MODE(mode) )),
   _connection_handler(*this, _security_connection, mode, stack),
   _nsdl_interface(*this, _connection_handler),
-  _security(NULL)
+  _security(NULL),
+  _initial_reconnection_time(0),
+  _reconnection_time(0)
 {
     tr_debug("M2MInterfaceImpl::M2MInterfaceImpl() -IN");
-    //TODO:Increase the range from 1 to 100 seconds
-    randLIB_seed_random();
-    // Range is from 2 to 10
-    _initial_reconnection_time = randLIB_get_random_in_range(2, 10);
-    tr_info("M2MInterfaceImpl::M2MInterfaceImpl() initial random time %d\n", _initial_reconnection_time);
-    _reconnection_time = _initial_reconnection_time;
 
 #ifndef DISABLE_ERROR_DESCRIPTION
     memset(_error_description, 0, sizeof(_error_description));
@@ -479,12 +475,17 @@ void M2MInterfaceImpl::bootstrap_error(const char *reason)
 
     _retry_timer_expired = false;
     _retry_timer.stop_timer();
+    create_random_initial_reconnection_time();
     _retry_timer.start_timer(_reconnection_time * 1000,
                               M2MTimerObserver::RetryTimer);
     tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
     _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
+    // The timeout is randomized to + 10% and -10% range from reconnection value
+    _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
+
     if(_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
-        _reconnection_time = MAX_RECONNECT_TIMEOUT;
+        // The max timeout is randomized to + 10% and -10% range from maximum value
+        _reconnection_time = randLIB_randomise_base(MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
     }
 }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -598,14 +599,19 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         _reconnecting = true;
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
+        create_random_initial_reconnection_time();
         _retry_timer.start_timer(_reconnection_time * 1000,
                                  M2MTimerObserver::RetryTimer);
 
         tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
 
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
+        // The timeout is randomized to + 10% and -10% range from reconnection value
+        _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
+
         if (_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
-            _reconnection_time = MAX_RECONNECT_TIMEOUT;
+            // The max timeout is randomized to + 10% and -10% range from maximum value
+            _reconnection_time = randLIB_randomise_base(MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
         }
 #ifndef DISABLE_ERROR_DESCRIPTION
         snprintf(_error_description, sizeof(_error_description), ERROR_REASON_9, error_code_des);
@@ -765,9 +771,13 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
                         // return error to the application and go to Idle state.
                         if(!_server_ip_address.empty()) {
                             error = M2MInterface::ErrorNone;
-                            _retry_timer.stop_timer();
-                            _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                                     M2MTimerObserver::BootstrapFlowTimer);
+
+                            // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+                            // This timer is stopped when handshake is completed (address resolved).
+                            if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+                                _retry_timer.stop_timer();
+                                _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
+                            }
 
                             _connection_handler.resolve_server_address(_server_ip_address,
                                                                         _server_port,
@@ -788,9 +798,12 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
         _listen_port = 0;
         _connection_handler.bind_connection(_listen_port);
 
-        _retry_timer.stop_timer();
-        _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                 M2MTimerObserver::BootstrapFlowTimer);
+        // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+        // This timer is stopped when handshake is completed (address resolved).
+        if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+            _retry_timer.stop_timer();
+            _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
+        }
 
         tr_info("M2MInterfaceImpl::state_bootstrap (reconnect) - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
         _connection_handler.resolve_server_address(_server_ip_address,
@@ -821,6 +834,11 @@ void M2MInterfaceImpl::state_bootstrap_address_resolved( EventData *data)
         address.addr_ptr = (uint8_t*)event->_address->_address;
         address.addr_len = event->_address->_length;
         _connection_handler.start_listening_for_data();
+
+        // Add backoff timer for the bootsrap flow.
+        // Server has no any reconnection logic so it might be possible that whole BS flow get stuck.
+        _retry_timer.stop_timer();
+        _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
 
         if(_nsdl_interface.create_bootstrap_resource(&address)) {
            internal_event(STATE_BOOTSTRAP_RESOURCE_CREATED);
@@ -877,10 +895,12 @@ void M2MInterfaceImpl::state_register(EventData *data)
 
                             tr_info("M2MInterfaceImpl::state_register - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
                             if(!_server_ip_address.empty()) {
-                                // Connection related errors are coming through callback
-                                _retry_timer.stop_timer();
-                                _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                                         M2MTimerObserver::RegistrationFlowTimer);
+                                // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+                                // This timer is stopped when handshake is completed (address resolved).
+                                if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+                                    _retry_timer.stop_timer();
+                                    _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::RegistrationFlowTimer);
+                                }
 
                                 error = M2MInterface::ErrorNone;
                                 _connection_handler.resolve_server_address(_server_ip_address,_server_port,
@@ -907,9 +927,12 @@ void M2MInterfaceImpl::state_register(EventData *data)
         }
         _connection_handler.bind_connection(_listen_port);
 
-        _retry_timer.stop_timer();
-        _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                 M2MTimerObserver::RegistrationFlowTimer);
+        // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+        // This timer is stopped when handshake is completed (address resolved).
+        if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+            _retry_timer.stop_timer();
+            _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::RegistrationFlowTimer);
+        }
 
         tr_info("M2MInterfaceImpl::state_register (reconnect) - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
         _connection_handler.resolve_server_address(_server_ip_address,_server_port,
@@ -959,6 +982,9 @@ void M2MInterfaceImpl::state_register_address_resolved( EventData *data)
         _connection_handler.start_listening_for_data();
         _nsdl_interface.set_server_address((uint8_t*)event->_address->_address,event->_address->_length,
                                            event->_port, address_type);
+
+        _retry_timer.stop_timer();
+
         switch (_reconnection_state) {
             case M2MInterfaceImpl::None:
                 if (!_nsdl_interface.send_register_message()) {
@@ -981,6 +1007,7 @@ void M2MInterfaceImpl::state_register_address_resolved( EventData *data)
 void M2MInterfaceImpl::state_registered( EventData */*data*/)
 {
     tr_info("M2MInterfaceImpl::state_registered");
+
     _retry_timer.stop_timer();
 
     _reconnection_time = _initial_reconnection_time;
@@ -990,6 +1017,11 @@ void M2MInterfaceImpl::state_registered( EventData */*data*/)
     if (_reconnection_state == M2MInterfaceImpl::Unregistration) {
         internal_event(STATE_UNREGISTER);
     } else {
+        if(queue_mode() && _callback_handler) {
+            _queue_sleep_timer.stop_timer();
+            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
+                                            M2MTimerObserver::QueueSleep);
+        }
         _reconnection_state = M2MInterfaceImpl::WithUpdate;
     }
 }
@@ -1464,17 +1496,30 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
     if (status == M2MConnectionObserver::NetworkInterfaceConnected) {
         tr_info("M2MInterfaceImpl::network_interface_status_change - connected");
         if (_reconnecting) {
-            _retry_timer.stop_timer();
-            if (_bootstrapped) {
-                internal_event(STATE_REGISTER);
+            uint16_t rand_time = randLIB_get_random_in_range(0, 200);
+            // Check if the ongoing timer value is greater than the random range then
+            // start a smaller random time. (Multiplication factor is because reconn timer
+            // is multiplied immediately after its started so taking it into account)
+            if(_reconnection_time > rand_time * 2) {
+                _retry_timer.stop_timer();
+                _retry_timer.start_timer( rand_time * 1000,
+                                         M2MTimerObserver::RetryTimer);
             }
-#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-            else {
-                internal_event(STATE_BOOTSTRAP);
-            }
-#endif
         }
     } else {
         tr_info("M2MInterfaceImpl::network_interface_status_change - disconnected");
+    }
+}
+
+void M2MInterfaceImpl::create_random_initial_reconnection_time()
+{
+    if(_initial_reconnection_time == 0) {
+        randLIB_seed_random();
+        _initial_reconnection_time = randLIB_get_random_in_range(10, 100);
+        // The initial timeout is randomized to + 10% and -10% range from original random value
+        _initial_reconnection_time = randLIB_randomise_base(_initial_reconnection_time, 0x7333, 0x8CCD);
+        tr_info("M2MInterfaceImpl::create_random_initial_reconnection_time() initial random time %d\n", _initial_reconnection_time);
+        _reconnection_time = _initial_reconnection_time;
+
     }
 }

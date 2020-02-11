@@ -1363,9 +1363,20 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *by
 #endif
     edgeclient_destroy_byoc_data(byoc_data);
     status = fcc_verify_device_configured_4mbed_cloud();
-    if (status != FCC_STATUS_SUCCESS) {
-        tr_error("Device not configured for Device Management - exit");
-        exit(1);
+    if (status != FCC_STATUS_SUCCESS && status != FCC_STATUS_EXPIRED_CERTIFICATE) {
+        tr_info("fcc status is %d - try factory reset", status);
+        kcm_status_e kcm_status = kcm_factory_reset();
+        if (kcm_status != KCM_STATUS_SUCCESS) {
+            tr_err("Failed to do factory reset - %d - exit", kcm_status);
+            exit(1);
+        } else {
+            tr_info("Factory reset successfull - retry verifying device config");
+            status = fcc_verify_device_configured_4mbed_cloud();
+            if (status != FCC_STATUS_SUCCESS && status != FCC_STATUS_EXPIRED_CERTIFICATE) {
+                tr_error("Device not configured for Device Management - exit");
+                exit(1);
+            }
+        }
     }
 }
 

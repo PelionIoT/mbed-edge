@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include <stdio.h>
 
@@ -150,6 +154,17 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             TRACE_ARGS("FIRM_ERR_FIRMWARE_TOO_LARGE");
             error_external = ARM_UC_ERROR_WRITE_TO_STORAGE;
             error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_INSUFFICIENT_STORAGE_SPACE;
+            break;
+
+        case FIRM_ERR_PROCESSOR_PARSE_ERROR:
+            TRACE_ARGS("FIRM_ERR_PROCESSOR_PARSE_ERROR");
+            error_external = ARM_UC_UPDATE_RESULT_PROCESSOR_PARSE_ERROR;
+            error_monitor = ARM_UC_UPDATE_RESULT_PROCESSOR_PARSE_ERROR;
+            break;
+        case FIRM_ERR_INSUFFICIENT_MEMORY_SPACE:
+            TRACE_ARGS("FIRM_ERR_PROCESSOR_PARSE_ERROR");
+            error_external = ARM_UC_UPDATE_RESULT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE;
+            error_monitor = ARM_UC_UPDATE_RESULT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE;
             break;
 
         /* Manifest Manager */
@@ -409,3 +424,5 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
         arm_uc_error_callback_handler(error_external);
     }
 }
+
+#endif // ARM_UC_ENABLE

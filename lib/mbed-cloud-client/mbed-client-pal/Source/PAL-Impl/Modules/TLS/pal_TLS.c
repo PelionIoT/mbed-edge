@@ -20,7 +20,7 @@
 
 // do not require storage unless this modules is configured to use it
 #if PAL_USE_SECURE_TIME
-#include "storage_items.h"
+#include "storage_kcm.h"
 #endif
 
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
@@ -763,3 +763,10 @@ void pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle
 }
 
 #endif //PAL_USE_SSL_SESSION_RESUME
+
+void pal_setDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_f callback, void *argument)
+{
+    //palSocket_t depend on the library (socket or bio pointer)
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+    pal_plat_SetDTLSSocketCallback(palTLSConfCtx->platTlsConfHandle, callback, argument);
+}

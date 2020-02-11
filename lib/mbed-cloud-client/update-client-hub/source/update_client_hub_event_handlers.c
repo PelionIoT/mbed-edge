@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "update_client_hub_event_handlers.h"
 #include "update_client_hub_error_handler.h"
@@ -201,6 +205,14 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             ARM_UC_HUB_ErrorHandler(FIRM_ERR_FIRMWARE_TOO_LARGE, arm_uc_hub_state);
             break;
 
+        case UCFM_EVENT_PROCESSOR_PARSE_ERROR:
+            UC_HUB_TRACE("UCFM_EVENT_PROCESSOR_PARSE_ERROR");
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_PROCESSOR_PARSE_ERROR, arm_uc_hub_state);
+            break;
+        case UCFM_EVENT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE:
+            UC_HUB_TRACE("UCFM_EVENT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE");
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_INSUFFICIENT_MEMORY_SPACE, arm_uc_hub_state);
+            break;
         case UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR:
             UC_HUB_TRACE("UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR");
             break;
@@ -510,3 +522,5 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
             break;
     }
 }
+
+#endif // ARM_UC_ENABLE

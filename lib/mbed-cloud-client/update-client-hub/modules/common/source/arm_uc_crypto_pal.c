@@ -24,7 +24,6 @@
 
 #if defined(ARM_UC_FEATURE_CRYPTO_PAL) && (ARM_UC_FEATURE_CRYPTO_PAL == 1)
 #include "pal.h"
-#include "sotp.h"
 #ifndef palMDHandle_t
 #include "pal_plat_rot.h"
 #else
@@ -43,7 +42,7 @@ arm_uc_error_t ARM_UC_cryptoHashSetup(arm_uc_mdHandle_t *hDigest, arm_uc_mdType_
     return result;
 }
 
-arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *hDigest, arm_uc_buffer_t *input)
+arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *hDigest, const arm_uc_buffer_t *input)
 {
     arm_uc_error_t result = (arm_uc_error_t) { ARM_UC_CU_ERR_INVALID_PARAMETER };
     if (hDigest && input) {

@@ -36,6 +36,7 @@ endif()
 set(PAL_FILESYSTEM_SRCS
     ${PAL_MODULES_SOURCE_DIR}/Storage/FileSystem/pal_fileSystem.c
     ${PAL_PORT_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem.c
+    ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem_FsOverRam.c
 )
 
 set(PAL_NETWORKING_SRCS
@@ -84,16 +85,20 @@ set (PAL_TIME_SRCS ${PAL_TIME_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Time/pal_plat
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/External/pal_plat_rot_hw.c)
 # Add the platform independent ROT implementation, which gets used if the PAL_USE_HW_ROT==0
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/SOTP/pal_plat_rot_sotp.c)
+# Add the platform independent ROT implementation for PSA, which gets used if the PAL_USE_HW_ROT==0
+set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/PSA/pal_plat_rot_psa.c)
 
 # Add the platform independent DRBG implementation
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/SOTP/pal_plat_drbg_sotp.c)
 
-# Add the platform independent entropy implementation
-set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/pal_plat_entropy_sotp.c)
+# Add the platform independent entropy implementation for SOTP
+set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/SOTP/pal_plat_entropy_sotp.c)
+# Add the platform independent entropy implementation for PSA
+set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/PSA/pal_plat_entropy_psa.c)
 
 # Add the platform independent flash-over-filesystem implementation, which gets used if 
 # PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM==1
-set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/Flash/FlashOverFilesystem/pal_plat_internalFlash_FlashOverFilesystem.c)
+set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/Flash/pal_plat_internalFlash_FlashOverFilesystem.c)
 
 # Add the platform independent noise implementation (used by the DRBG mdule)
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/pal_plat_drbg_noise.c)
@@ -119,8 +124,8 @@ add_library(palEntropy STATIC "${PAL_ENTROPY_SRCS}")
 
 # Create the TLS module library
 add_library(palTLS STATIC "${PAL_TLS_SRCS}")
-add_dependencies(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager)
-target_link_libraries(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager)
+add_dependencies(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager nanostackeventloop)
+target_link_libraries(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager nanostackeventloop)
 
 # Create the Crypto module library
 add_library(palCrypto STATIC "${PAL_CRYPTO_SRCS}")

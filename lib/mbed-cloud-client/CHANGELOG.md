@@ -1,6 +1,88 @@
 ## Changelog for Pelion Device Management Client
 
-### Release 3.4.0 (15.08.2019)
+### Release 4.3.0 (03.02.2020)
+
+#### Device Management Client
+
+* Updated Mbed CoAP to 5.1.3.
+* Changed trace group so that all CoAP messages are visible in the [COAP] trace group.
+* Fixed a double free error. In certain situations free was called twice for CoAP message payload.
+
+### Platform Adaptation Layer (PAL)
+
+* Fixed PAL filesystem API to allow access to files larger than 2GB. This allows update of images up to 4GB.
+* [Crypto] Made entropy seeding check more robust.
+* [Mbed OS] Removed dependency on string-based network API.
+
+### Release 4.2.1 (20.12.2019)
+
+Reverted a bug fix for PAL and FCC support for larger than 2 GB files. This fixes a regression in 4.2.0 release for embedded linux platforms where the application hardfaults when tracing is enabled.
+
+### Release 4.2.0 (18.12.2019)
+
+#### Device Management Client
+
+* Fixed the handling of small blockwise sizes in delta update.
+* Updated Mbed CoAP to 5.1.2.
+* Notification tokens are cleared before a full registration.
+  * Fixed an error that occurred in certain situations where subscriptions are lost and never come back until reboot.
+
+### Platform Adaptation Layer (PAL)
+
+* Added a developer feature to enable testing client in non-persistent RAM storage.
+  * To enable the feature, define `PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM 1`.
+* Fixed PAL filesystem API to allow access to files larger than 2 GB.
+* [Mbed OS] Added compatibility workaround for the DNS `Getaddrinfo` returning more than one address in future Mbed OS release.
+
+### Release 4.1.0 (28.11.2019)
+
+#### Device Management Client
+
+* Deprecated `M2MFirmware` class.
+* Fixed handling of the write attribute `step`. Previously, it did not store the value-change history correctly.
+* Fixed compilation issues caused by disabled update features. Previously, update-related configuration was mandatory even if the feature itself was disabled.
+* Removed support for the obsolete and undocumented write attribute `STP`. It was an alias for documented attribute `ST`.
+* [Linux] Added missing internal sub-component dependencies to `CMakeLists.txt`.
+* Added randomization to reconnection timer calculations.
+* Increased the library default `MBED_CLOUD_CLIENT_LIFETIME` to 86400 seconds.
+
+### Platform Adaptation Layer (PAL)
+
+* Shortened one long filepath to mitigate compilation issues in Windows platforms due to too long file path.
+* [Linux] Added `O_SYNC` flag for `pal_plat_fsOpen()` to ensure critical certificate data is written out without delays.
+* TLS: Added an option to run Mbed TLS allocations in a static buffer.
+* DTLS: Cancel DTLS timer event when cleaning up the TLS context.
+  * In some cases, a DTLS timer event can remain in the running state even if the whole TLS context is destroyed.
+  * This can happen, for example, when the client goes into a reconnect loop or when switching from bootstrap flow to LwM2M registration.
+
+### Release 4.0.0 (25.09.2019)
+
+#### Device Management Client
+
+* Added a new API `init()` to `MbedCloudClient` class. You can use this optional API for two-phased memory allocation when initializing the client. It allows the example application to resolve out-of-memory issues during the initialization of the client library.
+* Removed a redundant switch in `M2MFirmware` class `get_resource` function.
+* Updated Mbed CoAP to 5.1.1.
+* Fixed the Resource `/1/0/7` to return the correct binding mode when trying to `GET` the value of the Resource using a REST API call.
+* Increased the Device Management Client initial reconnection delay to have range of 10 to 100 seconds.
+* Increased the `MBED_CLIENT_TCP_KEEPALIVE_INTERVAL` to nine minutes.
+* Implemented DTLS timer handling for handshake.
+* When Device Management Client is compiled with the *PSA* configuration, it uses PSA-protected storage APIs instead of:
+  * KVStore in Mbed OS.
+  * ESFS/SOTP for non-Mbed OS platforms.
+
+  <span class="notes">**Note:** Both storage types above are still used in the *non-PSA* variant of Device Management Client.</span>
+
+#### Factory configurator client
+
+* Support for UNISOC SXOS SDK v8p2.1 for UIS8908A NB-IoT board.
+
+#### Platform Adaptation Layer (PAL)
+
+* Improved support and proper timer logic for UDP/DTLS.
+* PSA Crypto API v1.0b3 support.
+* Support for UNISOC SXOS SDK v8p2.1 for UIS8908A NB-IoT board.
+
+### Release 3.4.0 (28.08.2019)
 
 #### Device Management Connect client
 
@@ -20,28 +102,26 @@
 #### Factory configurator client
 
 * Replaced CBOR implementation library with tinycbor.
-* Bugfix - working with file name length of KCM_MAX_FILENAME_SIZE in KCM APIs resulted in KCM_STATUS_FILE_NAME_TOO_LONG error.
+* Bug fix: Working with a file name length of `KCM_MAX_FILENAME_SIZE` in KCM APIs resulted in a `KCM_STATUS_FILE_NAME_TOO_LONG` error.
 
 #### Secure Device Access client
 
 * Initial Secure Device Access (SDA) release.
 * SDA implements the ACE-OAuth standard, which specifies a framework for authenticating and authorizing in constrained IoT environments.
-* The [full SDA documentation](https://www.pelion.com/docs/device-management/current/device-management/secure-device-access.html) is available on our documentation site.
+* The [full SDA documentation](../device-management/secure-device-access.html) is available on our documentation site.
 
 #### Device Management Update client
 
 * New update authorization API:
-  * Deprecated `ARM_UC_SetAuthorizeHandler()` in favor of `ARM_UC_SetAuthorizePriorityHandler()`
-  * Added `ARM_UC_Reject()` to be used from application authorization callback to deliver the rejection reason to the service.
-  * Added priority field to manifest.
-  * Propagated update priority from manifest to application authorization callback.
-* Delta update stability improvements.
-* Postpone writing update candidate metadata to a later phase to prevent update in the event of an accidental reset. Only write metadata after the download is finished and installation is authorized by the application.
-  
+  * Deprecated `ARM_UC_SetAuthorizeHandler()` in favor of `ARM_UC_SetAuthorizePriorityHandler()`.
+  * Added `ARM_UC_Reject()` to the application authorization callback to deliver the rejection reason to the service.
+  * Added a priority field to the manifest.
+  * Propagated update priority from the manifest to the application authorization callback.
+* Writing of the update candidate metadata is postponed to a later phase. The metadata is written when the download has completed and the client application has authorized the installation.
 
 #### Platform Adaptation Layer (PAL)
 
-* [LINUX] Read the source entropy from the target machine system environment if available, otherwise, use the user default source entropy file path.
+* [Linux] Read the source entropy from the target machine system environment if available; otherwise, use the user default source entropy file path.
   * Read the entropy file name from the system environment entry `ENTROPYSOURCE=<path-to-entropy-file-name>`.
 * [TLS] Fixed potential double free issue in `pal_initTLS()`.
 * [Tests] Do not try to execute filesystem tests if there is no filesystem.

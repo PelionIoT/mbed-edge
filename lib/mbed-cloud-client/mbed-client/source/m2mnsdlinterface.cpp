@@ -58,6 +58,7 @@
 #include "eventOS_event_timer.h"
 #include "eventOS_scheduler.h"
 #include "ns_hal_init.h"
+#include "pal.h"
 
 #define MBED_CLIENT_NSDLINTERFACE_TASKLET_INIT_EVENT 0 // Tasklet init occurs always when generating a tasklet
 #define MBED_CLIENT_NSDLINTERFACE_EVENT 30
@@ -82,7 +83,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=3.4.0";
+const char *MCC_VERSION = "mccv=4.3.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -95,14 +96,23 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
         M2MNsdlInterface *interface = (M2MNsdlInterface*)sn_nsdl_get_context(coap_data->nsdl_handle);
         if (interface) {
             interface->resource_callback_handle_event(coap_data->received_coap_header, &coap_data->address);
+
+#if SN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT
+            if (coap_data->received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
+                sn_nsdl_remove_coap_block(coap_data->nsdl_handle, &coap_data->address, coap_data->received_coap_header->payload_len, coap_data->received_coap_header->payload_ptr);
+            } else {
+                M2MNsdlInterface::memory_free(coap_data->received_coap_header->payload_ptr);
+            }
+
+#else
             if (coap_data->received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED &&
                 coap_data->received_coap_header->payload_ptr) {
                 coap_data->nsdl_handle->grs->sn_grs_free(coap_data->received_coap_header->payload_ptr);
                 coap_data->received_coap_header->payload_ptr = 0;
             }
+#endif
         }
 
-        M2MNsdlInterface::memory_free(coap_data->received_coap_header->payload_ptr);
         sn_coap_parser_release_allocated_coap_msg_mem(coap_data->nsdl_handle->grs->coap, coap_data->received_coap_header);
         M2MNsdlInterface::memory_free(coap_data->address.addr_ptr);
         M2MNsdlInterface::memory_free(coap_data);
@@ -119,6 +129,8 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
                                                               coap_data->received_coap_header->msg_code);
         if (coap_response) {
             coap_response->msg_type = coap_data->received_coap_header->msg_type;
+            // Let CoAP to choose next message id
+            coap_response->msg_id = 0;
 
             if (sn_nsdl_send_coap_message(coap_data->nsdl_handle, &coap_data->address, coap_response) == 0) {
                 interface->store_bs_finished_response_id(coap_response->msg_id);
@@ -142,7 +154,15 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
         M2MNsdlInterface *interface = (M2MNsdlInterface*)sn_nsdl_get_context(coap_data->nsdl_handle);
         interface->handle_bootstrap_put_message(coap_data->received_coap_header, &coap_data->address);
 
+#if SN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT
+        if (coap_data->received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
+            sn_nsdl_remove_coap_block(coap_data->nsdl_handle, &coap_data->address, coap_data->received_coap_header->payload_len, coap_data->received_coap_header->payload_ptr);
+            coap_data->received_coap_header->payload_ptr = NULL;
+        }
+#endif
+
         M2MNsdlInterface::memory_free(coap_data->received_coap_header->payload_ptr);
+
         sn_coap_parser_release_allocated_coap_msg_mem(coap_data->nsdl_handle->grs->coap, coap_data->received_coap_header);
         M2MNsdlInterface::memory_free(coap_data->address.addr_ptr);
         M2MNsdlInterface::memory_free(coap_data);
@@ -152,6 +172,8 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
         interface->handle_bootstrap_finish_ack(event->event_data);
     }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
+    event->event_data = 0;
 }
 
 M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandler &connection_handler)
@@ -174,9 +196,10 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _nsdl_execution_timer_running(false),
   _notification_send_ongoing(false),
   _registered(false),
-  _bootstrap_finish_ack_received(false),
+  _waiting_for_bs_finish_ack(false),
   _download_retry_timer(*this),
-  _download_retry_time(0)
+  _download_retry_time(0),
+  _auto_obs_token(0)
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
 
@@ -207,9 +230,6 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
     eventOS_scheduler_mutex_release();
 
     _event.data.receiver = M2MNsdlInterface::_tasklet_id;
-
-    // Randomize the initial auto obs token. Range is in 1 - 1023
-    _auto_obs_token = randLIB_get_random_in_range(AUTO_OBS_TOKEN_MIN, AUTO_OBS_TOKEN_MAX);
 
     initialize();
 }
@@ -308,6 +328,13 @@ void M2MNsdlInterface::create_endpoint(const String &name,
         if (life_time > 0) {
             set_endpoint_lifetime_buffer(life_time);
         }
+        String binding_mode;
+        if (_binding_mode == M2MInterface::UDP || _binding_mode == M2MInterface::TCP) {
+            binding_mode = (char*)BINDING_MODE_UDP;
+        } else if (_binding_mode == M2MInterface::UDP_QUEUE || _binding_mode == M2MInterface::TCP_QUEUE) {
+            binding_mode = (char*)BINDING_MODE_UDP_QUEUE;
+        }
+        _server->set_resource_value(M2MServer::Binding, binding_mode);
     }
 }
 
@@ -411,7 +438,7 @@ bool M2MNsdlInterface::create_bootstrap_resource(sn_nsdl_addr_s *address)
 {
     tr_debug("M2MNsdlInterface::create_bootstrap_resource()");
     _identity_accepted = false;
-    _bootstrap_finish_ack_received = false;
+    _waiting_for_bs_finish_ack = false;
     bool success = false;
     tr_debug("M2MNsdlInterface::create_bootstrap_resource() - endpoint name: %.*s", _endpoint->endpoint_name_len,
              _endpoint->endpoint_name_ptr);
@@ -474,16 +501,19 @@ bool M2MNsdlInterface::send_register_message()
 {
     tr_info("M2MNsdlInterface::send_register_message()");
     bool success = false;
+
+    // Clear the observation tokens
+    send_next_notification(true);
+
     if (_server_address) {
         success = parse_and_send_uri_query_parameters();
     }
+
     // If URI parsing fails or there is no parameters, try again without parameters
     if (!success) {
-        // Clear the observation tokens
-        send_next_notification(true);
-
         success = sn_nsdl_register_endpoint(_nsdl_handle,_endpoint, NULL) != 0;
     }
+
     return success;
 }
 
@@ -753,9 +783,15 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                                                                               nsdl_handle,
                                                                               coap_header->msg_code);
                     if (nsdl_coap_data) {
-                        _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_PUT_EVENT;
-                        _event.data.data_ptr = (void*)nsdl_coap_data;
-                        eventOS_event_send_user_allocated(&_event);
+                        if (!_event.data.event_data) {
+                            _event.data.event_data = true;
+                            _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_PUT_EVENT;
+                            _event.data.data_ptr = (void*)nsdl_coap_data;
+                            eventOS_event_send_user_allocated(&_event);
+                        } else {
+                            tr_debug("M2MNsdlInterface::received_from_server_callback() - BS PUT - event already in queue!");
+                        }
+
                         return 2; // freeing will be performed in MBED_CLIENT_NSDLINTERFACE_BS_PUT_EVENT event
                     } else {
                         tr_error("M2MNsdlInterface::received_from_server_callback() - BS PUT failed to allocate nsdl_coap_data_s!");
@@ -899,6 +935,13 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
 
     M2MBase *base = find_resource(resource_name);
 
+    // Update current time resource when doing a GET to the device object.
+    if (received_coap_header->msg_code == COAP_MSG_CODE_REQUEST_GET &&
+        resource_name.compare(0, 1, "3") == 0) {
+        M2MDevice* dev = M2MInterfaceFactory::create_device();
+        dev->set_resource_value(M2MDevice::CurrentTime, pal_osGetTime());
+    }
+
 #ifdef ENABLE_ASYNC_REST_RESPONSE
     if (base) {
         if (base->is_async_coap_request_callback_set()) {
@@ -920,7 +963,12 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
         if (!async_response) {
             uint8_t status = resource_callback_handle_event(received_coap_header, address);
             if (received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
+#if SN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT
+                // Free the block message from the CoAP list, data copied into a resource
+                sn_nsdl_remove_coap_block(_nsdl_handle, address, received_coap_header->payload_len, received_coap_header->payload_ptr);
+#else
                 memory_free(received_coap_header->payload_ptr);
+#endif
             }
             sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, received_coap_header);
             return status;
@@ -949,16 +997,21 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
     }
 
     send_empty_ack(received_coap_header, address);
-    nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(received_coap_header,
-                                                              address,
-                                                              nsdl_handle,
-                                                              received_coap_header->msg_code);
-    if (nsdl_coap_data) {
-        _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_EVENT;
-        _event.data.data_ptr = (void*)nsdl_coap_data;
-        eventOS_event_send_user_allocated(&_event);
+    if (!_event.data.event_data) {
+        nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(received_coap_header,
+                                                                  address,
+                                                                  nsdl_handle,
+                                                                  received_coap_header->msg_code);
+        if (nsdl_coap_data) {
+            _event.data.event_data = true;
+            _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_EVENT;
+            _event.data.data_ptr = (void*)nsdl_coap_data;
+            eventOS_event_send_user_allocated(&_event);
+        } else {
+            tr_error("M2MNsdlInterface::resource_callback() - failed to allocate nsdl_coap_data_s!");
+        }
     } else {
-        tr_error("M2MNsdlInterface::resource_callback() - failed to allocate nsdl_coap_data_s!");
+        tr_debug("M2MNsdlInterface::resource_callback() - event already in queue!");
     }
     return 0;
 }
@@ -1562,7 +1615,10 @@ bool M2MNsdlInterface::create_nsdl_resource(M2MBase *base)
 {
     claim_mutex();
     bool success = false;
-
+    if (_auto_obs_token == 0) {
+        // Randomize the initial auto obs token. Range is in 1 - 1023
+        _auto_obs_token = randLIB_get_random_in_range(AUTO_OBS_TOKEN_MIN, AUTO_OBS_TOKEN_MAX);
+    }
     if (base) {
         int8_t result = 0;
         sn_nsdl_dynamic_resource_parameters_s* nsdl_resource = base->get_nsdl_resource();
@@ -2141,6 +2197,11 @@ void M2MNsdlInterface::handle_bootstrap_put_message(sn_coap_hdr_s *coap_header,
                                            response_code);
 
     if (coap_response) {
+        // Set the correct message type. Must be confirmable since this is a separate response.
+        // Clear the message id so CoAP will add a new one.
+        coap_response->msg_type = coap_header->msg_type;
+        coap_response->msg_id = 0;
+
         sn_nsdl_send_coap_message(_nsdl_handle, address, coap_response);
         sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, coap_response);
     }
@@ -2318,6 +2379,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
 
     // In ok case send response as a separate response
     if (msg_code == COAP_MSG_CODE_RESPONSE_CHANGED) {
+        _waiting_for_bs_finish_ack = true;
         send_empty_ack(coap_header, address);
     // In error case use piggybacked response
     } else {
@@ -2332,7 +2394,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
 
     // Send a event which is responsible of sending the final response
     if (COAP_MSG_CODE_RESPONSE_CHANGED == msg_code) {
-        bool success = false;
+        bool alloc_failed = true;
         sn_coap_hdr_s *coap_message = sn_nsdl_build_response(_nsdl_handle,
                                                              coap_header,
                                                              (sn_coap_msg_code_e)msg_code);
@@ -2341,21 +2403,31 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
             memory_free(_endpoint->endpoint_name_ptr);
             _endpoint->endpoint_name_ptr = alloc_string_copy((uint8_t*)_endpoint_name.c_str(), _endpoint_name.length());
             if (_endpoint->endpoint_name_ptr) {
-                _endpoint->endpoint_name_len = _endpoint_name.length();
-                nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(coap_message,
-                                                                          address,
-                                                                          _nsdl_handle,
-                                                                          (sn_coap_msg_code_e)msg_code);
-                if (nsdl_coap_data) {
-                    success = true;
-                    _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_EVENT;
-                    _event.data.data_ptr = (void*)nsdl_coap_data;
-                    eventOS_event_send_user_allocated(&_event);
+                if (!_event.data.event_data) {
+                    _endpoint->endpoint_name_len = _endpoint_name.length();
+                    nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(coap_message,
+                                                                              address,
+                                                                              _nsdl_handle,
+                                                                              (sn_coap_msg_code_e)msg_code);
+                    if (nsdl_coap_data) {
+                        alloc_failed = false;
+                        _event.data.event_data = true;
+                        _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_EVENT;
+                        _event.data.data_ptr = (void*)nsdl_coap_data;
+                        eventOS_event_send_user_allocated(&_event);
+                    } else {
+                        tr_error("M2MNsdlInterface::handle_bootstrap_finished - CoAP data memory allocation failed");
+                    }
+                } else {
+                    alloc_failed = false;
+                    tr_debug("M2MNsdlInterface::handle_bootstrap_finished - event already in queue");
                 }
+            } else {
+                tr_error("M2MNsdlInterface::handle_bootstrap_finished - endpoint name memory allocation failed");
             }
         }
 
-        if (!success) {
+        if (alloc_failed) {
             const char *desc = "memory allocation failed";
             if (strlen(ERROR_REASON_22) + strlen(desc) <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
                 snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);
@@ -3097,7 +3169,9 @@ void M2MNsdlInterface::handle_register_update_response(const sn_coap_hdr_s *coap
             // till we get CoAP level response for the request
             _observer.registration_error(M2MInterface::NetworkError, true);
         } else {
-            // Do a full registration
+            // Clear observation tokens and do a full registration
+            send_next_notification(true);
+
             bool msg_sent = false;
             if (_server_address) {
                 msg_sent = parse_and_send_uri_query_parameters();
@@ -3367,24 +3441,27 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
         }
     } else if (is_bootstrap_msg) {
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-        if (!_bootstrap_finish_ack_received) {
-            // The _bootstrap_finish_ack_received flag is used to avoid sending the finish event
+        if (_waiting_for_bs_finish_ack) {
+            // The _waiting_for_bs_finish_ack flag is used to avoid sending the finish event
             // twice incase we get the same ack before the event loop has handled the event.
+            // Also keeps track that we are interested of EMPTY ACK received for final bs post request.
             _observer.bootstrap_wait();
             if (coap_header->coap_status == COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED ||
                 coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
                 handle_bootstrap_error(ERROR_REASON_28, false);
             } else {
                 tr_debug("M2MNsdlInterface::handle_empty_ack - sending finish event - status %d", coap_header->coap_status);
-                _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_FINISH_EVENT;
-                _event.data.event_data = coap_header->msg_id;
-                _event.data.data_ptr = _nsdl_handle;
-                _bootstrap_finish_ack_received = true;
-                eventOS_event_send_user_allocated(&_event);
+                if (!_event.data.event_data) {
+                    _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_FINISH_EVENT;
+                    tr_debug("M2MNsdlInterface::handle_empty_ack - sending finish event - msg id %d", coap_header->msg_id);
+                    _event.data.event_data = coap_header->msg_id;
+                    _event.data.data_ptr = _nsdl_handle;
+                    _waiting_for_bs_finish_ack = false;
+                    eventOS_event_send_user_allocated(&_event);
+                } else {
+                    tr_debug("M2MNsdlInterface::handle_empty_ack - sending finish event - event already in queue");
+                }
             }
-        }
-        else {
-            tr_debug("M2MNsdlInterface::handle_empty_ack - finish event already in progress");
         }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     } else {

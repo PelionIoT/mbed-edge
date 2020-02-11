@@ -23,6 +23,11 @@ include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets
 # mbedtls
 include_directories (lib/mbedtls/include)
 include_directories (lib/mbedtls/include/mbedtls/)
+
+# crypto
+include_directories (lib/mbedtls/crypto/include)
+include_directories (lib/mbedtls/crypto/include/mbedtls)
+
 SET (MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES "${ROOT_HOME}/lib/mbed-cloud-client")
 
 # cloud client
