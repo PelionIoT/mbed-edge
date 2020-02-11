@@ -25,7 +25,6 @@
 
 #include "pal.h"
 #include "mcc_common_setup.h"
-#include "sotp.h"
 
 #include "unity_fixture.h"
 #include "sda_log.h"
@@ -36,7 +35,6 @@
 #include "mbed-trace-helper.h"
 
 #include "sda_testdata.h"
-#include "esfs.h"
 
 #include "factory_configurator_client.h"
 #include "pv_error_handling.h"

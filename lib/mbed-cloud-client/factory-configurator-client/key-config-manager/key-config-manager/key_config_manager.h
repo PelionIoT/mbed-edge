@@ -69,8 +69,7 @@ extern "C" {
     *    @param[in] kcm_item_is_factory True if the KCM item is a factory item; otherwise, false.
     *    @param[in] kcm_item_data       KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
     *    @param[in] kcm_item_data_size  KCM item data buffer size in bytes. Can be 0 if you want to store an empty file.
-    *    @param[in] kcm_item_info       Optional item info. Currently, this parameter is used only for PSA configuration. The parameter points to
-    *                                   the initialized PSA key policy structure, which has the information about the key usage and algorithm.
+    *    @param[in] kcm_item_info       Security descriptor, caller must set this to NULL.
     *    @returns
     *        ::KCM_STATUS_SUCCESS            in case of success.
     *        ::KCM_STATUS_FILE_EXIST         when trying to store an item that already exists.
@@ -90,7 +89,7 @@ extern "C" {
 
     /**
     * Retrieves the KCM item data size from secure storage.
-    * In PSA mode (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is on), ::KCM_PRIVATE_KEY_ITEM type is not supported.   
+    * In PSA mode (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is on), ::KCM_PRIVATE_KEY_ITEM type is not supported.
     *
     *    @param[in]  kcm_item_name          KCM item name.
     *    @param[in]  kcm_item_name_len      KCM item name length.
@@ -139,7 +138,7 @@ extern "C" {
     *    @param[in]  kcm_item_name              KCM item name.
     *    @param[in]  kcm_item_name_len          KCM item name length.
     *    @param[in]  kcm_item_type              KCM item type as defined in `::kcm_item_type_e`.
-    *    @param[out] kcm_item_data_out          KCM item data output buffer. The buffer allocated internally. 
+    *    @param[out] kcm_item_data_out          KCM item data output buffer. The buffer allocated internally.
     *    @param[out] kcm_item_data_size_out     KCM item data output buffer size in bytes.
     *
     *    @returns
@@ -152,7 +151,6 @@ extern "C" {
                                             kcm_item_type_e kcm_item_type,
                                             uint8_t ** kcm_item_data_out,
                                             size_t * kcm_item_data_size_out);
-
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
@@ -191,7 +189,61 @@ extern "C" {
     *        ::KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_item_close_handle(kcm_key_handle_t *key_handle);
-#endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+
+    /** Returns an initial value of the item extra info.
+    * The caller must set the relevant members of item extra info before calling any other KCM API; otherwise, the default location is used (default: KCM_LOCATION_PSA).
+    */
+#define KCM_ITEM_EXTRA_INFO_INIT {KCM_LOCATION_PSA, KCM_LOCATION_PSA}
+    static inline kcm_item_extra_info_s kcm_item_extra_info_init(void)
+    {
+        const kcm_item_extra_info_s extra_info = KCM_ITEM_EXTRA_INFO_INIT;
+        return (extra_info);
+    }
+
+    /**
+    * Gets the location of a certain item.
+    * The location is the actual storage medium as defined by ::kcm_item_location_e.
+    *
+    *    @param[in]  kcm_item_name     KCM item name.
+    *    @param[in]  kcm_item_name_len KCM item name length.
+    *    @param[in]  kcm_item_type     KCM item type as defined in `::kcm_item_type_e`.
+    *                                  Only ::KCM_PRIVATE_KEY_ITEM and ::KCM_PUBLIC_KEY_ITEM are valid.
+    *                                  Other types result in a ::KCM_STATUS_INVALID_PARAMETER error.
+    *    @param[out] item_location_out A pointer to the location on which the item resides.
+    *                                  This out variable will be set to the corresponding storage location as defined in `::kcm_item_location_e`
+    *
+    *    @returns
+    *        ::KCM_STATUS_SUCCESS            in case of success.
+    *        ::KCM_STATUS_ITEM_NOT_FOUND     if the item isn't found in the PSA storage.
+    *        One of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e kcm_item_get_location(const uint8_t *item_name,
+                                       size_t item_name_len,
+                                       kcm_item_type_e kcm_item_type,
+                                       kcm_item_location_e *item_location_out);
+
+
+     /**
+     * Gets the slot number of a private key stored on a secure element.
+     *
+     *    @param[in]  prv_key_name          KCM private key name.
+     *    @param[in]  prv_key_name_len      KCM private key name length in bytes.
+     *    @param[out] se_prv_key_slot       Output secure element slot number of the key.
+     *                                      Use output value only if function returns KCM_STATUS_SUCCESS.
+     * 
+     *    @returns
+     *        ::KCM_STATUS_SUCCESS            in case of success.
+     *        One of the `::kcm_status_e` errors otherwise.
+     */
+    kcm_status_e kcm_se_private_key_get_slot(const uint8_t *prv_key_name,
+                                             size_t prv_key_name_len,
+                                             uint64_t *se_prv_key_slot);
+
+
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     /* === Key, certificate, and configuration delete === */
 
@@ -244,7 +296,7 @@ extern "C" {
     *      If the first certificate of the chain is missing, the function returns a
     *        ::KCM_STATUS_ITEM_NOT_FOUND error.
     *      If one of the next certificates is missing, the function returns:
-    *        ::KCM_STATUS_ITEM_NOT_FOUND for SST storage configuration.
+    *        ::KCM_STATUS_ITEM_NOT_FOUND for SST and PSA storage configurations.
     *        ::KCM_STATUS_SUCCESS for Device Management Client secure storage configuration.
     *                  If there is an attempt to read the missing certificate using the opened chain handle, through the `::kcm_cert_chain_get_next_size`
     *                  or `::kcm_cert_chain_get_next_data` APIs, the called API then returns a ::KCM_STATUS_ITEM_NOT_FOUND error.
@@ -367,6 +419,10 @@ extern "C" {
     *                                      Must be 0, if `::public_key_name` is not provided.
     *      @param[in] kcm_item_is_factory  True if the KCM item is a factory item; otherwise, it is false.
     *      @param[in] kcm_item_info        Additional item data.
+    *                                      For a non-PSA build, this parameter must be set to NULL.
+    *                                      If you are using a secure element:
+    *                                      (1) If NULL, the private and public keys are generated and stored in the default location, which is set pre-build.
+    *                                      (2) If set to `kcm_item_extra_info_s`, the private and public keys are generated and stored in the selected location.
     *
     *      @returns
     *         ::KCM_STATUS_SUCCESS in the event of success.
@@ -412,7 +468,7 @@ extern "C" {
     *     @param[in]  public_key_name      The public key name for which a key pair is generated.
     *                                      This parameter is optional.
     *                                      If not provided, the key is generated, but not stored.
-    *     @param public_key_name_len       The length of the public key name.
+    *     @param[in] public_key_name_len   The length of the public key name.
     *                                      Must be 0, if `::public_key_name` is not provided.
     *     @param[in]  kcm_item_is_factory  True if the KCM item is a factory item; otherwise, it is false.
     *     @param[in]  csr_params           CSR parameters.
@@ -420,6 +476,10 @@ extern "C" {
     *     @param[in]  csr_buff_max_size    The size of the supplied CSR buffer.
     *     @param[out] csr_buff_act_size    The actual size of the filled CSR buffer.
     *     @param[in]  kcm_item_info        Additional item data.
+    *                                      For a non-PSA build, this parameter must be set to NULL.
+    *                                      If you are using a secure element:
+    *                                      (1) If NULL, the private and public keys are generated and stored in the default location, which is set pre-build.
+    *                                      (2) If set to `kcm_item_extra_info_s`, the private and public keys are generated and stored in the selected location.
     *
     *     @returns
     *         ::KCM_STATUS_SUCCESS in case of success.
@@ -522,7 +582,7 @@ extern "C" {
         size_t                      signature_size);
 
     /** Generates a random number into a given buffer of a given size in bytes.
-    * 
+    *
     *    The function returns an error if entropy is expected and the function is called before entropy was injected.
     *
     *    @param[out] buffer                          A pointer to a buffer that holds the generated number.
@@ -536,7 +596,11 @@ extern "C" {
     */
     kcm_status_e kcm_generate_random(uint8_t *buffer, size_t buffer_size);
 
-    /*  Computes a shared secret using the elliptic curve Diffie Hellman algorithm.
+    /* Computes a shared secret using the elliptic curve Diffie-Hellman algorithm.
+    *
+    * A few limitations to consider:
+    * (1) If a secure element exists, this function enables use of a single key only - ALG_ECDSA(ALG_SHA_256).
+    * (2) If PSA and secure element do not exist, this function enables use of multiple keys, except LPC55S69_NS and CY8CKIT_062_WIFI_BT_PSA targets.
     *
     *    @param[in] private_key_name                            The private key name to fetch from storage.
     *    @param[in] private_key_name_len                        The length of the private key name.
@@ -554,9 +618,9 @@ extern "C" {
     kcm_status_e kcm_ecdh_key_agreement(
         const uint8_t              *private_key_name,
         size_t                      private_key_name_len,
-        const uint8_t               *peer_public_key, 
+        const uint8_t               *peer_public_key,
         size_t                      peer_public_key_size,
-        uint8_t                     *shared_secret, 
+        uint8_t                     *shared_secret,
         size_t                      shared_secret_max_size,
         size_t                      *shared_secret_act_size_out);
 

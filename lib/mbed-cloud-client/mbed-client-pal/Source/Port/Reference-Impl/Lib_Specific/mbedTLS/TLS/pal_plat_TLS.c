@@ -19,10 +19,16 @@
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl_internal.h"
+#ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+#include "mbedtls/memory_buffer_alloc.h"
+#endif
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "crypto.h"
 #include "stdio.h"
 #endif
+
+#include "eventOS_scheduler.h"
+#include "eventOS_event_timer.h"
 
 
 #include <stdlib.h>
@@ -46,11 +52,31 @@ PAL_PRIVATE mbedtls_time_t pal_mbedtlsTimeCB(mbedtls_time_t* timer);
 void mbedtls_debug_set_threshold( int threshold );
 #endif
 
+#ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
+// sanity check for mbedtls configuration
+#if !defined(MBEDTLS_MEMORY_BUFFER_ALLOC_C) || !defined(MBEDTLS_PLATFORM_MEMORY)
+    #error "Using PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS (mbed-client-pal.mbedtls-use-static-membuf) requires also using MBEDTLS_PLATFORM_MEMORY and MBEDTLS_MEMORY_BUFFER_ALLOC_C"
+#endif
+
+#ifdef PAL_STATIC_MEMBUF_SECTION_NAME
+#ifdef __ICCARM__
+#pragma location = PAL_STATIC_MEMBUF_SECTION_NAME
+__no_init unsigned char mbedtls_buf[PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS];
+#pragma location =
+#else
+unsigned char __attribute__((section(PAL_STATIC_MEMBUF_SECTION_NAME))) mbedtls_buf[PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS];
+#endif
+#else // #ifdef PAL_STATIC_MEMBUF_SECTION_NAME
+unsigned char mbedtls_buf[PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS];
+#endif // #ifdef PAL_STATIC_MEMBUF_SECTION_NAME
+#endif // #if PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
 typedef mbedtls_ssl_context platTlsContext;
 typedef mbedtls_ssl_config platTlsConfigurationContext;
 
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
-/** Following items need to be stored from mbedtls_ssl_session info structure
+/** Following items need to be stored from mbedtlsssl_session info structure
     to do the ssl session resumption.*/
 //int ciphersuite;            /*!< chosen ciphersuite */
 //size_t id_len;              /*!< session id length  */
@@ -64,11 +90,19 @@ static const int ssl_session_size = 92;
 PAL_PRIVATE mbedtls_entropy_context *g_entropy = NULL;
 PAL_PRIVATE bool g_entropyInitiated = false;
 
+PAL_PRIVATE void eventloop_event_handler(arm_event_s *event);
+#define PalTimerEvent 100
+
+PAL_PRIVATE int8_t g_eventloop_id = -1;
+PAL_PRIVATE void create_eventloop();
+
 typedef struct palTimingDelayContext
 {
     uint64_t                              start_ticks;
-    uint32_t                              int_ms;
-    uint32_t                              fin_ms;
+    arm_event_storage_t*                  timer_event;
+    bool                                  timer_expired;
+    void*                                 callback_argument;
+    palSocketCallback_f                   socket_cb;
 } palTimingDelayContext_t;
 
 
@@ -235,6 +269,10 @@ palStatus_t pal_plat_initTLSLibrary(void)
         g_entropyInitiated = false;
     }
 
+#if defined(PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS)
+    mbedtls_memory_buffer_alloc_init(mbedtls_buf, sizeof(mbedtls_buf));
+#endif
+
 #if PAL_USE_SECURE_TIME
     #ifdef MBEDTLS_PLATFORM_TIME_ALT
         // this scope is here to keep warnings away from gotos which skip over variable initialization
@@ -269,6 +307,10 @@ palStatus_t pal_plat_cleanupTLS(void)
     g_entropyInitiated = false;
     free(g_entropy);
     g_entropy = NULL;
+
+#if defined(PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS)
+    mbedtls_memory_buffer_alloc_free();
+#endif
 
 #if PAL_USE_SECURE_TIME
     //! Try to catch the Mutex in order to prevent situation of deleteing under use mutex
@@ -458,6 +500,9 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
     mbedtls_ssl_config_free(localConfigCtx->confCtx);
     mbedtls_ctr_drbg_free(&localConfigCtx->ctrDrbg);
 
+    // Cancel possible outstanding timer event
+    eventOS_cancel(localConfigCtx->timerCtx.timer_event);
+
     free(localConfigCtx->confCtx);
 
     memset(localConfigCtx, 0, sizeof(palTLSConf_t));
@@ -489,13 +534,25 @@ palStatus_t pal_plat_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palT
     mbedtls_ssl_init(&localTLSHandle->tlsCtx);
     localConfigCtx->tlsContext = localTLSHandle;
     localTLSHandle->tlsInit = true;
+    memset(&localConfigCtx->timerCtx, 0 , sizeof(palTimingDelayContext_t));
     mbedtls_ssl_set_timer_cb(&localTLSHandle->tlsCtx, &localConfigCtx->timerCtx, palTimingSetDelay, palTimingGetDelay);
     *palTLSHandle = (palTLSHandle_t)localTLSHandle;
+
+    create_eventloop();
 
 finish:
     return status;
 }
 
+void create_eventloop()
+{
+    if (g_eventloop_id == -1) {
+        eventOS_scheduler_mutex_wait();
+        g_eventloop_id = eventOS_event_handler_create(&eventloop_event_handler, 0);
+        assert(g_eventloop_id >= 0);
+        eventOS_scheduler_mutex_release();
+    }
+}
 
 palStatus_t pal_plat_freeTLS(palTLSHandle_t* palTLSHandle)
 {
@@ -997,40 +1054,61 @@ palStatus_t pal_plat_SetLoggingCb(palTLSConfHandle_t palTLSConf, palLogFunc_f pa
     return PAL_SUCCESS;
 }
 
-PAL_PRIVATE uint64_t palTimingGetTimer(uint64_t *start_ticks, int reset)
+void pal_plat_SetDTLSSocketCallback(palTLSConfHandle_t palTLSHandle, palSocketCallback_f cb, void *argument)
 {
-    uint64_t delta_ms;
-    uint64_t ticks = pal_osKernelSysTick();
-
-    if (reset)
-    {
-        *start_ticks = ticks;
-        delta_ms = 0;
-    }
-    else
-    {
-        delta_ms = pal_osKernelSysMilliSecTick(ticks - *start_ticks);
-    }
-
-    return delta_ms;
+    palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSHandle;
+    localConfigCtx->timerCtx.socket_cb = cb;
+    localConfigCtx->timerCtx.callback_argument = argument;
 }
 
+void eventloop_event_handler(arm_event_s *event)
+{
+    if (event->event_type == PalTimerEvent) {
+        if(!event->data_ptr) {
+            assert(event->data_ptr);
+        }
+        palTimingDelayContext_t* ctx = event->data_ptr;
+        ctx->timer_expired = true;
+        if(ctx->socket_cb) {
+            PAL_LOG_DBG("eventloop_event_handler -->");
+            ctx->socket_cb(ctx->callback_argument);
+        }
+    }
+}
 
 /*
  * Set delays to watch
  */
 PAL_PRIVATE void palTimingSetDelay( void *data, uint32_t intMs, uint32_t finMs )
 {
-
     palTimingDelayContext_t *ctx = data;
 
-    ctx->int_ms = intMs;
-    ctx->fin_ms = finMs;
-
-    if( finMs != 0 )
-    {
-        (void) palTimingGetTimer( &ctx->start_ticks, 1 );
+    if (ctx->timer_event) {
+       PAL_LOG_DBG("palTimingSetDelay cancel timer");
+       eventOS_cancel(ctx->timer_event);
+       ctx->timer_event = NULL;
+       ctx->timer_expired = false;
     }
+
+    if (finMs == 0) {
+       return;
+    }
+
+    ctx->start_ticks = pal_osKernelSysTick() + intMs;
+
+    arm_event_s event = {0};
+    event.receiver = g_eventloop_id;
+    event.event_id = PalTimerEvent;
+    event.event_type = PalTimerEvent;
+    event.data_ptr = ctx;
+    event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+    ctx->timer_event = eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(finMs));
+    if (!ctx->timer_event) {
+        PAL_LOG_ERR("palTimingSetDelay failed to create timer event");
+        return;
+    }
+
+    PAL_LOG_DBG("palTimingSetDelay start Timer finMs %" PRIu32 "", finMs);
 }
 
 /*
@@ -1038,34 +1116,19 @@ PAL_PRIVATE void palTimingSetDelay( void *data, uint32_t intMs, uint32_t finMs )
  */
 PAL_PRIVATE int palTimingGetDelay( void *data )
 {
-    int result = 0;
     palTimingDelayContext_t *ctx = data;
-    uint64_t elapsed_ms;
 
-    if( ctx->fin_ms == 0 )
-    {
-        result = -1;
-        goto finish;
+    /* See documentation of "typedef int mbedtls_ssl_get_timer_t( void * ctx );" from ssl.h */
+    if (ctx->timer_event == NULL) {
+        return -1;
+    } else if (ctx->timer_expired) {
+        return 2;
+    } else if (ctx->start_ticks < pal_osKernelSysTick()) {
+        return 1;
+    } else {
+        return 0;
     }
-
-    elapsed_ms = palTimingGetTimer( &ctx->start_ticks, 0 );
-
-    if( elapsed_ms >= ctx->fin_ms )
-    {
-        result = 2;
-        goto finish;
-    }
-
-    if( elapsed_ms >= ctx->int_ms )
-    {
-        result = 1;
-        goto finish;
-    }
-
-finish:
-    return result;
 }
-
 
 int pal_plat_entropySourceTLS( void *data, unsigned char *output, size_t len, size_t *olen )
 {

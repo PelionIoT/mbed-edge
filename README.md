@@ -69,7 +69,7 @@ $ apt install build-essential cmake git doxygen graphviz
 Fetch the Git submodules that are direct dependencies for Edge.
 ```
 $ git submodule init
-$ git submodule update
+$ git submodule update --recursive
 ```
 
 ## Configuring Edge build

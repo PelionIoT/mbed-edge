@@ -18,7 +18,7 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
 #include "delta-tool-internal/include/bspatch.h"
@@ -37,6 +37,10 @@
 #include <inttypes.h>
 #define FILE_MAGIC "PELION/BSDIFF001"
 #define FILE_MAGIC_LEN (sizeof(FILE_MAGIC) - 1)
+
+#ifndef MIN
+#define MIN(x,y) (((x)<(y)) ? (x) : (y))
+#endif
 
 static const ARM_UC_PAAL_UPDATE *paal_storage_implementation = NULL;
 
@@ -111,6 +115,10 @@ static arm_uc_buffer_t outgoing_new_buffer = {
     .size = 0,
     .ptr = buffer_temp_outgoing
 };
+
+static void arm_uc_deltapaal_map_patch_event_to_error_and_signal_error_handler(bs_patch_api_return_code_t patch_return_value);
+
+static int32_t arm_uc_deltapaal_map_patch_event_to_error(bs_patch_api_return_code_t patch_return_value);
 
 /*
  * Global @TODO:
@@ -453,7 +461,8 @@ static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
 
                 } else if (bs_result<0) {
                     UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler Returning with error: %d", bs_result);
-                    arm_uc_deltapaal_signal_ucfm_handler(ARM_UC_PAAL_EVENT_WRITE_ERROR);
+                    ARM_BS_Free(&delta_paal_bs_patch);
+                    arm_uc_deltapaal_map_patch_event_to_error_and_signal_error_handler(bs_result);
                 }
                 // @todo: else here?
             } else {
@@ -470,6 +479,51 @@ static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
             arm_uc_deltapaal_signal_ucfm_handler(event);
             break;
     }
+}
+
+static void arm_uc_deltapaal_map_patch_event_to_error_and_signal_error_handler(bs_patch_api_return_code_t patch_return_value)
+{
+
+    if(patch_return_value >= 0)
+    {
+        return; // this is not error nothing to do here
+    }else
+    {
+        uintptr_t event = arm_uc_deltapaal_map_patch_event_to_error(patch_return_value);
+        arm_uc_deltapaal_signal_ucfm_handler(event);
+    }
+}
+
+
+static int32_t arm_uc_deltapaal_map_patch_event_to_error(bs_patch_api_return_code_t patch_return_value)
+{
+    int32_t event = ARM_UC_PAAL_EVENT_WRITE_ERROR;
+    switch (patch_return_value) {
+        case EBSAPI_ERR_INVALID_STATE:
+            event = ARM_UC_PAAL_EVENT_INITIALIZE_ERROR;
+            break;
+        case EBSAPI_ERR_UNEXPECTED_EVENT:
+            break;
+        case EBSAPI_ERR_ALREADY_INIT:
+            break;
+        case EBSAPI_ERR_OUT_OF_MEMORY:
+            event = ARM_UC_PAAL_EVENT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE;
+            break;
+        case EBSAPI_ERR_PARAMETERS:
+            break;
+        case EBSAPI_ERR_FILE_IO:
+            event = ARM_UC_PAAL_EVENT_READ_ERROR;
+            // or
+            // ARM_UC_PAAL_EVENT_WRITE_ERROR
+            break;
+        case EBSAPI_ERR_CORRUPTED_PATCH:
+            event = ARM_UC_PAAL_EVENT_PROCESSOR_PARSE_ERROR;
+            break;
+        default:
+            UC_PAAL_TRACE("arm_uc_deltapaal_map_patch_event_to_error unknown error %d", patch_return_value);
+            break;
+    }
+    return event;
 }
 
 /**
@@ -490,6 +544,7 @@ static void ARM_UC_DeltaPaal_PALEventHandler(uintptr_t event)
  * @param event ignored
  * @details Asynchronous Write handling for Incoming Delta buffer
  */
+
 static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
@@ -506,22 +561,25 @@ static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
         // copy from incoming to bspatch read buffer ptr
         // 1. copy what we can fit into bspatch read_patch buffer and put rest into our local buffer
 
-        // if there was Patch reading in process - copy from incoming buf first - this should always be less than the needed amount
-        if (bspatch_read_patch_buffer_remaining>0 &&
-                bspatch_read_patch_buffer_remaining<=arm_uc_pal_deltapaal_incoming_buf_ref->size) {
+        // if there was Patch reading in process - copy from incoming buf first -
+        if (bspatch_read_patch_buffer_remaining>0 ) {
             uint32_t patch_buf_offset = bspatch_read_patch_buffer_length - bspatch_read_patch_buffer_remaining;
+            int copySize = MIN(bspatch_read_patch_buffer_remaining, arm_uc_pal_deltapaal_incoming_buf_ref->size);
             memcpy((uint8_t*)(bspatch_read_patch_buffer_ptr)+(patch_buf_offset),
                    arm_uc_pal_deltapaal_incoming_buf_ref->ptr,
-                   bspatch_read_patch_buffer_remaining);
+                   copySize);
+
             UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler Copied left overs from incoming buffer, size: %" PRIu64 ,bspatch_read_patch_buffer_remaining);
             UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset %" PRIu32 ,arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset);
-            arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset += (uint32_t)bspatch_read_patch_buffer_remaining;
-            bspatch_read_patch_buffer_remaining = 0;
+            arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset += (uint32_t)copySize;
+            bspatch_read_patch_buffer_remaining -= copySize;
             result.code = ERR_NONE;
-
-        } else {
-            // @todo: Assuming the bspatch read_patch always requires less read into patch less than our incoming buffer size
-            UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler ERROR incoming buf did not have enough to complete read for remaining of: %" PRIu64 , bspatch_read_patch_buffer_remaining);
+            if(bspatch_read_patch_buffer_remaining > 0)
+            {
+                ARM_UC_DeltaPaal_PALEventHandler(ARM_UC_PAAL_EVENT_WRITE_DONE);
+                UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler NORMAL incoming buf did not have enough to complete read for remaining of: %" PRIu64 , bspatch_read_patch_buffer_remaining);
+                return;
+            }
         }
 
 
@@ -566,7 +624,9 @@ static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
             else if (bs_result < 0) {
                 UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler Trigger ProcessPatchEvent returned with error: %d => return INVALID_STATE error.", bs_result);
                 result.code = ERR_INVALID_STATE;
-                ARM_UC_DeltaPaal_PALEventHandler(ARM_UC_PAAL_EVENT_WRITE_ERROR);
+                uintptr_t event = arm_uc_deltapaal_map_patch_event_to_error(bs_result);
+                ARM_BS_Free(&delta_paal_bs_patch);
+                ARM_UC_DeltaPaal_PALEventHandler(event);
                 return;
             }
         } while ((arm_uc_pal_deltapaal_incoming_buf_ref->size-arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset)>0);

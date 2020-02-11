@@ -29,7 +29,7 @@
 #include "common_utils.h"
 #include "fcc_utils.h"
 #include "pv_macros.h"
-#include "storage_keys.h"
+#include "storage_kcm.h"
 
 #define FCC_10_YEARS_IN_SECONDS 315360000 // 10*365*24*60*60
 
@@ -368,7 +368,8 @@ static fcc_status_e compare_cn_with_endpoint(palX509Handle_t x509_cert)
     //Get endpoint name size
     fcc_status = fcc_get_kcm_data((const uint8_t*)g_fcc_endpoint_parameter_name, strlen(g_fcc_endpoint_parameter_name), KCM_CONFIG_ITEM, &endpoint_name_data, &endpoint_name_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get endpoint name");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_cn_attr != endpoint_name_size), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, "Wrong size of CN");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_cn_attr != endpoint_name_size), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, 
+                                   "Wrong size of CN (size_of_cn_attr = %" PRIu32 ", endpoint_name_size = %" PRIu32 ")", (uint32_t)size_of_cn_attr, (uint32_t)endpoint_name_size);
 
     result = memcmp(endpoint_name_data, cn_attribute_data, size_of_cn_attr);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((result != 0), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, "CN of the certificate is different from endpoint name");
@@ -631,9 +632,9 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     size_t exist_item_name_len = 0;
     uint8_t *absent_item_name = NULL;
     size_t absent_item_name_len = 0;
-    storage_cert_chain_context_s *cert_chain = NULL;
     kcm_cert_chain_handle chain_handle;
     size_t chain_len = 0;
+    size_t cert_num;
     palX509Handle_t x509_cert_handle = NULLPTR;
     palStatus_t pal_status = PAL_SUCCESS;
 
@@ -683,8 +684,6 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     kcm_status = kcm_cert_chain_open(&chain_handle, exist_item_name, exist_item_name_len, &chain_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), store_error_and_exit, "Failed to get device certificate descriptor");
 
-    cert_chain = (storage_cert_chain_context_s *)chain_handle;
-
     //Create device certificate handle
     fcc_status = get_next_x509_in_chain(chain_handle, &x509_cert_handle);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to get device certificate descriptor");
@@ -730,8 +729,9 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     fcc_status = verify_certificate_expiration(x509_cert_handle, exist_item_name, exist_item_name_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
 
-    // Verify expiration of rest of chain
-    while (cert_chain->current_cert_index < cert_chain->num_of_certificates_in_chain) {
+
+    // Verify expiration of rest of chain, starting from second certificate in chain (if exists).
+    for (cert_num = 2; cert_num <= chain_len; cert_num++) {
         // Close handle of first X509 in chain
         cs_close_handle_x509_cert(&x509_cert_handle);
 
@@ -779,9 +779,9 @@ static fcc_status_e verify_firmware_update_certificate(void)
     uint8_t *parameter_name = (uint8_t*)g_fcc_update_authentication_certificate_name;
     size_t size_of_parameter_name = strlen(g_fcc_update_authentication_certificate_name);
     palX509Handle_t x509_cert_handle = NULLPTR;
-    storage_cert_chain_context_s *cert_chain = NULL;
     kcm_cert_chain_handle chain_handle;
     size_t chain_len = 0;
+    size_t cert_num;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
@@ -802,11 +802,9 @@ static fcc_status_e verify_firmware_update_certificate(void)
         //If get kcm data returned error, exit with error
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), exit, "Failed to get update certificate data");
 
-        cert_chain = (storage_cert_chain_context_s *)chain_handle;
-
         // Verify expiration of all certificates in firmware chain
         // ADAM: Maybe change to function that gets verify_certificate_expiration as callback function (seems unnecessary for now...)
-        while (cert_chain->current_cert_index < cert_chain->num_of_certificates_in_chain) {
+        for (cert_num = 1; cert_num <= chain_len; cert_num++) {
 
             // Acquire a handle to the next X509 in the chain
             fcc_status = get_next_x509_in_chain(chain_handle, &x509_cert_handle);
@@ -825,7 +823,7 @@ static fcc_status_e verify_firmware_update_certificate(void)
 
 exit:
     //Close the chain in case it was created
-    if ( cert_chain != NULL) {
+    if ( chain_handle != 0) {
         kcm_cert_chain_close(chain_handle);
     }
     if (x509_cert_handle != NULLPTR) {

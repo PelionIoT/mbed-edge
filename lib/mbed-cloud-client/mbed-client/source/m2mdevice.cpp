@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2019 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -89,8 +89,6 @@ M2MDevice::M2MDevice(char *path)
             res->set_operation(M2MBase::GET_ALLOWED);
             res->set_value((const uint8_t*)BINDING_MODE_UDP,sizeof(BINDING_MODE_UDP)-1);
             res->set_register_uri(true);
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
         }
     }
 }
@@ -279,6 +277,13 @@ M2MResource* M2MDevice::create_resource(DeviceResource resource)
             if(res) {
                 res->set_operation(M2MBase::POST_ALLOWED);
                 res->set_register_uri(true);
+
+                if (FactoryReset == resource) {
+                    // enforce explicit delayed response
+                    // application should explicitly send response on the beginning of execute
+                    // callback due to potentially long-running factory reset logic
+                    res->set_delayed_response(true);
+                }
             }
         }
     }
@@ -564,4 +569,3 @@ bool M2MDevice::check_value_range(DeviceResource resource, int64_t value)
     }
     return success;
 }
-

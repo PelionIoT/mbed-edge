@@ -1,5 +1,11 @@
 # Changelog for Edge
 
+## Release 0.12.0 (2020-02-07)
+
+* Pelion Device Management Client library updated to version 4.3.0.
+* Mbed TLS updated to version 2.19.1.
+* The WORKING directory of `PAL_FS_MOUNT_POINT_PRIMARY` is automatically replaced with BACKUP if it is corrupted.
+
 ## Release 0.11.0 (2019-10-03)
 
 * Pelion Device Management Client library updated to version 3.4.0.

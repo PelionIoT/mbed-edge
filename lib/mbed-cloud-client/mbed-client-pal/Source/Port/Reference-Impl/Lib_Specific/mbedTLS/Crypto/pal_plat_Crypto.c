@@ -1206,17 +1206,15 @@ palStatus_t pal_plat_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx)
     // If using mbedtls with entropy sources, if the reseed_counter is 0 - this means seeding has not been done yet and generating a random number will not work
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)ctx;
-    if (palCtrDrbgCtx->ctrDrbgCtx.reseed_counter > 0)
+    // If f_entropy is set, this means that mbedtls_ctr_drbg_seed() has been
+    // called. Otherwise, the DRBG is not seeded yet.
+    if (palCtrDrbgCtx->ctrDrbgCtx.f_entropy != 0)
     {
         return PAL_SUCCESS;
     }
-    else if (palCtrDrbgCtx->ctrDrbgCtx.reseed_counter == 0)
+    else
     {
         return PAL_ERR_CTR_DRBG_NOT_SEEDED;
-    }
-    else 
-    {
-        return PAL_ERR_GENERIC_FAILURE; // Having the reseed counter negative indicates some wierd error. Perhaps uninitialized context
     }
 #else
     // If not using mbedtls with entropy sources, reseed_counter will always be 0 and seeding is done in a lazy fashion
@@ -1489,35 +1487,29 @@ palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes
 #else
 palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes, const unsigned char *input, size_t inputLenInBytes, unsigned char *output, size_t* outputLenInBytes)
 {
-    psa_status_t status = PSA_SUCCESS;
     palStatus_t palStatus = PAL_SUCCESS;
+    psa_status_t status = PSA_SUCCESS;
     psa_key_handle_t keyHandle = 0;
+    psa_key_attributes_t psa_key_attr = PSA_KEY_ATTRIBUTES_INIT;
     psa_mac_operation_t operation = { 0 };
-    psa_key_policy_t policy = {0};
     size_t outLen = 0;
 
-    // Create volatile key handle
-    status = psa_allocate_key(&keyHandle);
-    if (PSA_SUCCESS != status)
-    {
-        return PAL_ERR_CRYPTO_ALLOC_FAILED;
-    }
+    // set key type
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_HMAC);
+    // set key usage
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_SIGN);
+    // set key algorithm
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_HMAC(PSA_ALG_SHA_256));
 
-    // Set key policy to creat HMACs based on SHA256
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_SIGN ,PSA_ALG_HMAC(PSA_ALG_SHA_256));
-    status = psa_set_key_policy(keyHandle, &policy);
-    if (PSA_SUCCESS != status) {
-        palStatus = PAL_ERR_GENERIC_FAILURE; 
-        goto finish;
-    }
-
-    // Import the key to the PSA handle
-    status = psa_import_key(keyHandle, PSA_KEY_TYPE_HMAC, key, keyLenInBytes);
+    // Import the key to PSA
+    status = psa_import_key(&psa_key_attr, key, keyLenInBytes, &keyHandle);
     if (PSA_SUCCESS != status)
     {
         palStatus = PAL_ERR_GENERIC_FAILURE;
         goto finish;
     }
+
+    /* FIXME - replace psa_mac_xxx calls below with one call to psa_mac_compute when it will be supported IOTCRYPT-881 */
 
     // Setup MAC sign process
     status = psa_mac_sign_setup(&operation, keyHandle, PSA_ALG_HMAC(PSA_ALG_SHA_256));
@@ -1554,7 +1546,6 @@ finish:
         // Nothing we can do if error occurs, so disregard the return value
         (void)psa_destroy_key(keyHandle);
     }
-
     return palStatus;
 }
 
@@ -1667,56 +1658,56 @@ palStatus_t pal_plat_ECKeyFree(palECKeyHandle_t* key)
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size)
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t keySize)
 {
 
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t palStatus = PAL_SUCCESS;
 
     //allocate palCryptoBuffer_t struct
-    palCryptoBuffer_t* crypto_buffer = (palCryptoBuffer_t*)malloc(sizeof(palCryptoBuffer_t));
-    if (NULL == crypto_buffer)
+    palCryptoBuffer_t* cryptoBuffer = (palCryptoBuffer_t*)malloc(sizeof(palCryptoBuffer_t));
+    if (NULL == cryptoBuffer)
     {
-        pal_status = PAL_ERR_NO_MEMORY;
+        palStatus = PAL_ERR_NO_MEMORY;
         goto exit;
     }
 
-    crypto_buffer->buffer = NULL;
-    crypto_buffer->size = 0;
+    cryptoBuffer->buffer = NULL;
+    cryptoBuffer->size = 0;
 
     //allocate buffer for the key
-    crypto_buffer->buffer = malloc(key_size);
-    if (NULL == crypto_buffer->buffer)
+    cryptoBuffer->buffer = malloc(keySize);
+    if (NULL == cryptoBuffer->buffer)
     {
-        pal_status = PAL_ERR_NO_MEMORY;
+        palStatus = PAL_ERR_NO_MEMORY;
         goto free_and_exit;
     }
 
-    crypto_buffer->size = (uint32_t)key_size;
+    cryptoBuffer->size = (uint32_t)keySize;
 
-    //init key_hanlde with pal_key_buffer address
-    *keyHandle = (palKeyHandle_t)crypto_buffer;
+    //init handle with pal_key_buffer address
+    *keyHandle = (palKeyHandle_t)cryptoBuffer;
 
     goto exit;
 
 free_and_exit:
-    pal_plat_freeKeyHandle((palKeyHandle_t*)&crypto_buffer);
+    pal_plat_freeKeyHandle((palKeyHandle_t*)&cryptoBuffer);
 
 exit:
-    return pal_status;
+    return palStatus;
 }
 
 palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
 {
 
-    palCryptoBuffer_t* crypto_buffer = (palCryptoBuffer_t*)*keyHandle;
+    palCryptoBuffer_t* cryptoBuffer = (palCryptoBuffer_t*)*keyHandle;
 
     // free buffer
-    if (crypto_buffer->buffer != NULL) {
-        free(crypto_buffer->buffer);
+    if (cryptoBuffer->buffer != NULL) {
+        free(cryptoBuffer->buffer);
     }
 
     //free struct
-    free(crypto_buffer);
+    free(cryptoBuffer);
     *keyHandle = 0;
 
     return PAL_SUCCESS;
@@ -1725,7 +1716,7 @@ palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
 
 #else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size)
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t keySize)
 {
    *keyHandle = 0; 
     return PAL_SUCCESS;
@@ -1944,7 +1935,6 @@ palStatus_t pal_plat_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandl
     return status;
 }
 
-
 palStatus_t pal_plat_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -1958,9 +1948,7 @@ palStatus_t pal_plat_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle
     }
 
     return status;
-
 }
-
 
 palStatus_t pal_plat_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle)
 {
@@ -1975,12 +1963,9 @@ palStatus_t pal_plat_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle,
     }
 
     return status;
-
 }
 
 #endif//!MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-
-
 
 //! Move data from the end of the buffer to the begining, this function is needed since mbedTLS
 //! write functions write the data at the end of the buffers.
@@ -2286,8 +2271,6 @@ palStatus_t pal_plat_ECDHKeyAgreement(
     mbedtls_ecp_keypair* pubPeerKeyPair = NULL;
     uint8_t raw_public_key[PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE] = { 0 };
     size_t act_raw_public_key_size = 0;
-    psa_crypto_generator_t generator = PSA_CRYPTO_GENERATOR_INIT;
-    size_t generator_size = 0;
     //Set PSA handle
     psa_key_handle_t *privatKeyPSAHandle =(psa_key_handle_t*)((mbedtls_pk_context*)((palECKey_t*)privateKeyHandle)->pk_ctx);
 
@@ -2313,33 +2296,18 @@ palStatus_t pal_plat_ECDHKeyAgreement(
         goto finish;
     }
 
-    //Calculate key agreement
-    psa_status = psa_key_agreement(&generator, (psa_key_handle_t)*privatKeyPSAHandle, raw_public_key, act_raw_public_key_size, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
+    // create raw shared secret
+    psa_status = psa_raw_key_agreement(PSA_ALG_ECDH, (psa_key_handle_t)*privatKeyPSAHandle,
+                                        raw_public_key, act_raw_public_key_size,
+                                        rawSharedSecretOut, rawSharedSecretMaxSize, rawSharedSecretActSizeOut);
     if (psa_status != PSA_SUCCESS) {
         status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
         goto finish;
     }
-
-    //Get generator capacity
-    psa_status = psa_get_generator_capacity(&generator, &generator_size);
-    if (psa_status != PSA_SUCCESS || generator_size != PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE || rawSharedSecretMaxSize < generator_size) {
-        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
-        goto finish;
-    }
-
-    //Get generator data
-    psa_status = psa_generator_read(&generator, rawSharedSecretOut, generator_size);
-    if (psa_status != PSA_SUCCESS) {
-        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
-        goto finish;
-    }
-    //Update the output data
-    *rawSharedSecretActSizeOut = generator_size;
 
 finish:
     //Release allocated resources
     (void)pal_plat_ECKeyFree(&peerPublicKeyHandle);
-    (void)psa_generator_abort(&generator);
     return status;
 }
 
