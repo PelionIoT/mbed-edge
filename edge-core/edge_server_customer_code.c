@@ -21,6 +21,7 @@
 #include "edge-client/edge_client.h"
 #include "mbed-trace/mbed_trace.h"
 #include "edge-core/edge_server_customer_code.h"
+#include <stdlib.h>
 #define TRACE_GROUP "escstmr"
 
 bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_ctx)
@@ -29,6 +30,10 @@ bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_
             request_ctx->object_id,
             request_ctx->object_instance_id,
             request_ctx->resource_id);
+    
+    // Clear logs, etc.
+    system("edge-core-factory-reset");
+    
     return true;
 }
 
