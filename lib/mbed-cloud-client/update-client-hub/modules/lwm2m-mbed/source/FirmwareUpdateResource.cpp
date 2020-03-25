@@ -50,6 +50,14 @@
 #define RESOURCE_VALUE(arg) #arg
 #endif
 
+#ifndef PLATFORM_VERSION_FILE
+#define PLATFORM_VERSION_FILE "/etc/readable_version"
+#endif
+
+#ifndef PLATFORM_VERSION_HASH_FILE
+#define PLATFORM_VERSION_HASH_FILE "/etc/platform_version"
+#endif
+
 namespace FirmwareUpdateResource {
 
 /* send delayed response */
@@ -89,6 +97,8 @@ static M2MResource *resourceState = NULL;
 static M2MResource *resourceResult = NULL;
 static M2MResource *resourceName = NULL;
 static M2MResource *resourceVersion = NULL;
+static M2MResource *resourcePlatVersion = NULL;
+static M2MResource *resourcePlatVersionHash = NULL;
 
 /* function pointers to callback functions */
 static void (*externalPackageCallback)(const uint8_t *buffer, uint16_t length) = NULL;
@@ -215,6 +225,51 @@ void FirmwareUpdateResource::Initialize(void)
                     resourceVersion->set_value(defaultVersion, sizeof(defaultVersion) - 1);
                     resourceVersion->publish_value_in_registration_msg(true);
                     resourceVersion->set_auto_observable(true);
+                }
+
+                char buffer[33];
+                FILE *fp = NULL;
+
+                /* Create Platform Version resource /10252/0/10 */
+                resourcePlatVersion = updateInstance->create_dynamic_resource(
+                                      RESOURCE_VALUE(10), "PlatVersion", M2MResourceInstance::STRING, true);
+                if (resourcePlatVersion) {
+                    fp = fopen(PLATFORM_VERSION_FILE, "r");
+                    if (fp) {
+                        /* Strip out the newline if exists since we don't want it in the LWM2M object */
+                        memset(buffer, 0, sizeof(buffer));
+                        if (fgets(buffer, sizeof(buffer), fp) && buffer[strlen(buffer) - 1] == '\n') {
+                            buffer[strlen(buffer)-1] = 0;
+                        }
+                        resourcePlatVersion->set_value((uint8_t*)buffer, strlen(buffer));
+                        fclose(fp);
+                    } else {
+                        resourcePlatVersion->set_value(defaultVersion, sizeof(defaultVersion) - 1);
+                    }
+                    resourcePlatVersion->set_operation(M2MBase::GET_ALLOWED);
+                    resourcePlatVersion->publish_value_in_registration_msg(true);
+                    resourcePlatVersion->set_auto_observable(true);
+                }
+
+                /* Create Platform Version Hash resource /10252/0/11 */
+                resourcePlatVersionHash = updateInstance->create_dynamic_resource(
+                                          RESOURCE_VALUE(11), "PlatVersionHash", M2MResourceInstance::STRING, true);
+                if (resourcePlatVersionHash) {
+                    fp = fopen(PLATFORM_VERSION_HASH_FILE, "r");
+                    if (fp) {
+                        /* Strip out the newline if exists since we don't want it in the LWM2M object */
+                        memset(buffer, 0, sizeof(buffer));
+                        if (fgets(buffer, sizeof(buffer), fp) && buffer[strlen(buffer) - 1] == '\n') {
+                            buffer[strlen(buffer)-1] = 0;
+                        }
+                        resourcePlatVersionHash->set_value((uint8_t*)buffer, strlen(buffer));
+                        fclose(fp);
+                    } else {
+                        resourcePlatVersionHash->set_value(defaultVersion, sizeof(defaultVersion) - 1);
+                    }
+                    resourcePlatVersionHash->set_operation(M2MBase::GET_ALLOWED);
+                    resourcePlatVersionHash->publish_value_in_registration_msg(true);
+                    resourcePlatVersionHash->set_auto_observable(true);
                 }
 
 #if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE == 0)
