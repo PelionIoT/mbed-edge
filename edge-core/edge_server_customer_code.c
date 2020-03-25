@@ -21,6 +21,7 @@
 #include "edge-client/edge_client.h"
 #include "mbed-trace/mbed_trace.h"
 #include "edge-core/edge_server_customer_code.h"
+#include <stdlib.h>
 #define TRACE_GROUP "escstmr"
 
 bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_ctx)
@@ -29,6 +30,15 @@ bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_
             request_ctx->object_id,
             request_ctx->object_instance_id,
             request_ctx->resource_id);
+
+    // Execute a script to do factory reset tasks, such as clearing customer logs.
+    int rc = system("edge-core-factory-reset");
+
+    if (rc) {
+        tr_warn("edge-core-factory-reset exited with non-success return code %d", rc);
+        return false;
+    }
+
     return true;
 }
 
