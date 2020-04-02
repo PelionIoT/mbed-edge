@@ -121,7 +121,7 @@ arm_ucp_worker_t arm_uc_worker_parameters_details = {
 };
 
 arm_ucp_worker_t arm_uc_worker_parameters_active_details = {
-    .command = "../../../arm_update_active_details.sh",
+    .command = "/snap/" SNAPCRAFT_PROJECT_NAME "/current/wigwag/mbed/arm_update_active_details.sh",
     .header   = 1,
     .firmware = 0,
     .location = 0,
@@ -133,7 +133,7 @@ arm_ucp_worker_t arm_uc_worker_parameters_active_details = {
 };
 
 arm_ucp_worker_t arm_uc_worker_parameters_activate = {
-    .command = "../../../arm_update_activate.sh",
+    .command = "/snap/" SNAPCRAFT_PROJECT_NAME "/current/wigwag/mbed/arm_update_activate.sh",
     .header   = 1,
     .firmware = 1,
     .location = 0,
@@ -145,7 +145,7 @@ arm_ucp_worker_t arm_uc_worker_parameters_activate = {
 };
 
 arm_ucp_worker_t arm_uc_worker_parameters_installer = {
-    .command = "../../../arm_update_installer.sh",
+    .command = "/snap/" SNAPCRAFT_PROJECT_NAME "/current/wigwag/mbed/arm_update_installer.sh",
     .header   = 1,
     .firmware = 0,
     .location = 0,
@@ -163,13 +163,13 @@ arm_uc_error_t ARM_UC_PAL_Linux_Initialize_Generic(ARM_UC_PAAL_UPDATE_SignalEven
 
     arm_uc_worker_parameters.activate       = &arm_uc_worker_parameters_activate;
     arm_uc_worker_parameters.active_details = &arm_uc_worker_parameters_active_details;
-    arm_uc_worker_parameters.details        = &arm_uc_worker_parameters_details;
-    arm_uc_worker_parameters.finalize       = &arm_uc_worker_parameters_finalize;
-    arm_uc_worker_parameters.initialize     = &arm_uc_worker_parameters_initialize;
+    arm_uc_worker_parameters.details        = NULL;
+    arm_uc_worker_parameters.finalize       = NULL;
+    arm_uc_worker_parameters.initialize     = NULL;
     arm_uc_worker_parameters.installer      = &arm_uc_worker_parameters_installer;
-    arm_uc_worker_parameters.prepare        = &arm_uc_worker_parameters_prepare;
-//    arm_uc_worker_parameters.read           = &arm_uc_worker_parameters_read;
-//    arm_uc_worker_parameters.write          = &arm_uc_worker_parameters_write;
+    arm_uc_worker_parameters.prepare        = NULL;
+    arm_uc_worker_parameters.read           = NULL;
+    arm_uc_worker_parameters.write          = NULL;
 #endif
 
     return ARM_UC_PAL_Linux_Initialize(callback);
