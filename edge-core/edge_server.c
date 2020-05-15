@@ -49,6 +49,7 @@
 #include "common/test_support.h"
 #include "edge_core_clip.h"
 #include "edge-client/reset_factory_settings.h"
+#include "edge-client/gateway_services_resource.h"
 #include "edge_version_info.h"
 #include "edge-rpc/rpc_timeout_api.h"
 #include "common/msg_api.h"
@@ -699,6 +700,7 @@ int testable_main(int argc, char **argv)
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
         rfs_add_factory_reset_resource();
+        gsr_add_gateway_services_resource();
 
         // Connect client
         edgeclient_connect();

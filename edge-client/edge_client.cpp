@@ -905,6 +905,11 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
     }
     res->set_operation((M2MBase::Operation) opr);
 
+    /*
+    Set the max age for this resource to 1 min
+    */
+    res->set_max_age(60);
+
     if (opr & (OPERATION_EXECUTE | OPERATION_WRITE)) {
         void *context = NULL;
 

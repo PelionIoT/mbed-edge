@@ -1,5 +1,10 @@
 # Changelog for Edge
 
+## Release 0.13.0 (2020-29-04)
+
+* The default value of `max-age` is set to 60. This allows caching of the resource value in Pelion Device Management for up to 60 seconds.
+* Added a new gateway resource with LwM2M object ID `/33457`. The rich nodes can report the features supported on the platform. Users can enable, disable and remotely configure the feature. It statically reports terminal, logs, statistics and alerts.
+
 ## Release 0.12.0 (2020-02-07)
 
 * Pelion Device Management Client library updated to version 4.3.0.
