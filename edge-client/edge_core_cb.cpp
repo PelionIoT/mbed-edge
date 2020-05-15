@@ -27,6 +27,7 @@ extern "C" {
 #include <common/test_support.h>
 #include "edge-core/edge_device_object.h"
 #include "edge-client/reset_factory_settings.h"
+#include "edge-client/gateway_services_resource.h"
 }
 #include "edge-client/edge_client.h"
 #include "edge-client/request_context.h"
@@ -46,6 +47,10 @@ bool edgeserver_resource_async_request(edgeclient_request_context_t *request_ctx
     if (request_ctx->object_id == EDGE_DEVICE_OBJECT_ID && request_ctx->object_instance_id == 0 &&
         request_ctx->resource_id == EDGE_FACTORY_RESET_RESOURCE_ID && request_ctx->operation == OPERATION_EXECUTE) {
         rfs_reset_factory_settings_requested(request_ctx);
+    } else if (request_ctx->object_id == EDGE_SERVICEMGMT_OBJECT_ID &&
+        (request_ctx->resource_id == EDGE_SERVICE_ENABLED ||  request_ctx->resource_id == EDGE_SERVICE_CONFIG) &&
+        (request_ctx->operation == OPERATION_WRITE)) {
+        gsr_resource_requested(request_ctx);
     } else {
         tr_warn("Unexpected edge_server_resource parameters");
         edgeclient_deallocate_request_context(request_ctx);
@@ -61,7 +66,7 @@ void edgecore_async_cb_success(edgeclient_request_context_t *ctx)
             ctx->object_instance_id,
             ctx->resource_id);
     pt_api_result_code_e status = edgeclient_send_asynchronous_response(NULL,
-                                                                        EDGE_DEVICE_OBJECT_ID,
+                                                                        ctx->object_id,
                                                                         ctx->object_instance_id,
                                                                         ctx->resource_id,
                                                                         ctx->token,
@@ -84,7 +89,7 @@ void edgecore_async_cb_failure(edgeclient_request_context_t *ctx)
             ctx->object_instance_id,
             ctx->resource_id);
     pt_api_result_code_e status = edgeclient_send_asynchronous_response(NULL,
-                                                                        EDGE_DEVICE_OBJECT_ID,
+                                                                        ctx->object_id,
                                                                         ctx->object_instance_id,
                                                                         ctx->resource_id,
                                                                         ctx->token,

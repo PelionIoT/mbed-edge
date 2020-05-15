@@ -47,7 +47,6 @@ Currently, there are a few dependencies in the build system:
 Install these in Ubuntu 16.04:
 
 ```
-$ apt update
 $ apt install libc6-dev
 $ apt install libmosquitto-dev mosquitto-clients
 ```
@@ -69,7 +68,8 @@ $ apt install build-essential cmake git doxygen graphviz
 
 Fetch the Git submodules that are direct dependencies for Edge.
 ```
-$ git submodule update --init --recursive
+$ git submodule init
+$ git submodule update --recursive
 ```
 
 ## Configuring Edge build
