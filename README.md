@@ -2,7 +2,7 @@
 
 This document contains the instructions for using and developing Edge.
 
-The full Edge documentation is [part of our Device Management documentation site](https://cloud.mbed.com/docs/latest/connecting/device-management-edge.html), where you can also find the [API documentation](https://cloud.mbed.com/docs/current/mbed-edge-api/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+The full Edge documentation is [part of our Device Management documentation site](https://developer.pelion.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.pelion.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
 
 ## License
 
@@ -99,7 +99,7 @@ Other build flags can also be set with this method.
 
 Factory provisioning is the process of injecting the cryptographic credentials
 used to connect Edge to Device Management Cloud. For more information, read the
-[Provisioning documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html).
+[Provisioning documentation](https://developer.pelion.com/docs/device-management-provision/latest/introduction/index.html).
 
 ### Using your own certificate authority
 
@@ -130,7 +130,7 @@ change the compile time define `MBED_CLOUD_CLIENT_LIFETIME` in the
 `config/mbed_cloud_client_user_config.h` file. The expiration time is inherited by the
 mediated endpoints from the Edge Core. You should set the expiration
 time to a meaningful value for your setup. For more the details of the expiration,
-read the [Device Management Client documentation](https://cloud.mbed.com/docs/latest/connecting/deregister-your-device.html).
+read the [Device Management Client documentation](https://developer.pelion.com/docs/device-management/current/connecting/deregister-your-device.html).
 
 ```
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
@@ -149,7 +149,7 @@ a value `ARM_UCP_LINUX_GENERIC`.
 
 When you have enabled the update, you need to generate the
 `update_default_resources.c` file. To create this file, use the
-[`manifest-tool` utility](https://cloud.mbed.com/docs/latest/updating-firmware/manifest-tool.html).
+[`manifest-tool` utility](https://developer.pelion.com/docs/device-management/current/updating-firmware/preparing-manifests.html).
 Give, for example, the following command:
 
 ```
@@ -163,7 +163,7 @@ to sign the manifest for the firmware update.
 
 <span class="notes">**Note:** The generated certificates are not secure for use
 in production environments. Please read the
-[Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
+[Provisioning devices for Device Management documentation](https://developer.pelion.com/docs/device-management-provision/latest/introduction/index.html)
 on how to build a resource file and certificates safe for a production environment.</span>
 
 ### Configuring the maximum number of registered endpoints
