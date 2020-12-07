@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,25 +16,25 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+/** \file SimpleM2MResource.h \brief header for SimpleM2MResourceBase */
+
 #ifndef SIMPLE_M2M_RESOURCE_H
 #define SIMPLE_M2M_RESOURCE_H
 
 #include "mbed-cloud-client/MbedCloudClient.h"
 
-// As this whole class is build by using C++'s standard template library (STL),
-// we have it behind a flag. The cost of STL is 15KB of flash, depending on compiler,
-// so on resource constrained devices it is essential to be able to remove any reference to it.
 #if MBED_CLOUD_CLIENT_STL_API
 
 #include <string>
 
-/*! \file SimpleM2MResource.h
- *  \brief SimpleM2MResourceBase.
- * This class provides an easy wrapper base class for creating a simple M2MResource based on
- * integer and string values. This class is NOT meant to be directed instantiated but is used
+/** This class provides an easy wrapper base class for creating a simple M2MResource based on
+ * integer and string values. You are not meant to directly instantiate it but it is used
  * by the SimpleM2MResourceInt and SimpleM2MResourceString classes to create resources.
+ *
+ * As this whole class is build by using C++'s standard template library (STL),
+ * we have it behind a \ref MBED_CLOUD_CLIENT_STL_API flag. The cost of STL is 15KB of flash, depending on compiler,
+ * so on resource constrained devices it is essential to be able to remove any reference to it.
  */
-
 class SimpleM2MResourceBase {
 
 protected:

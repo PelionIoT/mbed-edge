@@ -860,6 +860,22 @@ static void call_free_userdata_conditional(pt_userdata_t *userdata)
     }
 }
 
+pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
+                                            manifest_download_handler cb)
+{
+    api_lock();
+    connection_t *connection = find_connection(connection_id);
+    if (NULL == connection) {
+        api_unlock();
+        return PT_STATUS_NOT_CONNECTED;
+    }
+    connection->client->manifest_handler = cb;
+    api_unlock();
+
+    return PT_STATUS_SUCCESS;
+}
+
+
 pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection_id,
                                                 const char *device_id,
                                                 const uint32_t lifetime,
@@ -909,9 +925,21 @@ pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection
     device->objects = objects;
 
     pt_devices_add_device(connection->client->devices, device);
-
+   
+    pt_status_t status = PT_STATUS_SUCCESS;
+#ifndef BUILD_TYPE_TEST    
+    if (device->features & PT_DEVICE_FEATURE_FIRMWARE_UPDATE) {
+        status = pt_device_init_firmware_update_resources(connection_id, device_id, connection->client->manifest_handler);
+        if (status != PT_STATUS_SUCCESS) {
+            tr_error("Initializing firmware update resource failed, status %d", status);
+            pt_devices_remove_and_free_device(connection->client->devices, device);
+            api_unlock();
+            return PT_STATUS_FEATURE_INITIALIZATION_FAIL;
+        }
+    }
+#endif
     if (device->features & PT_DEVICE_FEATURE_CERTIFICATE_RENEWAL) {
-        pt_status_t status = pt_device_init_certificate_renewal_resources(connection_id, device_id);
+        status = pt_device_init_certificate_renewal_resources(connection_id, device_id);
         if (status != PT_STATUS_SUCCESS) {
             tr_error("Initializing certificate renewal resource failed, status %d", status);
             pt_devices_remove_and_free_device(connection->client->devices, device);
@@ -931,7 +959,7 @@ pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
                                            const queuemode_t queuemode,
                                            pt_userdata_t *userdata)
 {
-    return pt_device_create_with_feature_flags(connection_id, device_id, lifetime, queuemode, PT_DEVICE_FEATURE_NONE, userdata);
+    return pt_device_create_with_feature_flags(connection_id, device_id, lifetime, queuemode, PT_DEVICE_FEATURE_NONE | PT_DEVICE_FEATURE_FIRMWARE_UPDATE, userdata);
 }
 
 pt_status_t pt_device_create(const connection_id_t connection_id,
@@ -2134,3 +2162,22 @@ pt_status_t pt_resource_set_userdata(connection_id_t connection_id,
     return status;
 }
 
+
+pt_status_t pt_download_asset(const connection_id_t connection_id,
+                              const char *device_id,
+                              const char *url,
+                              const char *hash,
+                              uint32_t size,
+                              pt_download_cb success_handler,
+                              pt_download_cb failure_handler,
+                              void *userdata)
+{
+    return pt_download_asset_internal(connection_id,
+                                      device_id,
+                                      url,
+                                      hash,
+                                      size,
+                                      success_handler,
+                                      failure_handler,
+                                      userdata);
+}

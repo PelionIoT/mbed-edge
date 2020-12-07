@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2011-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -20,8 +20,6 @@
  *
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
@@ -32,9 +30,6 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-
-#include <string.h>
-#include <assert.h>
 
 #include "ns_types.h"
 #include "sn_nsdl.h"
@@ -48,7 +43,9 @@
 #include "common_functions.h"
 #include "randLIB.h"
 
+#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -289,8 +286,21 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
             return 0;
         }
     }
-    tr_info("REGISTER MESSAGE %.*s", register_message_ptr->payload_len, register_message_ptr->payload_ptr);
 
+#if MBED_CONF_MBED_TRACE_ENABLE
+    int i = 0;
+    int row_len = 60;
+    int max_length = 2048;
+    while (i < register_message_ptr->payload_len && i < max_length) {
+        if (i + row_len > register_message_ptr->payload_len) {
+            row_len = register_message_ptr->payload_len - i;
+        }
+        tr_info("REGISTER MESSAGE: %.*s", row_len, register_message_ptr->payload_ptr + i);
+        i += row_len;
+    }
+    if (i >= max_length)
+        tr_info("REGISTER MESSAGE:.....");
+#endif
     /* Clean (possible) existing and save new endpoint info to handle */
     if (set_endpoint_info(handle, endpoint_info_ptr) == -1) {
 
@@ -500,6 +510,8 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
                                            sizeof(handle->update_register_token));
 
     sn_nsdl_add_token(handle, &handle->update_register_token, register_message_ptr);
+
+    tr_info("UPDATE REGISTER MESSAGE %.*s", register_message_ptr->payload_len, register_message_ptr->payload_ptr);
 
     /* Build and send coap message to NSP */
     message_id = sn_nsdl_internal_coap_send(handle, register_message_ptr, &handle->server_address);
@@ -741,9 +753,8 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t
     sn_nsdl_print_coap_data(coap_packet_ptr, false);
 
 #if SN_COAP_DUPLICATION_MAX_MSGS_COUNT
-    if (coap_packet_ptr->msg_type == COAP_MSG_TYPE_ACKNOWLEDGEMENT &&
-        coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
-        tr_info("sn_nsdl_process_coap - received duplicate ACK, ignore");
+    if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
+        tr_info("sn_nsdl_process_coap - received duplicate message, ignore");
         sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
         return SN_NSDL_SUCCESS;
     }
@@ -2356,17 +2367,17 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 #ifdef MBED_CLIENT_PRINT_COAP_PAYLOAD
     if (coap_header_ptr->payload_ptr && coap_header_ptr->payload_len > 0) {
         int i = 0;
-        int row_len = 40;
+        int row_len = 32;
         int max_length = 2048;
         while (i < coap_header_ptr->payload_len && i < max_length) {
             if (i + row_len > coap_header_ptr->payload_len) {
                 row_len = coap_header_ptr->payload_len - i;
             }
-            tr_info("Payload:\t\t%s", tr_array( coap_header_ptr->payload_ptr + i, row_len));
+            tr_info("PL:\t\t%s", tr_array( coap_header_ptr->payload_ptr + i, row_len));
             i += row_len;
         }
         if (i >= max_length)
-            tr_info("Payload:\t\t.....");
+            tr_info("PL:\t\t.....");
     }
 #endif
 

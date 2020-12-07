@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -59,14 +59,22 @@
 
 #ifdef PAL_PLATFORM_DEFINED_CONFIGURATION
     #include PAL_PLATFORM_DEFINED_CONFIGURATION
-#elif defined(__LINUX__)
+#elif defined(__linux__) || defined(__LINUX__)
     #include "Linux_default.h"
 #elif defined(__FREERTOS__)
     #include "FreeRTOS_default.h"
+#elif defined(__NXP_FREERTOS__)
+    #include "NXP_default.h"
+#elif defined(__RENESAS_EK_RA6M3__)
+    #include "Renesas/Renesas_default.h"
+#elif defined(__RENESAS_RX65N_CK__)
+    #include "Renesas/Renesas_RX65N-CK_default.h"
 #elif defined(__MBED__)
     #include "mbedOS_default.h"
 #elif defined(__SXOS__)
     #include "sxos_default.h"
+#elif defined(__RTX)
+    #include "RTX_MW_default.h"
 #else
     #error "Please specify the platform PAL_PLATFORM_DEFINED_CONFIGURATION"
 #endif
@@ -108,11 +116,11 @@
 #endif
 
 #ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
-	#define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 0
+    #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 0
 #endif
 
 #ifndef PAL_USE_INTERNAL_FLASH
-	#define PAL_USE_INTERNAL_FLASH 0
+    #define PAL_USE_INTERNAL_FLASH 0
 #endif
 
 /*
@@ -136,10 +144,10 @@
 #endif
 
 #ifndef PAL_SUPPORT_IP_V4
-    #define PAL_SUPPORT_IP_V4                 true //!< support IPV4 as default
+    #define PAL_SUPPORT_IP_V4                 1 //!< support IPV4 as default
 #endif
 #ifndef PAL_SUPPORT_IP_V6
-    #define PAL_SUPPORT_IP_V6                 true //!< support IPV6 as default
+    #define PAL_SUPPORT_IP_V6                 1 //!< support IPV6 as default
 #endif
 
 //values for PAL_NET_DNS_IP_SUPPORT
@@ -148,9 +156,9 @@
 #define PAL_NET_DNS_IPV6_ONLY    4    //!< if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_IPV6_ONLY pal_getAddressInfo will return the first available IPV6 address
 
 #ifndef PAL_NET_DNS_IP_SUPPORT
-#if PAL_SUPPORT_IP_V6 == true && PAL_SUPPORT_IP_V4 == true
+#if (PAL_SUPPORT_IP_V6 == 1) && (PAL_SUPPORT_IP_V4 == 1)
     #define PAL_NET_DNS_IP_SUPPORT  0 //!< sets the type of IP addresses returned by  pal_getAddressInfo
-#elif PAL_SUPPORT_IP_V6 == true
+#elif (PAL_SUPPORT_IP_V6 == 1)
     #define PAL_NET_DNS_IP_SUPPORT  4 //!< sets the type of IP addresses returned by  pal_getAddressInfo
 #else
     #define PAL_NET_DNS_IP_SUPPORT  2 //!< sets the type of IP addresses returned by  pal_getAddressInfo
@@ -212,15 +220,6 @@
 #endif
 
 //! This value is in milliseconds.
-
-/*
- * /def PAL_DTLS_PEER_MIN_TIMEOUT
- * /brief Define the DTLS peer minimum timeout value.
- */
-
-#ifndef PAL_DTLS_PEER_MIN_TIMEOUT
-    #define PAL_DTLS_PEER_MIN_TIMEOUT 10000
-#endif
 
 //! The debug threshold for TLS API.
 #ifndef PAL_TLS_DEBUG_THRESHOLD
@@ -344,7 +343,11 @@
 
 //! The location of the firmware update folder
 #ifndef PAL_UPDATE_FIRMWARE_DIR
+#ifdef __NANOSIMULATOR__
+    #define PAL_UPDATE_FIRMWARE_DIR "/firmware"
+#else
     #define PAL_UPDATE_FIRMWARE_DIR PAL_UPDATE_FIRMWARE_MOUNT_POINT "/firmware"
+#endif
 #endif
 
 #ifndef PAL_INT_FLASH_NUM_SECTIONS
@@ -482,7 +485,7 @@
     #error Minimum configuration setting does not meet the requirements
 #endif
 
-#if (((PAL_ENABLE_PSK == 1) && (PAL_ENABLE_X509 == 1)) && !(defined(__LINUX__)))
+#if (((PAL_ENABLE_PSK == 1) && (PAL_ENABLE_X509 == 1)) && !(defined(__linux__) || defined(__LINUX__)))
     #error "Please select only one option: PSK or X509"
 #endif
 
@@ -508,9 +511,9 @@
 #define PAL_NOISE_SIZE_BITS (PAL_NOISE_SIZE_BYTES * CHAR_BIT) //!< Maximum number of bits for noise
 #define PAL_NOISE_BUFFER_LEN (PAL_NOISE_SIZE_BYTES / sizeof(int32_t)) //!< Length of the noise buffer
 
-// SSL session resume is enabled by default
+// Disable SSL SESSION RESUME feature till CID support is fixed for UDP as well.
 #ifndef PAL_USE_SSL_SESSION_RESUME
-    #define PAL_USE_SSL_SESSION_RESUME 1
+    #define PAL_USE_SSL_SESSION_RESUME 0
 #endif
 
 // Sanity check for using static memory buffer with mbedtls.
@@ -521,5 +524,23 @@
 #endif
 
 #endif // #ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
+// For platforms that do not support dynamic fetching of network stagger (pal_getStaggerEstimate()), this default value will be used.
+// This parameter is relevant when large number of clients is expected to connect through a single constrained backbone connection.
+// As of now dynamic implementation exists only for Mbed OS Wi-SUN stack.
+#ifndef PAL_DEFAULT_STAGGER_ESTIMATE
+#define PAL_DEFAULT_STAGGER_ESTIMATE 0
+#endif
+
+// For platforms that do not support dynamic fetching of network stagger (pal_getRttEstimate()), this default value will be used.
+// This value controls network latency related parameters and represents the expected packet round-trip total times.
+// This value is used to control client retransmission timers and DTLS timers.
+#ifndef PAL_DEFAULT_RTT_ESTIMATE
+#define PAL_DEFAULT_RTT_ESTIMATE 10
+#endif
+
+#if PAL_DEFAULT_RTT_ESTIMATE < 1
+#error "PAL_DEFAULT_RTT_ESTIMATE must be at least 1"
+#endif
 
 #endif //_PAL_COFIGURATION_H

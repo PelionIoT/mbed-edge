@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -24,7 +24,7 @@
 * \brief Configuration options check.
 *
 *  This set checks and validates the compile-time options that can be made for possible client library.
-*  NOTE: Not to be used by developers.
+*  \note You should not modify this file directly.
 */
 
 #ifndef MBED_CLOUD_CLIENT_ENDPOINT_TYPE
@@ -33,6 +33,10 @@
 
 #ifndef MBED_CLOUD_CLIENT_LIFETIME
 #error "MBED_CLOUD_CLIENT_LIFETIME must be defined with valid non-zero lifetime value in seconds, default is 3600"
+#endif
+
+#if MBED_CLOUD_CLIENT_LIFETIME < 60
+#error "MBED_CLOUD_CLIENT_LIFETIME must be at least 60 seconds."
 #endif
 
 #ifndef MBED_CLOUD_CLIENT_LISTEN_PORT

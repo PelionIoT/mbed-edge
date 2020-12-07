@@ -127,9 +127,9 @@ public:
      */
     int set_dtls_socket_callback(void(*foo)(void*), void *argument);
 
-private:
+    void update_network_rtt_estimate(uint8_t rtt_estimate);
 
-    int start_handshake();
+private:
 
     /**
     *  \brief Returns certificate expiration time in epoch format.
@@ -155,6 +155,7 @@ private:
     M2MConnectionSecurity::SecurityMode _sec_mode;
     palTLSSocket_t                      _tls_socket;
     entropy_cb                          _entropy;
+    uint8_t                            _network_rtt_estimate;
 
     friend class Test_M2MConnectionSecurityPimpl;
 };

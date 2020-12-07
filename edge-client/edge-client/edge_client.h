@@ -38,6 +38,7 @@ extern "C" {
 #include "certificate-enrollment-client/ce_status.h"
 #include "certificate-enrollment-client/ce_defs.h"
 
+
 /**
  * \brief Used to read resource attributes
  */
@@ -55,6 +56,14 @@ typedef struct edgeclient_resource_attributes_s {
  *         1 - for failed write to protocol translator.
  */
 typedef int(*handle_write_to_pt_cb) (edgeclient_request_context_t *request_ctx, void *connection);
+
+/**
+ * \brief callback for handling request writes to gateway resource manager
+ * \param request_ctx The request context to pass back to response handlers.
+ * \return 0 - for successful write to gateway resource manager.
+ *         1 - for failed write to gateway resource manager.
+ */
+typedef int(*handle_write_to_grm_cb) (edgeclient_request_context_t *request_ctx);
 
 /**
  * \brief callback for handling the registration of the Edge
@@ -85,6 +94,15 @@ typedef int (*handle_cert_renewal_status_cb)(const char *certificate_name,
                                              void *ctx);
 
 /**
+ * \brief callback for subdevice firmware download post process.
+ * \param url Firmware URL
+ * \param filename Firmware file name.
+ * \param error_code Error Code.
+ * \param ctx User provided context.
+ */
+typedef void (*asset_download_complete_cb)(uint8_t *url, char *filename, int error_code, void *ctx);
+
+/**
  * \brief callback for handling EST enrollment status callback.
  * \param status Status of the finished EST enrollment process.
  * \param cert_chain Certificate chain context containing the certificates that were enrolled.
@@ -102,6 +120,7 @@ typedef int (*handle_est_status_cb)(est_enrollment_result_e result,
  */
 typedef struct {
     handle_write_to_pt_cb handle_write_to_pt_cb;
+    handle_write_to_grm_cb handle_write_to_grm_cb;
     handle_register_cb handle_register_cb;
     handle_unregister_cb handle_unregister_cb;
     handle_error_cb handle_error_cb;
@@ -119,6 +138,14 @@ typedef struct {
  *         1 if request couldn't be sent.
  */
 int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
+
+/**
+ * \brief Calls Edge Client's Gateway Resource Manager handle write call-back function.
+ * \param request_context current request context data
+ * \return 0 if request was successfully sent.
+ *         1 if request couldn't be sent.
+ */
+int edgeclient_write_to_grm_cb(edgeclient_request_context_t *request_ctx);
 
 /**
  * \brief Calls Edge Client's Protocol Translator handle cert renewal status callback.
@@ -166,6 +193,10 @@ void edgeclient_update_register_conditional();
  */
 uint32_t edgeclient_remove_objects_owned_by_client(void *client_context);
 
+void edgeclient_get_asset(char *device_id,uint8_t *, char *, size_t, asset_download_complete_cb, void *);
+
+int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name,char *error_manifest);
+
 /**
  * \brief Remove resources that have been added by this client.
  * \param client_context The context relating to the client. It will be used in choosing the resources to delete.
@@ -184,6 +215,19 @@ bool edgeclient_stop();
  */
 bool edgeclient_endpoint_exists(const char *endpoint_name);
 
+/**
+ * \brief Query whether an object resource already exists in Device Management Client.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a
+ *        resource under Edge itself.
+ * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned
+ *        integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ */
+bool edgeclient_resource_exists(const char *endpoint_name,
+                                      const uint16_t object_id,
+                                      const uint16_t object_instance_id,
+                                      const uint16_t resource_id);
 /**
  * \brief Create an endpoint object with given name to Device Management Client. In success, the new endpoint object will be published at the next
  *  registration update or registration.
@@ -359,6 +403,10 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
                                                    Lwm2mResourceType resource_type,
                                                    int opr,
                                                    void *ctx);
+pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id,
+                                                   const uint16_t object_instance_id, const uint16_t resource_id,
+                                                   const uint8_t *value, const uint32_t value_length,
+                                                   Lwm2mResourceType resource_type, int opr, void *ctx);
 
 /**
  * \brief Send asynchronous response for the given resource. Use this API to send the asynchronous response after
@@ -478,6 +526,15 @@ const char* edgeclient_get_endpoint_name();
  *         false if shutdown proces hasn't been started.
  */
 bool edgeclient_is_shutting_down();
+
+
+bool edgeclient_create_resource_structure(const char *endpoint_name,
+                                          const uint16_t object_id,
+                                          const uint16_t object_instance_id,
+                                          const uint16_t resource_id,
+                                          Lwm2mResourceType resource_type,
+                                          int opr,
+                                          void *ctx);
 
 #ifdef __cplusplus
 }

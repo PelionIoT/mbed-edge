@@ -250,7 +250,19 @@ public:
      */
     bool blockwise_notify() const;
 
+    /**
+     * @brief Wait to report the value to the parents of the resource
+     *
+     * @param Resource that should report value to the parents
+     */
+    void wait_to_report(M2MResourceBase *m2mresourcebase);
+
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+    /**
+     * @brief Start the pmin and pmax timers without setting object under observation
+     */
+    void start_timers();
+
 protected : // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type =
@@ -340,6 +352,7 @@ private:
     float                       _gt;
     float                       _lt;
     float                       _st;
+    bool                        _last_value_valid;
 #endif
     uint8_t                     *_token;
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
@@ -352,8 +365,10 @@ private:
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     bool                        _pmin_quiet_period : 1;
 #endif
+    bool                        _waiting_to_report;
+    M2MResourceBase             *_resource_base;
 friend class Test_M2MReportHandler;
-
+friend class Test_M2MResourceInstance;
 };
 
 #endif // M2MREPORTHANDLER_H

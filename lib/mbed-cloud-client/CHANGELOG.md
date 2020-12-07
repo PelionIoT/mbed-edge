@@ -1,6 +1,64 @@
 ## Changelog for Pelion Device Management Client
 
-### Release 4.3.0 (03.02.2020)
+### Release 4.6.0 (26.08.2020)
+
+#### Device Management Client
+
+-  Removed the upper limit (900 seconds before expiration) for calculating the registration update timer expiration. Now, the timer uses 75% of the lifetime.
+-  Changed the notification handler to send a notification only when crossing the "less than" or "greater than" notification threshold values.
+-  Added support for the [Parsec](https://parallaxsecond.github.io/parsec-book/index.html) open-source initiative. It provides a platform-agnostic interface for calling the secure storage and operation services of a Trusted Platform Module (TPM) on Linux.
+-  Optimized application reconnection handling.
+   - Previously, the reconnection timer seed was randomized between 10 and 100 seconds. Now, the base value is platform-specific and you can control it using the `PAL_DEFAULT_RTT_ESTIMATE` macro (estimated round-trip time for the network).
+      - Mbed OS defaults to 10 seconds.
+      - NXP and Renesas SDKs default to 5 seconds.
+      - Linux defaults to 3 seconds.
+   - You can now optimize the client recovery behaviour based on the expected network performance (latency and bandwidth).
+- Added handling for `MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE` during handshake. This allows the client to recover and fall back to bootstrap if the LwM2M credentials are invalid.
+- Improved handling of timeouts during network and TLS/DTLS operations. This will avoid unnessary fallbacks to re-bootstrapping.
+
+### Platform Adaptation Layer (PAL)
+
+-  PAL SST APIs were removed. The new adaptation layer for Secure Storage is KVStore APIs.
+-  Deprecated the `MBED_CLIENT_RECONNECTION_INTERVAL` macro. An application that needs to control the CoAP retransmission intervals should now define `PAL_DEFAULT_RTT_ESTIMATE`.
+-  Deprecated the `MBED_CONF_MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT` macro. An application that needs to control the DTLS intervals should now define `PAL_DEFAULT_RTT_ESTIMATE`.
+-  Linux: Fixed handling of PIPE errors during socket handling that resulted in unwanted application termination instead of raising an error. Now, PIPE errors result in SSL handshake erro
+
+### Release 4.5.0 (12.06.2020)
+
+#### Device Management Client
+
+* Updated Mbed CoAP to v5.1.5.
+* Fixed a bug that caused a transmission of a notification outside the threshold values after a registration update.
+* Added support to define custom server URI port by application, `MBED_CLOUD_CLIENT_CUSTOM_URI_PORT` is build time optional parameter and is not set by default. When defined the client will connect to Cloud over this CoAP port rather than over one provided through factory or developer provisioned URI port.It is application's responsibility to ensure that the provided port is open on server side to accept incoming CoAP connection.
+* Fixed client crash caused by wrong order of initializing event scheduler. As part of resource creation, there is a possibility that some of the resources can be created as Auto Observable, but that will require that those resources have certain base component like Timer to be created. Timer creation requires that event scheduler must have been created before hand. Since, Resource creation is an independent operation than instantiating Pelion Client, there is a chance that Resource can be created before Client stack is instantiated so it becomes highly dependant on order in which APIs are called. To resolve this issue, scheduler initilization call is also added in M2MBase constructor as fail-safe mechanism, so that order of API calls does not matter for application developer.
+* Fixed the issue of reporting error callback of `MESSAGE_STATUS_SEND_FAILED` when notification sending fails because of network issue and internal CoAP retransmission fails.This is especially helpful for UDP and UDP-QUEUE based client where packets can be lost easily and should be informed to application for their booking purposes.
+However, the notification will still be stored internally in client and it will attempt to re-send it on next successful reconnection to Pelion Cloud.
+* Added a compile-time check to prevent configuring the client with LIFETIME values below 60 seconds. 60 seconds is the minimum allowed.
+* [Mbed OS] Changed the default storage location for update to `ARM_UCP_FLASHIAP`.
+* Added support for Device Sentry feature.
+* Added new library flag `MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT`, The default is `null`. Should be set to `1` if SE hasn't pre-provisioned credentials.  
+
+### Release 4.4.0 (17.04.2020)
+
+* Changed the handling of numeric resources. Client now converts payloads to correct underlying data type. Previously, it allowed storing of `string-type` data in a resource with numeric data type.
+* Fixed off-by-one bug in `m2mstring::convert_ascii_to_float()`.
+* Deprecated and removed the usage of `PAL_UDP_MTU_SIZE`. The implementation was not correct and was not doing what it claimed to do. Applications should use instead `mbed-client-pal.pal-max-frag-len` to enable DTLS fragmentation support for network stacks with MTU limitations.
+* Added KVStore library as a new component.
+* Allow client to pause in any state.
+* Client now cancels existing subscriptions after a full registration. This matches the server side behaviour for full registration, and ensures that notification tokens are properly synchronized.
+
+### Factory Configuration Client
+
+Bugfix: When a device with PSA configuration was restarted, the time was read before storage initialization. This caused rebootstrap of the device on every restart.
+
+### Platform Adaptation Layer (PAL)
+
+* Reintroduced backwards compatibility with Mbed OS 5.x releases to the PAL layer. String-based Mbed OS APIs are also supported in function `pal_plat_getNetInterfaceInfo`.
+* Added support for NXP SDK.
+* Added support for Renesas SDK.
+* Flagged `pal_sslGetVerifyResult` and `pal_sslGetVerifyResultExtended` functions with `PAL_USE_SECURE_TIME` option. These functions rely on having the current time available and are not guaranteed to work without `PAL_USE_SECURE_TIME`.
+
+### Release 4.3.0 (06.02.2020)
 
 #### Device Management Client
 

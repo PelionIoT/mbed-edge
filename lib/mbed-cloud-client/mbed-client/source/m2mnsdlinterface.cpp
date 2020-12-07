@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
@@ -27,9 +25,6 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include <assert.h>
-#include <inttypes.h>
-#include <stdlib.h>
 #include "include/nsdlaccesshelper.h"
 #include "include/m2mnsdlobserver.h"
 #include "include/m2mtlvdeserializer.h"
@@ -40,6 +35,7 @@
 #include "mbed-client/m2msecurity.h"
 #include "mbed-client/m2mserver.h"
 #include "mbed-client/m2mobject.h"
+#include "mbed-client/m2mbase.h"
 #include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mobjectinstance.h"
 #include "mbed-client/m2mresource.h"
@@ -58,7 +54,11 @@
 #include "eventOS_event_timer.h"
 #include "eventOS_scheduler.h"
 #include "ns_hal_init.h"
-#include "pal.h"
+
+#include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define MBED_CLIENT_NSDLINTERFACE_TASKLET_INIT_EVENT 0 // Tasklet init occurs always when generating a tasklet
 #define MBED_CLIENT_NSDLINTERFACE_EVENT 30
@@ -83,7 +83,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.3.0";
+const char *MCC_VERSION = "mccv=4.6.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -190,6 +190,7 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _server_address(NULL),
   _custom_uri_query_params(NULL),
   _notification_handler(new M2MNotificationHandler()),
+  _auto_obs_token(0),
   _bootstrap_id(0),
   _binding_mode(M2MInterface::NOT_SET),
   _identity_accepted(false),
@@ -199,7 +200,8 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _waiting_for_bs_finish_ack(false),
   _download_retry_timer(*this),
   _download_retry_time(0),
-  _auto_obs_token(0)
+  _network_stagger_estimate(0),
+  _network_rtt_estimate(10)                              // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
 
@@ -266,7 +268,7 @@ bool M2MNsdlInterface::initialize()
     // Sets the packet retransmission attempts and time interval
     sn_nsdl_set_retransmission_parameters(_nsdl_handle,
                                           MBED_CLIENT_RECONNECTION_COUNT,
-                                          MBED_CLIENT_RECONNECTION_INTERVAL);
+                                          _network_rtt_estimate);
 
     sn_nsdl_set_retransmission_buffer(_nsdl_handle, MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS, 0);
 
@@ -832,7 +834,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                         coap_header->msg_code == COAP_MSG_CODE_RESPONSE_CHANGED)) {
 
                 coap_response_s *resp = find_response(coap_header->msg_id);
-                if (resp) {
+                if (resp && resp->uri_path) {
                     M2MBase *base = find_resource(resp->uri_path);
                     if (base) {
                         if (resp->type == M2MBase::BLOCK_SUBSCRIBE) {
@@ -854,6 +856,14 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                        COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED == coap_header->coap_status) {
 
                 tr_info("M2MNsdlInterface::received_from_server_callback - message sending failed, id %d", coap_header->msg_id);
+                coap_response_s *resp = find_response(coap_header->msg_id);
+                if (resp && resp->uri_path) {
+                    M2MBase *base = find_resource(resp->uri_path);
+                    if (base) {
+                        base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, resp->type);
+                    }
+                }
+
                 _observer.registration_error(M2MInterface::NetworkError, true);
 
             // Handle Server-side expections during registration flow
@@ -1022,7 +1032,6 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
     tr_debug("M2MNsdlInterface::resource_callback_handle_event");
     uint8_t result = 1;
     uint8_t *payload = NULL;
-    bool free_payload = true;
     sn_coap_hdr_s *coap_response = NULL;
     sn_coap_msg_code_e msg_code = COAP_MSG_CODE_RESPONSE_CHANGED; // 4.00
     String resource_name = coap_to_string(received_coap_header->uri_path_ptr,
@@ -1167,7 +1176,7 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
             _notification_handler->send_notification(this);
         }
     }
-
+    bool value_updated_failed = false;
     // If the external blockwise storing is enabled call value updated only when all blocks have been received
     if (execute_value_updated &&
         coap_response &&
@@ -1181,30 +1190,67 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
 #ifdef ENABLE_ASYNC_REST_RESPONSE
             if (!async_request_callback_called) {
 #endif
+#ifndef DISABLE_BLOCK_MESSAGE
                 // Clear the old resource value since the data is now passed to application
                 if (res->block_message() && res->block_message()->is_block_message()) {
                     res->clear_value();
-                } else {
-                    // Ownership of payload moved to resource, skip the freeing.
-                    free_payload = false;
-                    res->set_value_raw(payload, received_coap_header->payload_len);
+                } else
+#endif //DISABLE_BLOCK_MESSAGE
+                if (!set_resource_value(res, payload, received_coap_header->payload_len)) {
+                    // settings resource value failed
+                    result = 0;
+                    value_updated_failed = true;
                 }
+
 #ifdef ENABLE_ASYNC_REST_RESPONSE
             }
 #endif
         }
-        if (coap_response->msg_code != COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE) {
+        if (!value_updated_failed && coap_response->msg_code != COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE) {
             value_updated(base);
         }
     }
 
-    if (free_payload) {
-        free(payload);
-    }
+    free(payload);
 
     sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, coap_response);
 
     return result;
+}
+
+bool M2MNsdlInterface::set_resource_value(M2MResourceBase *res, const uint8_t *value_ptr, const uint32_t size)
+{
+    bool success = false;
+    switch (res->resource_instance_type()) {
+        case M2MResourceBase::STRING:
+        case M2MResourceBase::OPAQUE:
+        case M2MResourceBase::OBJLINK:
+            success = res->set_value(value_ptr, size);
+            break;
+        case M2MResourceBase::INTEGER:
+        case M2MResourceBase::BOOLEAN:
+        case M2MResourceBase::TIME:
+        {
+            int64_t value = 0;
+            if (String::convert_ascii_to_int((char*)value_ptr, size, value)) {
+                success = res->set_value(value);
+            }
+            break;
+        }
+        case M2MResourceBase::FLOAT:
+        {
+            float value = 0;
+            if (String::convert_ascii_to_float((char*)value_ptr, size, value)) {
+                success = res->set_value_float(value);
+            }
+            break;
+        }
+        default:
+            success = false;
+            break;
+    }
+
+    return success;
 }
 
 bool M2MNsdlInterface::process_received_data(uint8_t *data,
@@ -1698,23 +1744,21 @@ String M2MNsdlInterface::coap_to_string(const uint8_t *coap_data, int coap_data_
     return value;
 }
 
-uint64_t M2MNsdlInterface::registration_time() const
+uint32_t M2MNsdlInterface::registration_time() const
 {
-    uint64_t value = 0;
+    uint32_t value = 0;
     if(_endpoint) {
         value = _server->resource_value_int(M2MServer::Lifetime);
     }
     if(value < MINIMUM_REGISTRATION_TIME) {
-        tr_warn("M2MNsdlInterface::registration_time - stored value in resource (in seconds) %" PRIu64, value);
+        tr_warn("M2MNsdlInterface::registration_time - stored value in resource (in seconds) %" PRIu32, value);
         value = MINIMUM_REGISTRATION_TIME;
     }
 
-    if(value >= OPTIMUM_LIFETIME) {
-        value = value - REDUCE_LIFETIME;
-    } else {
-        value = REDUCTION_FACTOR * value;
-    }
-    tr_debug("M2MNsdlInterface::registration_time - value (in seconds) %" PRIu64, value);
+    //Use 75% of the lifetime value to ensure registration update is started before the lifetime expires
+    value = value * 3 / 4;
+
+    tr_debug("M2MNsdlInterface::registration_time - value (in seconds) %" PRIu32, value);
     return value;
 }
 
@@ -2498,6 +2542,8 @@ bool M2MNsdlInterface::validate_security_object()
         String address = _security->resource_value_string(M2MSecurity::M2MServerUri, instance_id);
         uint32_t sec_mode = _security->resource_value_int(M2MSecurity::SecurityMode, instance_id);
         uint32_t is_bs_server = _security->resource_value_int(M2MSecurity::BootstrapServer, instance_id);
+        //Suppress unused variable warning that occurs if EST is disabled
+        (void)is_bs_server;
 
         size_t chain_size = 0;
         size_t server_key_size = 0;
@@ -2697,7 +2743,7 @@ void M2MNsdlInterface::update_trigger_callback(void */*argument*/)
 
 bool M2MNsdlInterface::lifetime_value_changed() const
 {
-    uint64_t value = 0;
+    uint32_t value = 0;
     if (_endpoint && _endpoint->lifetime_ptr) {
         value = atol((const char*)_endpoint->lifetime_ptr);
     }
@@ -2933,8 +2979,10 @@ bool M2MNsdlInterface::send_next_notification_for_object(M2MObject& object, bool
     const M2MObjectInstanceList &object_instance_list = object.instances();
     M2MReportHandler* reporter = object.report_handler();
     if (reporter) {
+        // Auto obs token can't be cleared
         if (clear_token && !object.get_nsdl_resource()->auto_observable) {
             reporter->set_observation_token(NULL, 0);
+            object.cancel_observation();
         } else if (reporter->is_under_observation() &&
                    (reporter->notification_in_queue() || reporter->notification_send_in_progress())) {
             reporter->schedule_report(true);
@@ -2949,8 +2997,10 @@ bool M2MNsdlInterface::send_next_notification_for_object(M2MObject& object, bool
         for ( ; object_instance_iterator != object_instance_list.end(); object_instance_iterator++ ) {
             reporter = (*object_instance_iterator)->report_handler();
             if (reporter) {
+                // Auto obs token can't be cleared
                 if (clear_token && !(*object_instance_iterator)->get_nsdl_resource()->auto_observable) {
                     reporter->set_observation_token(NULL, 0);
+                    (*object_instance_iterator)->cancel_observation();
                 } else if (reporter->is_under_observation() &&
                            (reporter->notification_in_queue() || reporter->notification_send_in_progress())) {
                     reporter->schedule_report(true);
@@ -2969,6 +3019,7 @@ bool M2MNsdlInterface::send_next_notification_for_object(M2MObject& object, bool
                         // Auto obs token can't be cleared
                         if (clear_token && !(*resource_iterator)->get_nsdl_resource()->auto_observable) {
                             reporter->set_observation_token(NULL, 0);
+                            (*resource_iterator)->cancel_observation();
                         } else if (reporter->is_under_observation() &&
                                    (reporter->notification_in_queue() || reporter->notification_send_in_progress())) {
                             reporter->schedule_report(true);
@@ -3103,6 +3154,9 @@ void M2MNsdlInterface::handle_register_response(const sn_coap_hdr_s *coap_header
         _observer.client_registered(_server);
 
         _notification_send_ongoing = false;
+
+        // Check if there are any pending notifications in queue
+        _notification_handler->send_notification(this);
 
         // Check if there are any pending download requests
         send_pending_request();
@@ -3279,7 +3333,7 @@ void M2MNsdlInterface::handle_request_response(const sn_coap_hdr_s *coap_header,
             }
 
             if (retry) {
-                tr_info("M2MNsdlInterface::handle_request_response - continue file download after %" PRIu64, _download_retry_time);
+                tr_info("M2MNsdlInterface::handle_request_response - continue file download after %" PRIu32, _download_retry_time);
                 set_request_context_to_be_resend(coap_header->token_ptr, coap_header->token_len);
                 _download_retry_timer.start_timer(_download_retry_time * 1000, M2MTimerObserver::RetryTimer);
             }
@@ -3408,24 +3462,8 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
                 M2MBase *base = find_resource(resp->uri_path);
                 if (base) {
                     if (resp->type == M2MBase::NOTIFICATION) {
-                        M2MBase::BaseType type = base->base_type();
-                        switch (type) {
-                            case M2MBase::Object:
-                                base->remove_observation_level(M2MBase::O_Attribute);
-                                break;
-                            case M2MBase::Resource:
-                                base->remove_observation_level(M2MBase::R_Attribute);
-                                break;
-                            case M2MBase::ObjectInstance:
-                                base->remove_observation_level(M2MBase::OI_Attribute);
-                                break;
-                            default:
-                                break;
-                        }
-                        base->set_under_observation(false, this);
+                        base->cancel_observation();
                         _notification_send_ongoing = false;
-                        base->send_notification_delivery_status(*base, NOTIFICATION_STATUS_UNSUBSCRIBED);
-                        base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
                         _notification_handler->send_notification(this);
                     } else if (resp->type == M2MBase::DELAYED_POST_RESPONSE) {
                         base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_REJECTED, M2MBase::DELAYED_POST_RESPONSE);
@@ -3527,11 +3565,11 @@ void M2MNsdlInterface::handle_message_delivered(M2MBase *base, const M2MBase::Me
 
 void M2MNsdlInterface::set_retransmission_parameters()
 {
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
     // in UDP mode, reconnection attempts must be scaled down so that last attempt does not slip
     // past the client lifetime.
-    uint64_t lifetime = registration_time();
-    uint32_t resend_count = MBED_CLIENT_RECONNECTION_COUNT;
-
+    uint32_t lifetime = registration_time();
+    uint8_t resend_count = MBED_CLIENT_RECONNECTION_COUNT;
     uint32_t reconnection_total_time = total_retransmission_time(resend_count);
     tr_debug("M2MNsdlInterface::set_retransmission_parameters() - total resend time %" PRIu32, reconnection_total_time);
 
@@ -3539,10 +3577,20 @@ void M2MNsdlInterface::set_retransmission_parameters()
         reconnection_total_time = total_retransmission_time(--resend_count);
     }
 
-    tr_info("M2MNsdlInterface::set_retransmission_parameters() - setting max resend count to %" PRIu32 " with total time: %" PRIu32, resend_count, reconnection_total_time);
-    sn_nsdl_set_retransmission_parameters(_nsdl_handle, resend_count, MBED_CLIENT_RECONNECTION_INTERVAL);
+    tr_info("M2MNsdlInterface::set_retransmission_parameters() - setting max resend count to %" PRIu32 " with total time: %" PRIu32,
+            resend_count, reconnection_total_time);
+    sn_nsdl_set_retransmission_parameters(_nsdl_handle, resend_count, _network_rtt_estimate);
+#else
+    tr_info("M2MNsdlInterface::set_retransmission_parameters() - setting resend count to %" PRIu32 " with initial retransmission time: %" PRIu32,
+            sn_nsdl_get_retransmission_count(_nsdl_handle),
+            _network_rtt_estimate);
+    sn_nsdl_set_retransmission_parameters(_nsdl_handle,
+                                          sn_nsdl_get_retransmission_count(_nsdl_handle),
+                                          _network_rtt_estimate);
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
 }
 
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
 uint32_t M2MNsdlInterface::total_retransmission_time(uint32_t resend_count)
 {
     uint32_t reconnection_total_time = 1;
@@ -3552,7 +3600,7 @@ uint32_t M2MNsdlInterface::total_retransmission_time(uint32_t resend_count)
     }
 
     reconnection_total_time--;
-    reconnection_total_time *= MBED_CLIENT_RECONNECTION_INTERVAL;
+    reconnection_total_time *= _network_rtt_estimate;
 
     // We need to take into account that CoAP specification mentions that each retransmission
     // has to have a random multiplying factor between 1 - 1.5 , max of which can be 1.5
@@ -3561,14 +3609,15 @@ uint32_t M2MNsdlInterface::total_retransmission_time(uint32_t resend_count)
     return reconnection_total_time;
 }
 
-bool M2MNsdlInterface::is_update_register_ongoing() const
-{
-    return _nsdl_handle->update_register_token == 0 ? false : true;
-}
-
 uint8_t M2MNsdlInterface::get_resend_count()
 {
     return sn_nsdl_get_retransmission_count(_nsdl_handle);
+}
+#endif // #if (PAL_USE_SSL_SESSION_RESUME == 0)
+
+bool M2MNsdlInterface::is_update_register_ongoing() const
+{
+    return _nsdl_handle->update_register_token == 0 ? false : true;
 }
 
 void M2MNsdlInterface::send_pending_request()
@@ -3636,7 +3685,7 @@ void M2MNsdlInterface::remove_items_from_response_list_for_uri(const char* uri_p
     coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
     while (data) {
         bool remove = false;
-        if (uri_path) {
+        if (uri_path && data->uri_path) {
             if ((strcmp(uri_path, data->uri_path) == 0)) {
                 remove = true;
             }
@@ -3783,3 +3832,25 @@ bool M2MNsdlInterface::handle_delayed_response_store(const char* uri_path,
     return success;
 }
 #endif
+
+void M2MNsdlInterface::update_network_stagger_estimate(uint16_t data_amount)
+{
+    _network_stagger_estimate = pal_getStaggerEstimate(data_amount);
+    tr_info("M2MNsdlInterface::update_network_stagger_estimate() to %d", _network_stagger_estimate);
+}
+
+uint16_t M2MNsdlInterface::get_network_stagger_estimate()
+{
+    return _network_stagger_estimate;
+}
+
+void M2MNsdlInterface::update_network_rtt_estimate()
+{
+    _network_rtt_estimate = pal_getRttEstimate();
+    tr_info("M2MNsdlInterface::update_network_rtt_estimate() to %d", _network_rtt_estimate);
+}
+
+uint8_t M2MNsdlInterface::get_network_rtt_estimate()
+{
+    return _network_rtt_estimate;
+}

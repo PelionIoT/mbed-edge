@@ -78,7 +78,7 @@ static uint64_t bspatch_write_new_buffer_remaining = 0;
 // Reference pointer to buffer which is received in Write() from the Hub
 static arm_uc_buffer_t *arm_uc_pal_deltapaal_incoming_buf_ref = NULL;
 // To keep internal state of which bspatch event is currently going to be completed
-static bs_patch_api_event_t arm_uc_pal_deltapaal_nextEventToPostToBsPatch = EBSAPI_START_PATCH_PROCESSING;
+static uint32_t arm_uc_pal_deltapaal_nextEventToPostToBsPatch = EBSAPI_START_PATCH_PROCESSING;
 // Assume there is process ongoing  only to one output slot
 static uint32_t current_slot_id = 0;
 
@@ -801,7 +801,9 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Write(uint32_t slot_id,
                                             const arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
+    if (buffer == NULL){
+        return result;
+    }
     UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write slot %" PRIu32 " offset: %" PRIu32, slot_id, offset);
     UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write bspatch_read_patch_buffer_length %" PRIu64 " bspatch_read_patch_buffer_remaining: %" PRIu64,
                   bspatch_read_patch_buffer_length,
@@ -843,7 +845,7 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Write(uint32_t slot_id,
         }
 
     }
-    else if (paal_storage_implementation && buffer) {
+    else if (paal_storage_implementation) {
         // Full image write
         UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write Going into downstream Write ");
 
@@ -894,10 +896,15 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Read(uint32_t slot_id,
                                            uint32_t offset,
                                            arm_uc_buffer_t *buffer)
 {
-    UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Read offset %" PRIu32 " buffer->size %" PRIu32, offset, buffer->size);
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_storage_implementation && buffer) {
+    if (!buffer) {
+        return result;
+    }
+
+    UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Read offset %" PRIu32 " buffer->size %" PRIu32, offset, buffer->size);
+
+    if (paal_storage_implementation) {
         result = paal_storage_implementation->Read(slot_id, offset, buffer);
     }
 

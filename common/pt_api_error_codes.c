@@ -47,6 +47,12 @@ struct error_message_entry_t ERROR_MESSAGES[] =
          {PT_API_CERTIFICATE_RENEWAL_ERROR, "Certificate renewal failed. Certificate enrollment client internal error."},
          {PT_API_CERTIFICATE_RENEWAL_INVALID_PARAMETERS, "Certificate renewal failed. Invalid parameters."},
          {PT_API_CERTIFICATE_RENEWAL_MEMORY_ALLOCATION_FAILURE, "Certificate renewal failed. A memory allocation failed."},
+
+         {GRM_API_RESOURCE_AlREADY_EXISTS, "Gateway resource already exists."},
+         {GRM_API_RESOURCE_MANAGER_NOT_REGISTERED, "Gateway resource manager not registered."},
+         {GRM_API_RESOURCE_MANAGER_ALREADY_REGISTERED, "Gateway resource manager already registered."},
+         {GRM_API_RESOURCE_MANAGER_NAME_RESERVED, "Gateway resource manager name reserved."},
+         {GRM_API_OBJECT_RESERVED, "Object id reserved."},
          {PT_API_UNKNOWN_ERROR, NULL}};
 
 const char *pt_api_get_error_message(pt_api_result_code_e code)

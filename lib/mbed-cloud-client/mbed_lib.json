@@ -9,10 +9,10 @@
             "value": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP"
         },
         "update-storage": {
-            "help": "Storage option for update image. Common values: ARM_UCP_FLASHIAP and ARM_UCP_FLASHIAP_BLOCKDEVICE.",
+            "help": "Storage option for update image. Common values: ARM_UCP_FLASHIAP, ARM_UCP_FLASHIAP_MCUBOOT and ARM_UCP_FLASHIAP_BLOCKDEVICE.",
             "macro_name": "MBED_CLOUD_CLIENT_UPDATE_STORAGE",
-            "default": null,
-            "value": null
+            "default": "ARM_UCP_FLASHIAP",
+            "value": "ARM_UCP_FLASHIAP"
         },
         "disable-certificate-enrollment": {
             "help": "Enables or disables certificate enrollment feature",
@@ -35,6 +35,18 @@
         "secure-element-support": {
             "help": "Enables Secure Element feature",
             "options": [ "null", "1"],
+            "default": null,
+            "value": null
+        },
+        "non-provisioned-secure-element": {
+            "help": "Configuration option for Secure Element's preprovisioned credentials state",
+            "options": [ "null", "1"],
+            "default": null,
+            "value": null
+        },
+        "enable-device-sentry": {
+            "help": "Enables Device Sentry feature",
+            "options": [ "null", "1" ],
             "default": null,
             "value": null
         }

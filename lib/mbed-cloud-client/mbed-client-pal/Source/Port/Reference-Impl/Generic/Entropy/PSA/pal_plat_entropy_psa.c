@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,8 +20,18 @@
 
 #include "pal.h"
 #include "pal_plat_entropy.h"
-#include "crypto.h"
-#include "config.h" // Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag
+
+// Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag
+#if !defined(MBEDTLS_CONFIG_FILE)
+    #include "mbedtls/config.h"
+#else
+    #include MBEDTLS_CONFIG_FILE
+#endif
+
+// include only when mbedTLS use PSA
+#if defined(MBEDTLS_ENTROPY_NV_SEED) && defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
+    #include "crypto.h"
+#endif
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 /*
@@ -32,7 +42,7 @@
 palStatus_t pal_plat_DRBGSeed();
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-#ifdef MBEDTLS_ENTROPY_NV_SEED
+#if defined(MBEDTLS_ENTROPY_NV_SEED) && defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 //Error Translation from PSA module to PAL
 PAL_PRIVATE palStatus_t pal_osPsaErrorTranslation(psa_status_t err)
 {
@@ -50,7 +60,7 @@ PAL_PRIVATE palStatus_t pal_osPsaErrorTranslation(psa_status_t err)
     }
     return ret;
 }
-#endif //MBEDTLS_ENTROPY_NV_SEED
+#endif //defined(MBEDTLS_ENTROPY_NV_SEED) && defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 /*
  * If entropy not in storage - store the entropy and seed the DRBG for future use
  * If entropy already in storage - do nothing return FCC_STATUS_ENTROPY_ERROR
@@ -94,9 +104,14 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
         bufSizeBytes = PAL_SHA256_SIZE;
     }
 
-
     // Inject the entropy
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     status = pal_osPsaErrorTranslation(mbedtls_psa_inject_entropy(entropyBuf, bufSizeBytes));
+#else
+    // when PSA not used & entropy holds in KVStore, write entropy to KVStore
+    status = pal_plat_DRBGEntropyInject(entropyBuf, bufSizeBytes);
+#endif  // MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
     if (status != PAL_SUCCESS && status != PAL_ERR_ENTROPY_EXISTS) {
         goto Exit;
     }

@@ -40,6 +40,7 @@ extern "C" {
 #include "common/test_support.h"
 #include "common/edge_mutex.h"
 #include "edge-client/edge_client.h"
+#include "edge-client/edge_manifest_object.h"
 extern "C" {
 #include "edge-client/edge_client_format_values.h"
 }
@@ -59,6 +60,10 @@ extern "C" {
 #include "mbed-client/m2mvector.h"
 #include "ns_event_loop.h"
 #include "include/m2mcallbackstorage.h"
+#include "mbed-client/m2minterfacefactory.h"
+#include "mbed-client/m2mobject.h"
+#include "mbed-client/m2mresource.h"
+#include "arm_uc_public.h"
 
 EDGE_LOCAL EdgeClientImpl *client = NULL;
 edgeclient_data_t *client_data = NULL;
@@ -233,6 +238,7 @@ bool edgeclient_endpoint_value_execute_handler(const M2MResourceBase *resource_b
                                                uint8_t token_len,
                                                edge_rc_status_e *rc_status)
 {
+    M2MResource *res = (M2MResource *) resource_base;
     Lwm2mResourceType resource_type = resolve_m2mresource_type(resource_base->resource_instance_type());
     const char *uri = resource_base->uri_path();
     uint8_t operation = OPERATION_EXECUTE;
@@ -253,6 +259,11 @@ bool edgeclient_endpoint_value_execute_handler(const M2MResourceBase *resource_b
                                                                                     endpoint_context);
 
     if (request_ctx) {
+        if (!res->get_manifest_check_status()) {
+            edgeclient_execute_success(request_ctx);
+            tr_err("Manifest Rejected");
+            return true;
+        }
         if (0 == edgeclient_write_to_pt_cb(request_ctx, endpoint_context)) {
             return true;
         } else {
@@ -533,6 +544,18 @@ bool edgeclient_remove_resources_owned_by_client(void *context)
         tr_debug("  iterating resource_list_object: %p", resource_list_object);
         if (resource_list_object->connection == context) {
             tr_debug("  remove resource list object: %p", resource_list_object);
+
+            // If this resource is a gateway resource, it needs to be removed as a LWM2M resource
+            if(!resource_list_object->uri) {
+                edgeclient_set_update_register_needed();
+                M2MResource *res = resource_list_object->resource;
+                String res_id = res->name();
+                if(res->get_parent_object_instance().remove_resource(res_id) == true)
+                    tr_debug(" removed gateway resource: %p", resource_list_object);
+                else
+                    tr_error(" remove gateway resource failed: %p", resource_list_object);
+            }
+
             client_data->resource_list.erase(index);
             if (resource_list_object->acp) {
                 delete resource_list_object->acp;
@@ -559,6 +582,16 @@ uint32_t edgeclient_remove_objects_owned_by_client(void *client_context)
         edgeclient_set_update_register_needed();
     }
     return total_removed;
+}
+
+void edgeclient_get_asset(char *device_id,
+                          uint8_t *uri_buffer,
+                          char *filename,
+                          size_t size,
+                          asset_download_complete_cb cb,
+                          void *userdata)
+{  
+    client->client_obtain_asset(device_id,uri_buffer, filename, size, cb, userdata);
 }
 
 EDGE_LOCAL uint32_t remove_all_endpoints()
@@ -615,6 +648,7 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         edgeclient_data_init();
 
         client_data->g_handle_write_to_pt_cb = params->handle_write_to_pt_cb;
+        client_data->g_handle_write_to_grm_cb = params->handle_write_to_grm_cb;
         client_data->g_handle_register_cb = params->handle_register_cb;
         client_data->g_handle_unregister_cb = params->handle_unregister_cb;
         client_data->g_handle_error_cb = params->handle_error_cb;
@@ -717,6 +751,17 @@ void edgeclient_update_register()
 bool edgeclient_endpoint_exists(const char *endpoint_name) {
     bool ret = true;
     if (edgeclient_get_endpoint(endpoint_name) == NULL) {
+        ret = false;
+    }
+    return ret;
+}
+
+bool edgeclient_resource_exists(const char *endpoint_name,
+                                      const uint16_t object_id,
+                                      const uint16_t object_instance_id,
+                                      const uint16_t resource_id) {
+    bool ret = true;
+    if (edgelient_get_resource(endpoint_name, object_id, object_instance_id, resource_id) == NULL) {
         ret = false;
     }
     return ret;
@@ -958,6 +1003,7 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
 
     client_data->resource_list.push_back(res_list_obj);
 
+    edgeclient_set_update_register_needed();
     return true;
 }
 
@@ -1221,6 +1267,7 @@ pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
     return PT_API_SUCCESS;
 }
 
+
 pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, const uint16_t object_id,
                                                    const uint16_t object_instance_id, const uint16_t resource_id,
                                                    const uint8_t *value, const uint32_t value_length,
@@ -1249,8 +1296,10 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, co
             return PT_API_ILLEGAL_VALUE;
         }
     }
+
     return PT_API_SUCCESS;
 }
+
 
 bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
                                                   const uint16_t object_id,
@@ -1559,7 +1608,7 @@ EDGE_LOCAL M2MObjectInstance *edgeclient_get_object_instance(const char *endpoin
     return obj->object_instance(object_instance_id);
 }
 
-EDGE_LOCAL M2MResource *edgelient_get_resource(const char *endpoint_name,
+M2MResource *edgelient_get_resource(const char *endpoint_name,
                                                const uint16_t object_id,
                                                const uint16_t object_instance_id,
                                                const uint16_t resource_id)
@@ -1571,6 +1620,18 @@ EDGE_LOCAL M2MResource *edgelient_get_resource(const char *endpoint_name,
     char res_name[6] = {0};
     m2m::itoa_c(resource_id, res_name);
     return obj_inst->resource(res_name);
+}
+
+void *edgeclient_get_resource_connection(M2MResource *resource) {
+    int index = 0;
+    while (index < client_data->resource_list.size()) {
+        ResourceListObject_t *resource_list_object = client_data->resource_list[index++];
+        if (resource_list_object->resource == resource) {
+        tr_info(" resource %p has connection %p", resource, resource_list_object->connection);
+            return resource_list_object->connection;
+        }
+    }
+    return NULL;
 }
 
 EDGE_LOCAL bool edgeclient_is_registration_needed()
@@ -1590,6 +1651,11 @@ EDGE_LOCAL void edgeclient_set_update_register_needed()
 int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx)
 {
     return client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
+}
+
+int edgeclient_write_to_grm_cb(edgeclient_request_context_t *request_ctx)
+{
+    return client_data->g_handle_write_to_grm_cb(request_ctx);
 }
 
 const char* edgeclient_get_internal_id()

@@ -35,6 +35,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include "common_functions.h"
+#include "ns_hal_init.h"
+
+#ifdef MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
+#define MBED_CLIENT_EVENT_LOOP_SIZE MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
+#else
+#define MBED_CLIENT_EVENT_LOOP_SIZE 1024
+#endif
 
 #define TRACE_GROUP "mClt"
 
@@ -53,6 +60,8 @@ M2MBase::M2MBase(const String& resource_name,
 {
     // Checking the name length properly, i.e returning error is impossible from constructor without exceptions
     assert(resource_name.length() <= MAX_ALLOWED_STRING_LENGTH);
+
+    ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
 
     _sn_resource = (lwm2m_parameters_s*)memory_alloc(sizeof(lwm2m_parameters_s));
     if(_sn_resource) {
@@ -119,7 +128,9 @@ M2MBase::M2MBase(const lwm2m_parameters_s *s):
 {
     tr_debug("M2MBase::M2MBase(const lwm2m_parameters_s *s)");
     // Set callback function in case of both dynamic and static resource
-    _sn_resource->dynamic_resource_params->sn_grs_dyn_res_callback = __nsdl_c_callback;
+    if (_sn_resource->dynamic_resource_params->sn_grs_dyn_res_callback == NULL) {
+        _sn_resource->dynamic_resource_params->sn_grs_dyn_res_callback = __nsdl_c_callback;
+    }
 }
 
 M2MBase::~M2MBase()
@@ -297,6 +308,22 @@ void M2MBase::set_observable(bool observable)
 void M2MBase::set_auto_observable(bool auto_observable)
 {
     _sn_resource->dynamic_resource_params->auto_observable = auto_observable;
+    if (auto_observable && !_report_handler) {
+        _report_handler = new M2MReportHandler(*this, _sn_resource->data_type);
+        if (_report_handler) {
+            _report_handler->set_under_observation(true);
+            switch (base_type()) {
+                case M2MBase::Object:
+                case M2MBase::ObjectInstance:
+                    _report_handler->add_observation_level(M2MBase::OI_Attribute);
+                    break;
+                case M2MBase::Resource:
+                case M2MBase::ResourceInstance:
+                    _report_handler->add_observation_level(M2MBase::R_Attribute);
+                    break;
+            }
+        }
+    }
     set_changed();
 }
 
@@ -1005,6 +1032,37 @@ bool M2MBase::is_blockwise_needed(const nsdl_s *nsdl, uint32_t payload_len)
         return false;
     }
 }
+void M2MBase::cancel_observation()
+{
+    tr_info("M2MBase::cancel_observation()");
+
+    switch (base_type()) {
+        case M2MBase::Object:
+            M2MBase::remove_observation_level(M2MBase::O_Attribute);
+            break;
+
+        case M2MBase::ObjectInstance:
+            M2MBase::remove_observation_level(M2MBase::OI_Attribute);
+            break;
+
+        case M2MBase::Resource:
+        case M2MBase::ResourceInstance:
+            M2MBase::remove_observation_level(M2MBase::R_Attribute);
+            break;
+    #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+        case M2MBase::ObjectDirectory:
+            // Observation not supported!
+            break;
+    #endif
+    }
+
+    if (_report_handler) {
+        _report_handler->set_under_observation(false);
+    }
+    send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
+    send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
+
+}
 
 void M2MBase::handle_observation(nsdl_s *nsdl,
                                  const sn_coap_hdr_s &received_coap_header,
@@ -1049,31 +1107,7 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
         start_observation(received_coap_header, observation_handler);
 
     } else if (STOP_OBSERVATION == obs_number) {
-        tr_info("M2MBase::handle_observation() - stops observation");
-
-        set_under_observation(false, NULL);
-        send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
-        send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
-
-        switch (base_type()) {
-            case M2MBase::Object:
-                M2MBase::remove_observation_level(M2MBase::O_Attribute);
-                break;
-
-            case M2MBase::ObjectInstance:
-                M2MBase::remove_observation_level(M2MBase::OI_Attribute);
-                break;
-
-            case M2MBase::Resource:
-            case M2MBase::ResourceInstance:
-                M2MBase::remove_observation_level(M2MBase::R_Attribute);
-                break;
-#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-            case M2MBase::ObjectDirectory:
-                // Observation not supported!
-                break;
-#endif
-        }
+        cancel_observation();
     }
 }
 

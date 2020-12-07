@@ -32,6 +32,7 @@
 #include "edge-core/protocol_api.h"
 #include "edge-core/protocol_crypto_api.h"
 #include "edge-core/server.h"
+#include "edge-core/grm_api_internal.h"
 #include "edge-core/protocol_api.h"
 #include "edge-core/srv_comm.h"
 #include "edge-core/edge_server.h"
@@ -49,16 +50,19 @@
 #include "common/test_support.h"
 #include "edge_core_clip.h"
 #include "edge-client/reset_factory_settings.h"
-#include "edge-client/gateway_services_resource.h"
 #include "edge_version_info.h"
 #include "edge-rpc/rpc_timeout_api.h"
 #include "common/msg_api.h"
+#include "arm_uc_mmDerManifestAccessors.h"
+#include "arm_uc_certificate.h"
 
 #define TRACE_GROUP "serv"
 
 // current protocol API version
 #define SERVER_PT_WEBSOCKET_VERSION_PATH "/1/pt"
 #define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
+#define SERVER_GRM_WEBSOCKET_VERSION_PATH "/1/grm"
+
 
 EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
 EDGE_LOCAL struct context *g_program_context = NULL;
@@ -173,6 +177,91 @@ void transport_connection_t_destroy(transport_connection_t **transport_connectio
     }
 }
 
+bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manifest_info_t* manifest_info,arm_uc_update_result_t *error_manifest) {
+    tr_info("parse_manifest_for_subdevice");
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+    arm_uc_error_t error={0};
+    arm_uc_buffer_t  fingerprint={0};
+    error = ARM_UC_mmGetCertificateId(manifest_buffer,0,&fingerprint);
+      if (error.code != ERR_NONE) {
+        tr_info("No Certificate: %d", error.code);
+        fingerprint.size=0;
+    }
+    tr_info("Finger print size: %d", fingerprint.size);
+    uint8_t temp_buf[496]={0};
+    arm_uc_buffer_t  certList={0};
+    arm_uc_buffer_t  cert = {0};
+    cert.size = manifest_buffer->size;
+    cert.size_max = manifest_buffer->size_max;
+    cert.ptr = temp_buf;
+    if(fingerprint.size)
+    {
+        arm_uc_error_t error = ARM_UC_certificateFetch(&cert,
+                                        &fingerprint,
+                                        &certList,
+                                        NULL);
+    if (error.code != ERR_NONE) {
+        *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_INVALID_CERTIFICATE;
+        tr_error("ERROR Certificate Not Found: %d", error.code);
+        return false;
+    }
+  }
+
+    error = ARM_UC_mmGetFwSize(manifest_buffer, &(manifest_info->firmware_size));
+    if (error.code != ERR_NONE) {
+        *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_INTEGRITY_CHECK_FAILED;
+        tr_error("ERROR getting firmware size: %d", error.code);
+        return false;
+    }
+    // Obtain the version from the manifest
+    // NOTE: the version is actually an Epoch timestamp. Convert it to a string
+    error = ARM_UC_mmGetTimestamp(manifest_buffer, &(manifest_info->fw_version));
+    if (error.code != ERR_NONE) {
+        *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_UNSUPPORTED_MANIFEST_VERSION;
+        tr_error("ERROR getting firmware version: %d", error.code);
+        return false;
+    }
+    tr_info("Firmware Version:%ld ", manifest_info->fw_version);
+    // Obtain the URI from the manifest
+    error = ARM_UC_mmGetFwUri(manifest_buffer, &(manifest_info->url_buffer));
+    if (error.code != ERR_NONE) {
+        *error_manifest = ARM_UC_UPDATE_RESULT_FETCHER_INVALID_RESOURCE_URI;
+        tr_error("ERROR getting firmware URI: %d", error.code);
+        return false;
+    }
+      // Obtain the hash from the manifest
+    error = ARM_UC_mmGetFwHash(manifest_buffer, &(manifest_info->hash_buffer));
+    if (error.code != ERR_NONE) {
+        *error_manifest = ARM_UC_ERROR_INVALID_HASH;
+        tr_error("ERROR getting firmware hash: %d", error.code);
+        return false;
+    }
+    //Check already fw file exist or not
+    if(manifest_info->hash_buffer.ptr && manifest_info->hash_buffer.size > 0)
+    {
+        char hash[manifest_info->hash_buffer.size*2];
+        for(int i = 0; i<manifest_info->hash_buffer.size; i++)
+            sprintf(hash+i*2, "%02X", manifest_info->hash_buffer.ptr[i]);
+
+        tr_info("Firmware hash: %s", hash);
+        char* filename = malloc((manifest_info->hash_buffer.size*2)+1+4);
+        if(filename == NULL)
+        {
+            tr_err("filename memory allocation fail");
+            return false;
+        }
+        memset(filename,0,(manifest_info->hash_buffer.size*2)+1+4);
+        strcpy(filename, hash);
+        strcat(filename, ".bin");
+
+
+        free(filename);
+    }
+    *error_manifest = ARM_UC_UPDATE_STATE_UNINITIALISED;
+#endif
+    return true;
+}
+
 int callback_edge_core_protocol_translator(struct lws *wsi,
                                            enum lws_callback_reasons reason,
                                            void *user,
@@ -194,6 +283,8 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
                 client_data = edge_core_create_client(PT);
             } else if (header_ok && strcmp(get_uri, SERVER_MGMT_WEBSOCKET_VERSION_PATH) == 0) {
                 client_data = edge_core_create_client(MGMT);
+            } else if (header_ok && strcmp(get_uri, SERVER_GRM_WEBSOCKET_VERSION_PATH) == 0) {
+                client_data = edge_core_create_client(GRM);
             } else {
                 tr_err("Could not select client type from \"%s\".", get_uri);
                 free(get_uri);
@@ -270,8 +361,11 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
             tr_warn("lws_callback_closed: client went away: server wsi %p", wsi);
             if (websocket_connection) {
                 struct connection *connection = (struct connection*) websocket_connection->conn;
-                rpc_remote_disconnected(connection);
-                close_connection(connection);
+                if(connection)
+                {
+                    rpc_remote_disconnected(connection);
+                    close_connection(connection);
+                }
             }
             break;
         }
@@ -679,6 +773,7 @@ int testable_main(int argc, char **argv)
         // Create client
         tr_info("Starting Device Management Edge Cloud Client");
         edgeclient_create_params.handle_write_to_pt_cb = write_to_pt;
+        edgeclient_create_params.handle_write_to_grm_cb = write_to_grm;
         edgeclient_create_params.handle_register_cb = register_cb;
         edgeclient_create_params.handle_unregister_cb = unregister_cb;
         edgeclient_create_params.handle_error_cb = error_cb;
@@ -700,7 +795,6 @@ int testable_main(int argc, char **argv)
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
         rfs_add_factory_reset_resource();
-        gsr_add_gateway_services_resource();
 
         // Connect client
         edgeclient_connect();

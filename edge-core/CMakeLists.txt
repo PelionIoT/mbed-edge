@@ -1,5 +1,7 @@
 file (GLOB SOURCES ./*.c ../common/*.c)
 
+add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)
+
 if (TARGET_GROUP STREQUAL test)
   add_library (edge-core ${SOURCES})
   add_definitions(-DBUILD_TYPE_TEST)
@@ -12,11 +14,23 @@ endif ()
 add_definitions(-DMBED_CONF_MBED_TRACE_ENABLE=1)
 add_definitions ("-D SERVER_TIMEOUT_CHECK_INTERVAL_MS=${EDGE_SERVER_TIMEOUT_CHECK_INTERVAL_MS}")
 add_definitions ("-D SERVER_REQUEST_TIMEOUT_THRESHOLD_MS=${EDGE_SERVER_REQUEST_TIMEOUT_THRESHOLD_MS}")
-
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/manifest-manager/source)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/common)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/common/update-client-common)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/manifest-manager)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/atomic-queue)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/metadata-header)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/control-center)
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/device-identity)
 target_include_directories (edge-core PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/control-center/update-client-control-center)
 if (TARGET_GROUP STREQUAL test)
-  target_link_libraries (edge-core jansson jsonrpc libevent-mock-lib rpc mbedTrace libservice edge-client-mock-lib pal-mock-lib test-lib pthread)
+  target_link_libraries (edge-core jansson jsonrpc libevent-mock-lib rpc mbedTrace libservice edge-client-mock-lib pal-mock-lib test-lib pthread mbed-cloud-client-mock mbedtls)
 else ()
   target_link_libraries (edge-core jansson websockets event rpc edge-client)
 endif ()
+
+if(PARSEC_TPM_SE_SUPPORT)
+  target_link_libraries (edge-core jansson websockets event rpc edge-client fccstorage mbedcrypto trusted_storage)
+endif()
 
