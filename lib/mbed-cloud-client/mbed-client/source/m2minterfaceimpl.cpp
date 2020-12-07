@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the PRI*32 macros
 // from inttypes.h in a C++ code.
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-#include <inttypes.h>
 
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
 #include "include/m2minterfaceimpl.h"
 #include "include/eventdata.h"
 #include "mbed-client/m2minterfaceobserver.h"
@@ -37,8 +30,15 @@
 #include "mbed-client/m2mtimer.h"
 #include "mbed-trace/mbed_trace.h"
 #include "randLIB.h"
+#include "pal.h"
 
+#include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define TRACE_GROUP "mClt"
 
@@ -142,7 +142,6 @@ void M2MInterfaceImpl::bootstrap(M2MSecurity *security)
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_waiting
     END_TRANSITION_MAP(&data)
@@ -213,7 +212,6 @@ void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MBaseList 
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (STATE_REGISTER)               // state_resume
         TRANSITION_MAP_ENTRY (STATE_REGISTER)               // state_waiting
     END_TRANSITION_MAP(&data)
@@ -297,7 +295,6 @@ void M2MInterfaceImpl::unregister_object(M2MSecurity* /*security*/)
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_coap_data_received
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_processing_coap_data
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_waiting
     END_TRANSITION_MAP(NULL)
@@ -325,9 +322,21 @@ void M2MInterfaceImpl::set_entropy_callback(entropy_cb callback)
     }
 }
 
-void M2MInterfaceImpl::set_platform_network_handler(void *handler)
+void M2MInterfaceImpl::set_platform_network_handler(void *handler,  bool credentials_available)
 {
     _connection_handler.set_platform_network_handler(handler);
+    // Update network latency related parameters at interface change
+    _nsdl_interface.M2MNsdlInterface::update_network_stagger_estimate(estimate_stagger_data_amount(credentials_available));
+    _nsdl_interface.M2MNsdlInterface::update_network_rtt_estimate();
+    // Do the staggering wait only if we are not in registered state.
+    if(!_nsdl_interface.M2MNsdlInterface::is_registered()) {
+        wait_for_network_stagger_timeout();
+    }
+}
+
+void M2MInterfaceImpl::set_platform_network_handler(void *handler)
+{
+    M2MInterfaceImpl::set_platform_network_handler(handler, 0);
 }
 
 void M2MInterfaceImpl::coap_message_ready(uint8_t *data_ptr,
@@ -478,7 +487,7 @@ void M2MInterfaceImpl::bootstrap_error(const char *reason)
     create_random_initial_reconnection_time();
     _retry_timer.start_timer(_reconnection_time * 1000,
                               M2MTimerObserver::RetryTimer);
-    tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
+    tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu32 "(s)", _reconnection_time);
     _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
     // The timeout is randomized to + 10% and -10% range from reconnection value
     _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
@@ -547,6 +556,7 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
     M2MInterface::Error error = M2MInterface::ErrorNone;
     switch (error_code) {
         case M2MConnectionHandler::SSL_CONNECTION_ERROR:
+        case M2MConnectionHandler::SSL_HANDSHAKE_ERROR:
             error = M2MInterface::SecureConnectionFailed;
             error_code_des = ERROR_SECURE_CONNECTION;
             break;
@@ -555,18 +565,9 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
             error_code_des = ERROR_DNS;
             break;
         case M2MConnectionHandler::SOCKET_READ_ERROR:
-            error = M2MInterface::NetworkError;
-            error_code_des = ERROR_NETWORK;
-            break;
         case M2MConnectionHandler::SOCKET_SEND_ERROR:
-            error = M2MInterface::NetworkError;
-            error_code_des = ERROR_NETWORK;
-            break;
-        case M2MConnectionHandler::SSL_HANDSHAKE_ERROR:
-            error = M2MInterface::SecureConnectionFailed;
-            error_code_des = ERROR_SECURE_CONNECTION;
-            break;
         case M2MConnectionHandler::SOCKET_ABORT:
+        case M2MConnectionHandler::SOCKET_TIMEOUT:
             error = M2MInterface::NetworkError;
             error_code_des = ERROR_NETWORK;
             break;
@@ -603,7 +604,7 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         _retry_timer.start_timer(_reconnection_time * 1000,
                                  M2MTimerObserver::RetryTimer);
 
-        tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
+        tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu32 "(s)", _reconnection_time);
 
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
         // The timeout is randomized to + 10% and -10% range from reconnection value
@@ -663,8 +664,13 @@ void M2MInterfaceImpl::data_sent()
        _callback_handler &&
        _nsdl_interface.is_registered()) {
         _queue_sleep_timer.stop_timer();
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
         _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
+                                       M2MTimerObserver::QueueSleep);
+#else
+        _queue_sleep_timer.start_timer(_nsdl_interface.get_network_rtt_estimate() * RESPONSE_RANDOM_FACTOR * (uint64_t)1000,
                                         M2MTimerObserver::QueueSleep);
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
     }
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -688,8 +694,13 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
     if (M2MTimerObserver::QueueSleep == type) {
         if (_reconnecting) {
             tr_debug("M2MInterfaceImpl::timer_expired() - reconnection ongoing, continue sleep timer");
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
             _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
+                                           M2MTimerObserver::QueueSleep);
+#else
+            _queue_sleep_timer.start_timer(_nsdl_interface.get_network_rtt_estimate() * RESPONSE_RANDOM_FACTOR * (uint64_t)1000,
                                             M2MTimerObserver::QueueSleep);
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
         } else {
             tr_debug("M2MInterfaceImpl::timer_expired() - sleep");
             M2MTimer &timer = _nsdl_interface.get_nsdl_execution_timer();
@@ -778,7 +789,7 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
                                 _retry_timer.stop_timer();
                                 _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
                             }
-
+                            update_network_latency_configurations_with_rtt();
                             _connection_handler.resolve_server_address(_server_ip_address,
                                                                         _server_port,
                                                                         M2MConnectionObserver::Bootstrap,
@@ -903,6 +914,7 @@ void M2MInterfaceImpl::state_register(EventData *data)
                                 }
 
                                 error = M2MInterface::ErrorNone;
+                                update_network_latency_configurations_with_rtt();
                                 _connection_handler.resolve_server_address(_server_ip_address,_server_port,
                                                                             M2MConnectionObserver::LWM2MServer,
                                                                             _security);
@@ -946,8 +958,13 @@ void M2MInterfaceImpl::process_address(const String& server_address, String& ip_
     int colonFound = server_address.find_last_of(':'); //10
     if(colonFound != -1) {
         ip_address = server_address.substr(0,colonFound);
+#ifndef MBED_CLOUD_CLIENT_CUSTOM_URI_PORT
         port = atoi(server_address.substr(colonFound+1,
                                          server_address.size()-ip_address.size()).c_str());
+#else
+        port = MBED_CLOUD_CLIENT_CUSTOM_URI_PORT;
+        tr_info("Using custom URI port %d", port);
+#endif
         colonFound = ip_address.find_last_of(']');
         if(ip_address.compare(0,1,"[") == 0) {
             if(colonFound == -1) {
@@ -1019,8 +1036,13 @@ void M2MInterfaceImpl::state_registered( EventData */*data*/)
     } else {
         if(queue_mode() && _callback_handler) {
             _queue_sleep_timer.stop_timer();
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
             _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
+                                           M2MTimerObserver::QueueSleep);
+#else
+            _queue_sleep_timer.start_timer(_nsdl_interface.get_network_rtt_estimate() * RESPONSE_RANDOM_FACTOR * (uint64_t)1000,
                                             M2MTimerObserver::QueueSleep);
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
         }
         _reconnection_state = M2MInterfaceImpl::WithUpdate;
     }
@@ -1056,19 +1078,24 @@ void M2MInterfaceImpl::state_resume(EventData *data)
     tr_debug("M2MInterfaceImpl::state_resume()");
     if (data) {
         M2MResumeData *event = static_cast<M2MResumeData *> (data);
-        _connection_handler.set_platform_network_handler(event->_interface);
+        // At this stage we will have done bootstrap already.
+        M2MInterfaceImpl::set_platform_network_handler(event->_interface,  1);
         register_object(_security, event->_base_list);
     } else {
         tr_error("M2MInterfaceImpl::state_resume() - data missing!");
     }
 }
 
-void M2MInterfaceImpl::state_pause()
+void M2MInterfaceImpl::pause()
 {
-    tr_debug("M2MInterfaceImpl::state_pause()");
+    tr_debug("M2MInterfaceImpl::pause()");
     _connection_handler.claim_mutex();
     _connection_handler.unregister_network_handler();
     _connection_handler.force_close();
+    // XXX: DISABLED STORING CID till backend is ready
+#if 0
+    _connection_handler.store_cid();
+#endif
     _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
     _retry_timer.stop_timer();
     _reconnecting = false;
@@ -1274,9 +1301,6 @@ void M2MInterfaceImpl::state_function( uint8_t current_state, EventData* data )
         case STATE_RESUME:
             M2MInterfaceImpl::state_resume(data);
             break;
-        case STATE_PAUSE:
-            M2MInterfaceImpl::state_pause();
-            break;
         case STATE_WAITING:
             M2MInterfaceImpl::state_waiting(data);
             break;
@@ -1319,7 +1343,6 @@ void M2MInterfaceImpl::start_register_update(M2MUpdateRegisterData *data) {
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (STATE_UPDATE_REGISTRATION)    // state_waiting
     END_TRANSITION_MAP(data)
@@ -1414,43 +1437,6 @@ bool M2MInterfaceImpl::set_uri_query_parameters(const char *uri_query_params)
     return _nsdl_interface.set_uri_query_parameters(uri_query_params);
 }
 
-void M2MInterfaceImpl::pause()
-{
-    _connection_handler.claim_mutex();
-    tr_debug("M2MInterfaceImpl::pause");
-
-     BEGIN_TRANSITION_MAP                                    // - Current State -
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_idle
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state__bootstrap_address_resolved
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap_resource_created
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap_wait
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap_error_wait
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrapped
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_register
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_register_address_resolved
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_registered
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_update_registration
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_unregister
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_unregistered
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_sending_coap_data
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_coap_data_sent
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_coap_data_received
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_processing_coap_data
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_coap_data_processed
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_waiting
-     END_TRANSITION_MAP(NULL)
-
-     if (_event_ignored) {
-         _event_ignored = false;
-         set_error_description(ERROR_REASON_29);
-         _observer.error(M2MInterface::NotAllowed);
-     }
-     _connection_handler.release_mutex();
-}
-
 void M2MInterfaceImpl::resume(void *iface, const M2MBaseList &list)
 {
     _connection_handler.claim_mutex();
@@ -1478,7 +1464,6 @@ void M2MInterfaceImpl::resume(void *iface, const M2MBaseList &list)
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (STATE_RESUME)                 // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_waiting
     END_TRANSITION_MAP(&data)
@@ -1496,15 +1481,21 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
     if (status == M2MConnectionObserver::NetworkInterfaceConnected) {
         tr_info("M2MInterfaceImpl::network_interface_status_change - connected");
         if (_reconnecting) {
-            uint16_t rand_time = randLIB_get_random_in_range(0, 200);
-            // Check if the ongoing timer value is greater than the random range then
-            // start a smaller random time. (Multiplication factor is because reconn timer
-            // is multiplied immediately after its started so taking it into account)
-            if(_reconnection_time > rand_time * 2) {
-                _retry_timer.stop_timer();
-                _retry_timer.start_timer( rand_time * 1000,
-                                         M2MTimerObserver::RetryTimer);
-            }
+            // Update network stagger values as those might have changed after Interface status change.
+            _nsdl_interface.M2MNsdlInterface::update_network_stagger_estimate(estimate_stagger_data_amount(1));
+            _nsdl_interface.M2MNsdlInterface::update_network_rtt_estimate();
+
+            uint16_t rand_time = 10 + _nsdl_interface.M2MNsdlInterface::get_network_stagger_estimate();
+            // The new timeout is randomized to + 10% and -10% range from original random value
+            randLIB_seed_random();
+            rand_time = randLIB_randomise_base(rand_time, 0x7333, 0x8CCD);
+
+            // Take in use the new timer. For single-device networks, reconnecting fast is the primary goal.
+            // For multidevice networks sharing same pipe should provide stagger_estimates. In such case we need to
+            // enforce that to prevent too large reconnection spike in the network.
+            _retry_timer.stop_timer();
+            _retry_timer.start_timer( rand_time * 1000,
+                                     M2MTimerObserver::RetryTimer);
         }
     } else {
         tr_info("M2MInterfaceImpl::network_interface_status_change - disconnected");
@@ -1515,11 +1506,47 @@ void M2MInterfaceImpl::create_random_initial_reconnection_time()
 {
     if(_initial_reconnection_time == 0) {
         randLIB_seed_random();
-        _initial_reconnection_time = randLIB_get_random_in_range(10, 100);
+
+        _initial_reconnection_time = 10 + _nsdl_interface.M2MNsdlInterface::get_network_rtt_estimate();
         // The initial timeout is randomized to + 10% and -10% range from original random value
         _initial_reconnection_time = randLIB_randomise_base(_initial_reconnection_time, 0x7333, 0x8CCD);
         tr_info("M2MInterfaceImpl::create_random_initial_reconnection_time() initial random time %d\n", _initial_reconnection_time);
         _reconnection_time = _initial_reconnection_time;
-
     }
+}
+
+void M2MInterfaceImpl::wait_for_network_stagger_timeout()
+{
+    tr_debug("M2MInterfaceImpl::wait_for_network_stagger_timeout() duration %d", _nsdl_interface.M2MNsdlInterface::get_network_stagger_estimate());
+    pal_osDelay(_nsdl_interface.M2MNsdlInterface::get_network_stagger_estimate()*1000);
+}
+
+void M2MInterfaceImpl::update_network_latency_configurations_with_rtt()
+{
+    tr_debug("M2MInterfaceImpl::update_network_latency_configurations_with_rtt(): %d", _nsdl_interface.M2MNsdlInterface::get_network_rtt_estimate());
+    sn_nsdl_set_retransmission_parameters(_nsdl_interface.get_nsdl_handle(),
+                                          MBED_CLIENT_RECONNECTION_COUNT,
+                                          (uint8_t)_nsdl_interface.M2MNsdlInterface::get_network_rtt_estimate());
+    _security_connection->update_network_rtt_estimate(_nsdl_interface.M2MNsdlInterface::get_network_rtt_estimate());
+}
+
+uint16_t M2MInterfaceImpl::estimate_stagger_data_amount(bool credentials_available)
+{
+    // The full TLS/DTLS handshake amounts to roughly 5 KiB data and bootstrap/register both roughly to 2 KiB.
+    const static uint16_t handshake = 5;
+    const static uint16_t registration = 2;
+    uint16_t data_amount = handshake + registration;
+
+    if (credentials_available) {
+        // Bootstrap done, thus doing one handshake + registration
+        return data_amount;
+    } else {
+        // Bootstrap needed, thus doing two handshakes + bs + registration
+        return data_amount * 2;
+    }
+}
+
+nsdl_s* M2MInterfaceImpl::get_nsdl_handle() const
+{
+    return _nsdl_interface.get_nsdl_handle();
 }

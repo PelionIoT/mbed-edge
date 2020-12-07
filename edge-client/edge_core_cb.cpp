@@ -27,9 +27,11 @@ extern "C" {
 #include <common/test_support.h>
 #include "edge-core/edge_device_object.h"
 #include "edge-client/reset_factory_settings.h"
-#include "edge-client/gateway_services_resource.h"
 }
+
+#include "edge-client/gateway_resource.h"
 #include "edge-client/edge_client.h"
+#include "edge-client/edge_client_internal.h"
 #include "edge-client/request_context.h"
 #include "m2mresource.h"
 #include "mbed-trace/mbed_trace.h"
@@ -47,10 +49,6 @@ bool edgeserver_resource_async_request(edgeclient_request_context_t *request_ctx
     if (request_ctx->object_id == EDGE_DEVICE_OBJECT_ID && request_ctx->object_instance_id == 0 &&
         request_ctx->resource_id == EDGE_FACTORY_RESET_RESOURCE_ID && request_ctx->operation == OPERATION_EXECUTE) {
         rfs_reset_factory_settings_requested(request_ctx);
-    } else if (request_ctx->object_id == EDGE_SERVICEMGMT_OBJECT_ID &&
-        (request_ctx->resource_id == EDGE_SERVICE_ENABLED ||  request_ctx->resource_id == EDGE_SERVICE_CONFIG) &&
-        (request_ctx->operation == OPERATION_WRITE)) {
-        gsr_resource_requested(request_ctx);
     } else {
         tr_warn("Unexpected edge_server_resource parameters");
         edgeclient_deallocate_request_context(request_ctx);
@@ -145,25 +143,48 @@ bool EdgeCoreCallbackParams::async_request(M2MResource *resource,
         return false;
     }
 
-    tr_info("resource executed: url=%s, data length=%d", uri, (int32_t) length);
-    edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
-                                                                                    buffer,
-                                                                                    length,
-                                                                                    token,
-                                                                                    token_len,
-                                                                                    EDGECLIENT_VALUE_IN_BINARY,
-                                                                                    (uint8_t) operation,
-                                                                                    LWM2M_OPAQUE,
-                                                                                    edgecore_async_cb_success,
-                                                                                    edgecore_async_cb_failure,
-                                                                                    rc_status,
-                                                                                    NULL);
-    if (request_ctx) {
-        // direct the callback to Edge Core:
-        return edgeserver_resource_async_request(request_ctx);
+    void *connection = edgeclient_get_resource_connection(resource);
+    if(connection != NULL) {
+        if(operation == M2MBase::PUT_ALLOWED) {
+            return edgeclient_grm_set_handler(resource,
+                                            connection,
+                                            buffer,
+                                            length,
+                                            token,
+                                            token_len,
+                                            rc_status);
+        } else if(operation == M2MBase::POST_ALLOWED) {
+            return edgeclient_grm_execute_handler(resource,
+                                            connection,
+                                            buffer,
+                                            length,
+                                            token,
+                                            token_len,
+                                            rc_status);
+        } else {
+            tr_err("Unexpected operation in EdgeCoreCallbackParams::async_request %d", operation);
+        }
     } else {
-        free(buffer);
-        tr_err("Could not call Edge Core resource execute for uri '%s'.", uri);
+        tr_info("resource executed: url=%s, data length=%d", uri, (int32_t) length);
+        edgeclient_request_context_t *request_ctx = edgeclient_allocate_request_context(uri,
+                                                                                        buffer,
+                                                                                        length,
+                                                                                        token,
+                                                                                        token_len,
+                                                                                        EDGECLIENT_VALUE_IN_BINARY,
+                                                                                        (uint8_t) operation,
+                                                                                        LWM2M_OPAQUE,
+                                                                                        edgecore_async_cb_success,
+                                                                                        edgecore_async_cb_failure,
+                                                                                        rc_status,
+                                                                                        NULL);
+        if (request_ctx) {
+            // direct the callback to Edge Core:
+            return edgeserver_resource_async_request(request_ctx);
+        } else {
+            free(buffer);
+            tr_err("Could not call Edge Core resource execute for uri '%s'.", uri);
+        }
     }
     return false;
 }

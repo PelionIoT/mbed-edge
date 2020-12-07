@@ -195,6 +195,18 @@ public:
     virtual void set_platform_network_handler(void *handler = NULL);
 
     /**
+     * @brief Sets the network interface handler that is used by client to connect
+     * to a network over IP.
+     * @param handler A network interface handler that is used by client to connect.
+     *  This API is optional but provides a mechanism for different platforms to
+     * manage usage of underlying network interface by client.
+     * @param credentials_available This extra parameter allows the client to further
+     * optimize its internal connection logic in high latency networks when dynamic
+     * handling of network staggering is supported. (Platform-dependent).
+     */
+    virtual void set_platform_network_handler(void *handler = NULL, bool credentials_available = 0);
+
+    /**
      * \brief Sets the function callback that will be called by mbed-client for
      * fetching random number from application for ensuring strong entropy.
      * \param random_callback A function pointer that will be called by mbed-client
@@ -307,6 +319,12 @@ public:
      * \param iface A handler to the network interface.
      */
     virtual void resume(void *iface, const M2MBaseList &list);
+
+    virtual nsdl_s* get_nsdl_handle() const;
+
+    virtual void wait_for_network_stagger_timeout();
+
+    virtual void update_network_latency_configurations_with_rtt();
 
 protected: // From M2MNsdlObserver
 
@@ -465,11 +483,6 @@ private: // state machine state functions
     void state_resume(EventData *data);
 
     /**
-     * When the client has paused.
-     */
-    void state_pause();
-
-    /**
     * State enumeration order must match the order of state
     * method entries in the state map
     */
@@ -494,7 +507,6 @@ private: // state machine state functions
         STATE_COAP_DATA_RECEIVED, // 15
         STATE_PROCESSING_COAP_DATA,
         STATE_COAP_DATA_PROCESSED,
-        STATE_PAUSE,
         STATE_RESUME,
         STATE_WAITING, // 20
         STATE_MAX_STATES
@@ -559,6 +571,10 @@ private: // state machine state functions
      */
      void create_random_initial_reconnection_time();
 
+    /**
+     * Helper method for estimating how much data client is going to transfer during registration/bootstrap.
+     */
+     uint16_t estimate_stagger_data_amount(bool credentials_available);
 
     enum ReconnectionState{
         None,
@@ -599,8 +615,9 @@ private:
     char                        _error_description[MAX_ALLOWED_ERROR_STRING_LENGTH];
 #endif
 
-    uint16_t                     _initial_reconnection_time;
-    uint64_t                    _reconnection_time;
+    // Reconnection related variables (in seconds)
+    uint16_t                    _initial_reconnection_time;
+    uint32_t                    _reconnection_time;
 
     friend class Test_M2MInterfaceImpl;
 

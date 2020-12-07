@@ -43,7 +43,158 @@
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "serv"
 
+void completed_download_asset(uint8_t *url, char *filename, int error_code, void *ctx)
+{
+    sleep(1);
+    if (ctx == NULL) {
+        tr_warn("EST enrollment result missing context!");
+        return;
+    }
+    
+    char* path = realpath(filename, NULL);
 
+    protocol_api_async_request_context_t *pt_ctx = (protocol_api_async_request_context_t *) ctx;
+    json_t *response = pt_api_allocate_response_common(pt_ctx->request_id);
+
+    // Create a JSON object to send back
+    json_t *json_result = json_object();
+    json_object_set_new(json_result, "filename", json_string(path));
+    json_object_set_new(json_result, "url", json_string((char*)url));
+    json_object_set_new(json_result, "error", json_integer(error_code));
+    json_object_set_new(response, "result", json_result);
+
+
+    (void) edge_server_construct_and_send_response_safe(pt_ctx->connection_id,
+                                                        response,
+                                                        protocol_api_free_async_ctx_func,
+                                                        (rpc_request_context_t *) ctx);
+
+if(path)
+    free(path);
+if(filename)
+    free(filename);
+if(url)
+    free(url);
+}
+
+/**
+ * \brief Request download asset jsonrpc endpoint
+ * \return 0 - success
+ *         1 - failure
+ */
+int download_asset(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    struct connection *connection = jt->connection;
+
+    if (!pt_api_check_service_availability(result)) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    if (!pt_api_check_request_id(jt)) {
+        tr_warn("EST enrollment request failed. No request id was given.");
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                                  json_string("EST enrollment request renewal failed. No request id was given."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    // Prepare async request context so that the response can be sent later
+    protocol_api_async_request_context_t *ctx = protocol_api_prepare_async_ctx(request, connection->id);
+    if (ctx == NULL) {
+        tr_warn("EST enrollment request failed. Memory allocation failed.");
+        *result = jsonrpc_error_object_predefined(
+            JSONRPC_INTERNAL_ERROR,
+            json_string("EST enrollment request failed. Memory allocation failed."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    
+    // Parse the URL, hash, and size from the JSON object coming from the protocol translator
+    json_t *url_handle = json_object_get(json_params, "url");
+    json_t *hash_handle = json_object_get(json_params, "hash");
+    json_t *size_handle = json_object_get(json_params, "size");
+    json_t *device_id_handle = json_object_get(json_params, "device_id");
+    if (url_handle == NULL || hash_handle == NULL || size_handle == NULL || device_id_handle == NULL) {
+        tr_warning("Download request missing fields.");
+        *result = jsonrpc_error_object(
+                JSONRPC_INVALID_PARAMS,
+                "Invalid params. Missing 'url', 'hash', or 'size' field from request.",
+                NULL);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    const char *url = json_string_value(url_handle);
+    const char *hash = json_string_value(hash_handle);
+    uint32_t size = json_integer_value(size_handle);
+    const char *device_id = json_string_value(device_id_handle);
+
+    // Create the filename that we manage instead of the json managed data
+    char* filename = malloc(strlen(hash)+1+4);
+    if(filename == NULL)
+    {
+        tr_err("filename memory allocation fail");
+        return JSONRPC_RETURN_CODE_NO_RESPONSE;   
+    }
+    strcpy(filename, hash);
+    strcat(filename, ".bin");
+
+    // Create URL data that we manage instead of the json managed data
+    char* final_url = strdup(url);
+      if(final_url == NULL)
+    {
+        tr_err("final_url memory allocation fail");
+        free(filename);
+        return JSONRPC_RETURN_CODE_NO_RESPONSE;   
+    }
+    strcpy(final_url, url);
+
+    if( access( filename, F_OK ) != -1 ) {
+    tr_info("firmware already exist %s",filename); //File already exist, skip download and send it to PT
+    completed_download_asset(final_url,filename,0,ctx);
+    }
+    else {
+    edgeclient_get_asset(device_id,(uint8_t*)final_url, filename, (size_t)size, completed_download_asset, ctx);
+    }
+
+    return JSONRPC_RETURN_CODE_NO_RESPONSE;
+}
+
+int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+     tr_cmdline("subdevice_manifest_status");
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    struct connection *connection = jt->connection;
+    if (!pt_api_check_service_availability(result)) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    if (!pt_api_check_request_id(jt)) {
+        tr_warn("EST enrollment request failed. No request id was given.");
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                                  json_string("EST enrollment request renewal failed. No request id was given."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    protocol_api_async_request_context_t *ctx = protocol_api_prepare_async_ctx(request, connection->id);
+    if (ctx == NULL) {
+        tr_warn("EST enrollment request failed. Memory allocation failed.");
+        *result = jsonrpc_error_object_predefined(
+            JSONRPC_INTERNAL_ERROR,
+            json_string("EST enrollment request failed. Memory allocation failed."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    json_t *error_manifest_handle = json_object_get(json_params, "error_manifest");
+    json_t *device_id_handle = json_object_get(json_params, "device_id");
+    if (error_manifest_handle == NULL || device_id_handle==NULL) {
+        tr_warning("Manifest status missing fields.");
+        *result = jsonrpc_error_object(
+                JSONRPC_INVALID_PARAMS,
+                "Invalid params. Missing error_manifest or device_id from request.",
+                NULL);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    const char *manifest_error = json_string_value(error_manifest_handle);
+    const char *device_id = json_string_value(device_id_handle);
+    tr_cmdline("Device_Id %s Manifest Error %s",device_id,manifest_error);
+    ARM_UC_SUBDEVICE_ReportUpdateResult(device_id,manifest_error);
+}
 struct jsonrpc_method_entry_t method_table[] = {
     { "protocol_translator_register", protocol_translator_register, "o" },
     { "device_register", device_register, "o" },
@@ -58,8 +209,11 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "crypto_asymmetric_verify", crypto_api_asymmetric_verify, "o" },
     { "crypto_ecdh_key_agreement", crypto_api_ecdh_key_agreement, "o" },
     { "est_request_enrollment", est_request_enrollment, "o" },
+    { "download_asset", download_asset, "o" },
+    { "subdevice_manifest_status", subdevice_manifest_status, "o"},
     { NULL, NULL, "o" }
 };
+
 
 typedef enum {
     PT_TRANSLATOR_ALREADY_REGISTERED,
@@ -696,7 +850,7 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                         break;
                     }
                 } else {
-                    pt_api_result_code_e set_resource_status = edgeclient_set_resource_value(device_id_val,
+                    pt_api_result_code_e set_resource_status = subdevice_set_resource_value(device_id_val,
                                                                                             object_id,
                                                                                             object_instance_id,
                                                                                             resource_id,

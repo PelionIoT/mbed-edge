@@ -25,16 +25,12 @@ typedef Vector<M2MObjectInstance *> M2MObjectInstanceList;
 
 class M2MEndpoint;
 
-/*! \file m2mobject.h
- *  \brief M2MObject.
- *  This class is the base class for the mbed Client Objects.
- *
- *  All defined LwM2M object models can be created based on it.
- *  This class also holds all object instances associated with the given object.
- */
+/** \file m2mobject.h \brief header M2MObject */
 
-/*! \class M2MObject
- *  \brief The base class for Client Objects.
+/** The base class for LwM2M Objects.
+ *
+ * Use this class to define LwM2M objects.
+ * This class also holds all object instances associated with the given object.
  */
 class M2MObject : public M2MBase
 {
@@ -221,6 +217,7 @@ friend class Test_M2MObjectInstance;
 friend class Test_M2MResource;
 friend class Test_M2MSecurity;
 friend class Test_M2MServer;
+friend class Test_M2MReportHandler;
 friend class Test_M2MResourceInstance;
 };
 

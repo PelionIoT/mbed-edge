@@ -3,31 +3,28 @@ INCLUDE(CMakeForceCompiler)
 cmake_minimum_required (VERSION 3.5)
 SET(CMAKE_SYSTEM_NAME Generic)
 
-add_definitions(-DTARGET_LIKE_POSIX)
-
+# For Linux OS we will maintain backwards compatibility with the porting layer.
+# This does cause limitations on the porting flexibility for Linux.
 if (${OS_BRAND} MATCHES Linux)
     add_definitions(-DMBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE=102400)
-else()
-    add_definitions(-DMBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE=8000)
+    add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
+    add_definitions(-DTARGET_LIKE_POSIX)
 endif()
 
-
-SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
-
+# Mandatory defines for eventloop and update client configuration
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_EXCLUDE_HIGHRES_TIMER)
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_USE_PLATFORM_TICK_TIMER)
-
 add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)
-add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
 
 # enable duplicate detection by default, count is the same as resend queue size
 add_definitions(-DMBED_CONF_MBED_CLIENT_SN_COAP_DUPLICATION_MAX_MSGS_COUNT=4)
-
 add_definitions(-DSN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT=1)
 
 project(mbedCloudClient)
 
 # mbed-cloud-client
+
+SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
 
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR})
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR}/source)
@@ -133,6 +130,13 @@ ADD_GLOBALDIR(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment
 include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment-client)
 include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/include)
 
+# Device Sentry Client
+SET(DEVICE_SENTRY_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/device-sentry-client)
+ADD_GLOBALDIR(${DEVICE_SENTRY_CLIENT_SOURCE_DIR})
+ADD_GLOBALDIR(${DEVICE_SENTRY_CLIENT_SOURCE_DIR}/device-sentry-client)
+include_directories(${DEVICE_SENTRY_CLIENT_SOURCE_DIR}/device-sentry-client)
+
+
 # Secure Device Access Client
 SET(SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/secure-device-access-client)
 ADD_GLOBALDIR(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/secure-device-access/secure-device-access)
@@ -150,13 +154,16 @@ include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/cose-c/cose-c)
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
 
 include_directories(${UPDATE_SOURCE_DIR})
+include_directories(${UPDATE_SOURCE_DIR}/source)
 include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
 include_directories(${UPDATE_SOURCE_DIR}/modules/common)
 include_directories(${UPDATE_SOURCE_DIR}/modules/control-center)
 include_directories(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed)
 include_directories(${UPDATE_SOURCE_DIR}/modules/monitor)
+include_directories(${UPDATE_SOURCE_DIR}/modules/multicast)
 include_directories(${UPDATE_SOURCE_DIR}/modules/paal)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source)
+
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-http)
 
 
@@ -254,12 +261,12 @@ target_link_libraries(mbedclient palTLS nanostacklibservice nanostackeventloop m
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
 
 # Create buld dependencies to ensure all the needed parts get build
-add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client pal)
+add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client update-client pal)
 
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client pal)
+target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client update-client pal)
 
 ADDSUBDIRS()
 

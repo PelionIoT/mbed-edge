@@ -16,6 +16,8 @@
 #ifndef M2M_STRING_H
 #define M2M_STRING_H
 
+/** \file m2mstring.h \brief header for m2m::String */
+
 #include <stddef.h> // size_t
 #include <stdint.h>
 
@@ -27,9 +29,8 @@ class Test_M2MString;
 namespace m2m
 {
 
-/*! \file m2mstring.h
-* \brief A simple C++ string class, used as replacement for std::string.
-   */
+
+  /** A simple C++ string class, used as replacement for std::string. */
   class String
   {
     char* p;           ///< The data.
@@ -127,21 +128,35 @@ namespace m2m
      *
      * @param length chars to convert, must be more or equal than the chars before zero.
      * This is useful for extracting values from non-zero terminated strings.
-     * 
+     *
      * @param conversion_result result of conversion
      *
      * @return will be set to true if at least one digit is found
      * and a false is returned if:
      *  a) no digits found, ie. string is empty
-     *  b) a non-digit or non-'+' or non-'-' char is found. 
+     *  b) a non-digit or non-'+' or non-'-' char is found.
      *  c) more than one +, - chars are found
-     * 
+     *
      * Note: the handling of a number with digits in front and
-     * non-digits at end (eg. "0zero") differs from sscanf(), 
+     * non-digits at end (eg. "0zero") differs from sscanf(),
      * as sscanf will return what it got converted and a success value
      * even if the string ended with junk.
      */
     static bool convert_ascii_to_int(const char *value, size_t length, int64_t &conversion_result);
+
+    /**
+     * Convert ASCII representation to float.
+     *
+     * @param value optionally zero terminated string containing a float value
+     *
+     * @param length chars to convert, must be more or equal than the chars before zero.
+     *
+     * @param conversion_result result of conversion
+     *
+     * @return will be set to true if valid float value is read.
+     * If string contain anything else than correctly formated float, false is returned.
+     */
+    static bool convert_ascii_to_float(const char *value, size_t size, float &conversion_result);
 
   private:
     // reallocate the internal memory

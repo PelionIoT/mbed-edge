@@ -66,26 +66,32 @@
 #define MBED_CLOUD_CLIENT_LIFETIME                  86400
 #endif
 
+#if __DOXYGEN__
 /**
 * \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP
-*
 * \brief Enable this MACRO if you want to enable UDP mode for the client.
-*
+*/
+#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP
+/**
 * \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
-*
 * \brief Enable this MACRO if you want to enable TCP mode for the client. This is the default for client.
-*
+*/
+#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
+/**
 * \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE
-*
 * \brief Enable this MACRO if you want to enable UDP_QUEUE mode for the client.
 */
+#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE
+#endif // __DOXYGEN__
 
 #if !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP) && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP) && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE)
 #define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
 #endif
 
 /**
- * \def MBED_CLOUD_CLIENT_STL_API this flag controls the API's which use C++'s
+ * \def MBED_CLOUD_CLIENT_STL_API
+ *
+ * \brief This flag controls the API's which use C++'s
  * Standard Template Library (STL). The cost of STL is ~15KB of flash, depending on compiler,
  * so on resource constrained devices it is essential to be able to remove any reference to it.
  * In practice the SimpleM2MResourceString and SimpleM2MResourceInt classes are build with STL,
@@ -93,12 +99,13 @@
  * may help quite a lot. The SimpleM2MResource* classes and related API's are marked as deprecated,
  * so they may be removed in the future releases.
  */
-#ifndef MBED_CLOUD_CLIENT_STL_API
+#if !defined(MBED_CLOUD_CLIENT_STL_API) || __DOXYGEN__
 #define MBED_CLOUD_CLIENT_STL_API                   0
 #endif
 
 /**
- * \def MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION this causes a inclusion of "MbedCloudCLient.h
+ * \def MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
+ * \brief This causes a inclusion of "MbedCloudCLient.h
  * to "pollute" the namespace with "using namespace std;". This has been always the case, but
  * any library should not pollute application's namespace with std by having the "using std"
  * in a a public header file.
@@ -118,6 +125,17 @@
 #ifndef MBED_CLOUD_CLIENT_LISTEN_PORT
 #define MBED_CLOUD_CLIENT_LISTEN_PORT               0
 #endif
+
+/**
+* \def MBED_CLOUD_CLIENT_CUSTOM_URI_PORT
+*
+* \brief This is optional MACRO and is not set by default. This implies that if application wants the client to connect
+* on any other CoAP port then provided through factory or developer provisioned URI port they can override that port number.
+*  But, its application's responsibility to ensure that the provided port is open on server side to accept incoming CoAP
+*  connection.
+*/
+//#define MBED_CLOUD_CLIENT_CUSTOM_URI_PORT              5684
+
 
 #include "MbedCloudClientConfigCheck.h"
 

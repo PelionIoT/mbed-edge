@@ -37,7 +37,7 @@ SET (EDGE_SERVER_REQUEST_TIMEOUT_THRESHOLD_MS 60000) # one minute
 
 # PT Client V2
 SET (EDGE_CLIENT_TIMEOUT_CHECK_INTERVAL_MS 5000)     # 5 seconds
-SET (EDGE_CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS 60000) # one minute
+SET (EDGE_CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS 1800000) # Thirty minute
 
 # Select provisioning mode
 if (${DEVELOPER_MODE})
@@ -62,6 +62,25 @@ elseif (${BYOC_MODE})
   add_definitions ("-DBYOC_MODE=1")
 elseif (${FACTORY_MODE})
   MESSAGE ("Factory mode provisioning set.")
+  add_definitions("-DPARSEC_TPM_SE_SUPPORT")
+  
+  if(PARSEC_TPM_SE_SUPPORT)
+    option(LINK_WITH_TRUSTED_STORAGE "Explicitly link mbed TLS library to trusted_storage." ON)
+    add_definitions(
+        -DPSA_STORAGE_USER_CONFIG_FILE="${CMAKE_CURRENT_SOURCE_DIR}/config/psa_storage_user_config.h"
+        -DMBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+        -DMBEDTLS_USE_PSA_CRYPTO
+        -DMBEDTLS_PSA_CRYPTO_C
+        -DMBEDTLS_PSA_CRYPTO_STORAGE_C
+    )
+    add_definitions(
+        -DMBEDTLS_PSA_CRYPTO_SE_C
+        -DMBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+        -DMBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT
+        -DMBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
+    )
+  endif()
+
 else()
   MESSAGE (FATAL_ERROR "Unknown provisioning mode")
 endif()
@@ -147,15 +166,29 @@ if (NOT DEFINED EDGE_REGISTERED_ENDPOINT_LIMIT)
 endif()
 add_definitions ("-DEDGE_REGISTERED_ENDPOINT_LIMIT=${EDGE_REGISTERED_ENDPOINT_LIMIT}")
 
-MESSAGE ("Using PAL User defined configuration: ${PAL_USER_DEFINED_CONFIGURATION}")
-add_definitions ("-DPAL_USER_DEFINED_CONFIGURATION=${PAL_USER_DEFINED_CONFIGURATION}")
+if (PARSEC_TPM_SE_SUPPORT)
+  SET (PAL_USER_DEFINED_CONFIGURATION "${CMAKE_CURRENT_SOURCE_DIR}/config/sotp_fs_linux.h")
+  MESSAGE ("Using PAL configuration for PARSEC ${PAL_USER_DEFINED_CONFIGURATION}")
+  add_definitions ("-DPAL_USER_DEFINED_CONFIGURATION=\"${PAL_USER_DEFINED_CONFIGURATION}\"")
+else()
+  MESSAGE ("Using PAL User defined configuration: ${PAL_USER_DEFINED_CONFIGURATION}")
+  add_definitions ("-DPAL_USER_DEFINED_CONFIGURATION=${PAL_USER_DEFINED_CONFIGURATION}")
+endif()
 
 MESSAGE("Using primary mount: ${PAL_FS_MOUNT_POINT_PRIMARY}")
 add_definitions ("-DPAL_FS_MOUNT_POINT_PRIMARY=${PAL_FS_MOUNT_POINT_PRIMARY}")
 
 MESSAGE("Using secondary mount: ${PAL_FS_MOUNT_POINT_SECONDARY}")
 add_definitions ("-DPAL_FS_MOUNT_POINT_SECONDARY=${PAL_FS_MOUNT_POINT_SECONDARY}")
+if(PARSEC_TPM_SE_SUPPORT)
+  SET(PAL_TLS_BSP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/mbed-client-pal/Configs/${TLS_LIBRARY}")
 
+  if (${TLS_LIBRARY} MATCHES mbedTLS)
+      # PAL specific configurations for mbedTLS
+      add_definitions(-DMBEDTLS_CONFIG_FILE="${PAL_TLS_BSP_DIR}/mbedTLSConfig_${OS_BRAND}.h")
+      message("PAL_TLS_BSP_DIR ${PAL_TLS_BSP_DIR}/mbedTLSConfig_${OS_BRAND}.h")
+  endif()
+endif()
 if (DEFINED PAL_UPDATE_FIRMWARE_DIR)
     add_definitions ("-DPAL_UPDATE_FIRMWARE_DIR=${PAL_UPDATE_FIRMWARE_DIR}")
     MESSAGE("Using firmware update directory: ${PAL_UPDATE_FIRMWARE_DIR}")

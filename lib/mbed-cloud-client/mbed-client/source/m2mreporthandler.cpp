@@ -55,20 +55,23 @@ M2MReportHandler::M2MReportHandler(M2MReportObserver &observer, M2MBase::DataTyp
   _pmin_timer(*this),
   _pmax_timer(*this),
 #endif
-  _token(NULL),
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
   _pmax(-1.0f),
   _pmin(1.0f),
   _gt(0.0f),
   _lt(0.0f),
   _st(0.0f),
+  _last_value_valid(false),
 #endif
+  _token(NULL),
   _notification_send_in_progress(false),
   _notification_in_queue(false),
-  _blockwise_notify(false)
+  _blockwise_notify(false),
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
- ,_pmin_quiet_period(false)
+  _pmin_quiet_period(false),
 #endif
+  _waiting_to_report(false),
+  _resource_base(NULL)
 {
     tr_debug("M2MReportHandler::M2MReportHandler()");
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
@@ -119,7 +122,7 @@ void M2MReportHandler::set_value_float(float value)
     tr_debug("M2MReportHandler::set_value_float() - current %f, last %f", value, _last_value.float_value);
     _current_value.float_value = value;
 
-    if (_current_value.float_value != _last_value.float_value) {
+    if (!_last_value_valid || _current_value.float_value != _last_value.float_value) {
         send_value();
     }
 #else
@@ -133,7 +136,7 @@ void M2MReportHandler::set_value_int(int64_t value)
     tr_debug("M2MReportHandler::set_value_int() - current %" PRId64 ", last % " PRId64, value, _last_value.int_value);
     _current_value.int_value = value;
 
-    if (_current_value.int_value != _last_value.int_value) {
+    if (!_last_value_valid || _current_value.int_value != _last_value.int_value) {
         send_value();
     }
 #else
@@ -165,6 +168,7 @@ void M2MReportHandler::set_notification_trigger(uint16_t obj_instance_id)
         _current_value.int_value = 0;
         _last_value.int_value = 1;
     }
+    _last_value_valid = false;
 #endif
     set_notification_in_queue(true);
     schedule_report();
@@ -250,7 +254,7 @@ void M2MReportHandler::timer_expired(M2MTimerObserver::Type type)
             tr_debug("M2MReportHandler::timer_expired - PMIN");
 
             _pmin_exceeded = true;
-            if (_notify ||
+            if (_notify || _waiting_to_report ||
                 (_pmin > 0 && (_attribute_state & M2MReportHandler::Pmax) != M2MReportHandler::Pmax)){
                 report();
             }
@@ -436,6 +440,7 @@ void M2MReportHandler::report(bool in_queue)
             } else {
                 _last_value.int_value = _current_value.int_value;
             }
+            _last_value_valid = true;
 #endif
         }
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
@@ -464,16 +469,28 @@ void M2MReportHandler::report(bool in_queue)
             } else {
                 _last_value.int_value = _current_value.int_value;
             }
+            _last_value_valid = true;
         }
         else {
             tr_debug("M2MReportHandler::report()- no need to send");
         }
+    }
+    if (_waiting_to_report) {
+        tr_debug("M2MReportHandler::report()- reporting to resource parents");
+        _resource_base->report_to_parents();
+        _waiting_to_report = false;
     }
     handle_timers();
 #endif
 }
 
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+void M2MReportHandler::start_timers()
+{
+    tr_debug("M2MReportHandler::start_timers");
+    handle_timers();
+}
+
 void M2MReportHandler::handle_timers()
 {
     tr_debug("M2MReportHandler::handle_timers()");
@@ -557,6 +574,7 @@ void M2MReportHandler::set_default_values()
         _low_step.int_value = 0;
         _last_value.int_value = -1;
     }
+    _last_value_valid = false;
 #endif
 }
 
@@ -565,12 +583,14 @@ void M2MReportHandler::init_float_values(float value)
 {
     _current_value.float_value = value;
     _last_value.float_value = value;
+    _last_value_valid = false;
 }
 
 void M2MReportHandler::init_int_values(int64_t value)
 {
     _current_value.int_value = value;
     _last_value.int_value = value;
+    _last_value_valid = false;
 }
 
 bool M2MReportHandler::check_threshold_values() const
@@ -618,16 +638,28 @@ bool M2MReportHandler::check_threshold_values() const
 bool M2MReportHandler::check_gt_lt_params() const
 {
     tr_debug("M2MReportHandler::check_gt_lt_params");
+    if (!_last_value_valid) {
+        tr_debug("No valid _last_value, sending initial notification");
+        return true;
+    }
     bool can_send = false;
     // GT & LT set.
     if ((_attribute_state & (M2MReportHandler::Lt | M2MReportHandler::Gt)) ==
         (M2MReportHandler::Lt | M2MReportHandler::Gt)) {
         if (_resource_type == M2MBase::FLOAT) {
-            if (_current_value.float_value > _gt || _current_value.float_value < _lt) {
+            if ((_current_value.float_value > _gt  && _last_value.float_value <= _gt) ||
+                (_current_value.float_value < _lt && _last_value.float_value >= _lt)) {
+                can_send = true;
+            } else if ((_current_value.float_value <= _gt && _last_value.float_value > _gt) ||
+                       (_current_value.float_value >= _lt && _last_value.float_value < _lt)) {
                 can_send = true;
             }
         } else {
-            if (_current_value.int_value > _gt || _current_value.int_value < _lt) {
+            if ((_current_value.int_value > _gt && _last_value.int_value <= _gt) ||
+                (_current_value.int_value < _lt && _last_value.int_value >= _lt)) {
+                can_send = true;
+            } else if ((_current_value.int_value <= _gt && _last_value.int_value > _gt) ||
+                       (_current_value.int_value >= _lt && _last_value.int_value < _lt)) {
                 can_send = true;
             }
         }
@@ -636,11 +668,15 @@ bool M2MReportHandler::check_gt_lt_params() const
     else if ((_attribute_state & M2MReportHandler::Lt) == M2MReportHandler::Lt &&
              (_attribute_state & M2MReportHandler::Gt) == 0 ) {
         if (_resource_type == M2MBase::FLOAT) {
-            if (_current_value.float_value < _lt) {
+            if (_current_value.float_value < _lt && _last_value.float_value >= _lt) {
+                can_send = true;
+            } else if (_current_value.float_value >= _lt && _last_value.float_value < _lt) {
                 can_send = true;
             }
         } else {
-            if (_current_value.int_value < _lt) {
+            if (_current_value.int_value < _lt && _last_value.int_value >= _lt) {
+                can_send = true;
+            } else if (_current_value.int_value >= _lt && _last_value.int_value < _lt) {
                 can_send = true;
             }
         }
@@ -650,11 +686,15 @@ bool M2MReportHandler::check_gt_lt_params() const
     else if ((_attribute_state & M2MReportHandler::Gt) == M2MReportHandler::Gt &&
              (_attribute_state & M2MReportHandler::Lt) == 0 ) {
         if (_resource_type == M2MBase::FLOAT) {
-            if (_current_value.float_value > _gt) {
+            if (_current_value.float_value > _gt && _last_value.float_value <= _gt) {
+                can_send = true;
+            } else if (_current_value.float_value <= _gt && _last_value.float_value > _gt) {
                 can_send = true;
             }
         } else {
-            if (_current_value.int_value > _gt) {
+            if (_current_value.int_value > _gt && _last_value.int_value <= _gt) {
+                can_send = true;
+            } else if (_current_value.int_value <= _gt && _last_value.int_value > _gt) {
                 can_send = true;
             }
         }
@@ -719,6 +759,24 @@ bool M2MReportHandler::is_under_observation() const
     return _is_under_observation;
 }
 
+void M2MReportHandler::wait_to_report(M2MResourceBase *resource_base)
+{
+    assert(resource_base != NULL);
+
+    _waiting_to_report = true;
+    _resource_base = resource_base;
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+    //Report immediately if the pmin timer has been exceeded or pmin is not set
+    if (((_attribute_state & M2MReportHandler::Pmin) == M2MReportHandler::Pmin &&
+        _pmin_exceeded) ||
+        ((_attribute_state & M2MReportHandler::Pmin) != M2MReportHandler::Pmin)) {
+        report();
+    }
+#else
+    report();
+#endif
+}
+
 uint8_t* M2MReportHandler::alloc_copy(const uint8_t* source, uint32_t size)
 {
     assert(source != NULL);
@@ -763,9 +821,9 @@ bool M2MReportHandler::blockwise_notify() const
 void M2MReportHandler::send_value()
 {
     tr_debug("M2MReportHandler::send_value() - new value");
-    set_notification_in_queue(true);
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     if (check_threshold_values()) {
+        set_notification_in_queue(true);
         if (_resource_type == M2MBase::FLOAT) {
             _high_step.float_value = _current_value.float_value + _st;
             _low_step.float_value = _current_value.float_value - _st;
@@ -787,6 +845,7 @@ void M2MReportHandler::send_value()
         }
     }
 #else
+    set_notification_in_queue(true);
     schedule_report();
 #endif
 }

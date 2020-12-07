@@ -1,6 +1,37 @@
 # Changelog for Edge
 
-## Release 0.13.0 (2020-29-04)
+## Release 0.14.0 (2020-12-07)
+
+* Added Gateway Resource Manager (GRM) [JSON Remote Procedure Call (RPC)](https://www.jsonrpc.org/specification) APIs. These APIS allow system management services on the gateway to register and add new LwM2M objects under gateway resources.
+   * `gw_resource_manager_register` to register a system management service.
+   * `add_resource` to add an LwM2M object to the list of existing gateway resources.
+   * `write_resource_value` to update resource values.
+   * `write` allows the resource manager to react to messages sent by Edge. Currently, the gateway resource manager should react to write requests with an `execute` or a `write` operation.
+* Removed the multi-instance LwM2M object with ID `/33457`. This object reported the default capabilities of Edge, such as terminal, logs, statistics and alerts, but never managed these services. Maestro manages the orchestration and configuration of the gateway services. Maestro uses the JSON RPC APIs to register itself as a gateway resource manager and add an instance of a LwM2M object with ID `/33457` when it detects gateway features such as terminal, logs, remote configuration and Kubernetes as a Service (KaaS).
+* Added a JS example (`simple-grm-example.js`) in the mbed-edge-examples project to demonstrate how to use GRM feature.
+* Added support for [Parsec](https://parallaxsecond.github.io/parsec-book/index.html). To compile Edge Core with Parsec, set the `-DPARSEC_TPM_SE_SUPPORT=ON` CMake flag. In this configuration, the secure connection with Pelion is established using a device bootstrap private key generated on the Trusted Platform Module (TPM). We have tested integration with:
+   * IBM's Software TPM. To test Edge Core with the software TPM, follow the [instructions provided by Parsec](https://parallaxsecond.github.io/parsec-book/parsec_service/tests/index.html#testing-the-tpm-provider-using-the-software-tpm).
+   * Hardware TPM v2 of Dell Edge Gateway 3002.
+* Added support for firmware update of devices behind the gateway managed by the Protocol Translators (PTs). PTs can use the new JSON RPC APIs to prompt Edge Core to download a firmware update image and provide the update status to Pelion Device Management.
+   * `download_asset` - The PT verifies the manifest received on LwM2M object `10252`, and uses the JSON RPC APIs to prompt Edge Core to download the firmware image. After Edge Core downloads the image successfully, it responds with the file path of the image.
+   * `subdevice_manifest_status` - The PT provides the status of the parsed manifest to Edge Core.
+* Updated the C example (`pt-example`) in the mbed-edge-examples project to demonstrate the firmware update process for devices behind the gateway.
+
+### Known issues
+
+ * When Edge communicates on behalf of multiple devices, there is an underlying limitation in the CoAP communication. This limitation effectively reduces the number of requests in flight to one. When there is very heavy communication, this introduces extra latency. An example calculation:
+   * 30 mediated devices with a resource tree of 20 resources.
+   * 200ms round trip time to Device Management.
+   * 10KB registration message.
+   * Underlying Device Management Client sends data in 1KB blocks and waits for an acknowledgement for each block. This equals 10 * 200ms = 2 seconds.
+   * During this time, Edge does not process other messages.
+ * If Edge passes a lot of notification updates to Device Management, the responsiveness to requests initiated by Device Management may be hindered.
+ * Protocol translators (PT) may cause side effects on devices connecting through another protocol translator. Edge Core identifies endpoint devices by their name. To prevent unknown behavior caused by clashing names, ensure the devices have unique names across the PTs. For example, add a prefix or suffix based on the protocol translator name, which must be unique.
+ * `DELETE` (CoAP/LwM2M) operation not supported.
+ * Devices moving between Edge instances have corner cases that are not supported. Deregister the devices from the current Edge instance before connecting to another Edge instance.
+ * Mediated device lifetime tracking is not supported. Devices have the same lifetime as the Edge device. The default is one hour. The `#define` parameter used to change the lifetime is `MBED_CLOUD_CLIENT_LIFETIME`.
+
+## Release 0.13.0 (2020-05-15)
 
 * The default value of `max-age` is set to 60. This allows caching of the resource value in Pelion Device Management for up to 60 seconds.
 * Added a new gateway resource with LwM2M object ID `/33457`. The rich nodes can report the features supported on the platform. Users can enable, disable and remotely configure the feature. It statically reports terminal, logs, statistics and alerts.

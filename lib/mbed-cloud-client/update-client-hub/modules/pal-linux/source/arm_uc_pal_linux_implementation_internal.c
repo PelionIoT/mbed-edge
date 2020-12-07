@@ -175,7 +175,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
             }
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = ((result.error == ERR_NONE) && (remaining > 0));
@@ -203,7 +203,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
             }
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = ((result.error == ERR_NONE) && (remaining > 0));
@@ -218,7 +218,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
                                *arm_uc_location);
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = (remaining > 0);
@@ -233,7 +233,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
                                arm_uc_offset);
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = (remaining > 0);
@@ -249,7 +249,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
                                    arm_uc_buffer->size_max);
 
                 /* update remaining */
-                remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+                remaining = command_length - length;
 
                 /* check validity */
                 valid = (remaining > 0);
@@ -300,13 +300,12 @@ arm_uc_error_t arm_uc_pal_linux_internal_read(const char *file_path,
                     /* set error code if read failed */
                     UC_PAAL_ERR_MSG("failed to read %s: %s", file_path, strerror(errno));
                     buffer->size = 0;
-                }
-
-                /* close file after read */
-                fclose(descriptor);
+                }                
             } else {
                 UC_PAAL_ERR_MSG("failed to seek in: %s", file_path);
             }
+            /* close file after read */
+            fclose(descriptor);
         } else {
             UC_PAAL_ERR_MSG("failed to open %s: %s", file_path, strerror(errno));
         }
@@ -643,7 +642,8 @@ void *arm_uc_pal_linux_extended_pre_worker(void *params)
                 }
             } else {
                 UC_PAAL_ERR_MSG("failed to read pipe: %" PRId32, status);
-            }
+                status = pclose(pipe);
+            }            
         } else {
             UC_PAAL_ERR_MSG("failed to execute script: %" PRId32, errno);
         }

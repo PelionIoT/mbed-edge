@@ -47,16 +47,9 @@ class M2MResource;
 class M2MEndpoint;
 
 
-/*! \file m2mbase.h
- *  \brief M2MBase.
- *  This class is the base class based on which all LwM2M object models
- *  can be created.
- *
- *  This serves as a base class for Objects, ObjectInstances and Resources.
- */
+/** \file m2mbase.h \brief Header for M2MBase class */
 
-/*! \class M2MBase
- *  \brief The base class based on which all LwM2M object models can be created.
+/**The base class based on which all LwM2M object models can be created.
  *
  * It serves as the base class for Objects, ObjectInstances and Resources.
  */
@@ -813,6 +806,11 @@ protected: // from M2MReportObserver
                             sn_coap_hdr_s &coap_response,
                             M2MObservationHandler *observation_handler,
                             sn_coap_msg_code_e &response_code);
+
+    /**
+     * \brief Cancels the ongoing observation.
+     */
+    void cancel_observation();
 
     /**
      * \brief Start the observation.

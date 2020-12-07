@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //  
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include "cs_der_certs.h"
 #include "pal.h"
 #include "cs_utils.h"
-#include "pk.h"
+#include "mbedtls/pk.h"
 #include "fcc_malloc.h"
 #include "key_slot_allocator.h"
 #include "storage_kcm.h"
@@ -787,7 +787,7 @@ kcm_status_e cs_asymmetric_sign(kcm_key_handle_t kcm_prv_key_handle, const uint8
 
     //parse private key from handle
     pal_status = pal_parseECPrivateKeyFromHandle((palKeyHandle_t)kcm_prv_key_handle, pal_ec_prv_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPrivateKeyFromHandle failed");
 
     //get output signature
     pal_status = pal_asymmetricSign(pal_ec_prv_key_handle, PAL_SHA256, hash_digest, hash_digest_size, signature_data_out, signature_data_max_size, signature_data_act_size_out);

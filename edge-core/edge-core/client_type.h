@@ -26,7 +26,8 @@
 
 enum client_type {
     PT,
-    MGMT
+    MGMT,
+    GRM
 };
 
 typedef struct string_list_entry {

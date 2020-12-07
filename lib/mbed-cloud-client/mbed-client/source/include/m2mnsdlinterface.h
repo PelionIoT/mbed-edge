@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include "mbed-client/m2mserver.h"
 #include "include/nsdllinker.h"
 #include "eventOS_event.h"
+#include "pal.h"
 
 //FORWARD DECLARARTION
 class M2MSecurity;
@@ -414,6 +415,7 @@ public:
     */
     bool is_registered() const;
 
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
     /**
      * @brief Returns total retransmission time
      * @resend_count Resend count
@@ -426,6 +428,7 @@ public:
      * @return CoAP retransmission count
     */
     uint8_t get_resend_count();
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
 
     /**
      * @brief Mark request to be resend again after network break
@@ -438,6 +441,15 @@ public:
      * @brief Create a new time when to send CoAP ping.
     */
     void calculate_new_coap_ping_send_time();
+
+    virtual void update_network_stagger_estimate(uint16_t data_amount);
+
+    virtual uint16_t get_network_stagger_estimate();
+
+    virtual void update_network_rtt_estimate();
+
+    virtual uint8_t get_network_rtt_estimate();
+
 
 protected: // from M2MTimerObserver
 
@@ -489,6 +501,8 @@ private:
 
     bool create_nsdl_structure(M2MBase *base);
 
+    bool set_resource_value(M2MResourceBase *res, const uint8_t *value_ptr, const uint32_t size);
+
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     bool create_nsdl_endpoint_structure(M2MEndpoint *endpoint);
 #endif
@@ -507,7 +521,7 @@ private:
 
     void execute_nsdl_process_loop();
 
-    uint64_t registration_time() const;
+    uint32_t registration_time() const;
 
     M2MBase* find_resource(const String &object) const;
 
@@ -748,7 +762,9 @@ private:
     bool                                    _registered;
     bool                                    _waiting_for_bs_finish_ack;
     M2MTimer                                _download_retry_timer;
-    uint64_t                                _download_retry_time;
+    uint32_t                                _download_retry_time;
+    uint16_t                                _network_stagger_estimate;
+    uint8_t                                 _network_rtt_estimate;
 
 friend class Test_M2MNsdlInterface;
 

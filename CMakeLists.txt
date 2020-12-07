@@ -6,8 +6,7 @@
 if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libwebsockets/libwebsockets/CMakeLists.txt" OR
     NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/jansson/jansson/CMakeLists.txt" OR
     NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libevent/libevent/CMakeLists.txt" OR
-    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/library" OR
-    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/crypto"
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/library"
    )
 	MESSAGE (FATAL_ERROR "Cannot find required libraries, please run \
                        `git submodule update --init --recursive`")

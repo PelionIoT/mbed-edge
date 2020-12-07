@@ -34,6 +34,15 @@
 #include "CertificateEnrollmentClient.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+#include "DeviceSentryClient.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+#include "multicast.h"
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+
+
 #if MBED_CLOUD_CLIENT_STL_API
 #include <string>
 #endif
@@ -70,10 +79,16 @@ ServiceClient::~ServiceClient()
 {
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     ARM_UC_HUB_Uninitialize();
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    arm_uc_multicast_deinit();
+#endif
 #endif
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
     CertificateEnrollmentClient::finalize();
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+    DeviceSentryClient::finalize();
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 }
 
 void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
@@ -86,7 +101,12 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         tr_debug("ServiceClient::initialize_and_register: update client supported");
-
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        if (arm_uc_multicast_init(*_client_objs, _connector_client) != 0) {
+            _service_callback.error((int)MULTICAST_INIT_FAILED, "Multicast initialization failed");
+            return;
+        }
+#endif
         if(!_setup_update_client) {
             _setup_update_client = true;
 
@@ -168,6 +188,13 @@ void ServiceClient::finish_initialization(void)
             _service_callback.error((int)CE_STATUS_INIT_FAILED, "Certificate Enrollment initialization failed");
         }
 #endif /* !MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT */
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+    // Initialize the device sentry feature
+    if (DeviceSentryClient::init(*_client_objs) != DS_STATUS_SUCCESS) {
+         _service_callback.error((int)DS_STATUS_INIT_FAILED, "Device Sentry initialization failed");
+    }
+#endif /* MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY */
 
     if (device_object) {
         /* Publish device object resource to mds */
@@ -588,7 +615,8 @@ void ServiceClient::post_response_status_handler(const M2MBase& base,
         case M2MBase::MESSAGE_STATUS_DELIVERED: // intentional fall-through
         case M2MBase::MESSAGE_STATUS_SEND_FAILED: {
             M2MDevice* dev = M2MInterfaceFactory::create_device();
-            if (&base == dev->object_instance(0)->resource(DEVICE_REBOOT)) {
+            if (dev != NULL && dev->object_instance(0) != NULL &&
+                &base == dev->object_instance(0)->resource(DEVICE_REBOOT)) {
                 ((ServiceClient*)me)->m2mdevice_reboot_execute();
             }
             break;
@@ -602,7 +630,10 @@ void ServiceClient::reboot_execute_handler(void*)
 {
     // Don't perform reboot yet, as server will not get response. Instead, send response and wait
     // for acknowledgement before rebooting.
-    M2MInterfaceFactory::create_device()->object_instance(0)->resource(DEVICE_REBOOT)->send_delayed_post_response();
+    M2MDevice *dev = M2MInterfaceFactory::create_device();
+    if (dev != NULL && dev->object_instance(0) != NULL && dev->object_instance(0)->resource(DEVICE_REBOOT) != NULL) {
+        dev->object_instance(0)->resource(DEVICE_REBOOT)->send_delayed_post_response();
+    }
 }
 
 void ServiceClient::m2mdevice_reboot_execute()
