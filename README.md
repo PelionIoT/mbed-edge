@@ -87,23 +87,64 @@ $ cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=OFF ..
 $ make
 ```
 
-In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-tool` to generate the `update_default_resources.c`,
-see the documentation on [getting the update resources](#getting-the-update-resources).
+In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-dev-tool` to generate the `update_default_resources.c` file. For more information, see the documentation on [enabling firmware updates](#enabling-firmware-update).
 
 With the `BYOC_MODE` it is possible to inject the Device Management Client configuration as CBOR file. The `--cbor-conf` argument takes the path to CBOR file. The `edge-tool` can be used to convert the C source file Device Management developer credentials file to CBOR format. See the instructions in [`edge-tool/README.md`](./edge-tool/README.md)
 
 Other build flags can also be set with this method.
 
+### Enabling firmware update
+
+To use the firmware update functionality, you must generate a `update_default_resources.c` file.
+
+You can create a `update_default_resources.c` file, using the
+[`manifest-dev-tool` utility](https://github.com/PelionIoT/manifest-tool), by running:
+
+```
+$ manifest-dev-tool init
+```
+
+where `-d` is company domain and `-m` is product model identifier.
+
+Move the created `update_default_resources.c` file to the `config` folder.
+
+The command also creates a `.update-certificates` folder, which contains self-signed
+certificates that the manifest tool uses to sign resources and the manifest for the firmware update.
+
+<span class="notes">**Note:** The generated certificates are not secure for use
+in production environments. Please read the
+[Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
+on how to build a resource file and certificates safe for a production environment.</span>
+
+Version 0.15.0 introduces a new Firmware-Over-the-Air (FOTA) Update Framework library which extends the capability of the previous library aka Update Client (UC) Hub. Using the new library you can not only update the device itself but also push update to a component of the device. For instance, you can leverage the features of new library to update the firmware driver of a BLE or a WiFi module connected to the device managed by Pelion. By default, UC Hub library is compiled into the binary. In order to switch to new FOTA library, add this CMake flag `-DFOTA_ENABLE=ON` during build time.
+
+The FOTA Update Framework library uses `curl` to fetch the images. By default, the curl library is statically compiled. We also support dynamic linking and to enable that add this flag - `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` during build time.
+
+Hence, to enable the firmware update using new FOTA library and dynamically linking `curl`, pass the CMake `-DFIRMWARE_UPDATE=ON`, `-DFOTA_ENABLE=ON` and `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` when you build Edge Core:
+
+```
+$ mkdir build
+$ cd build
+$ cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON ..
+$ make
+```
+
+Alternativley, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
+
+In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
+The exact value of the define depends on the used Linux distribution and the
+machine used to run Edge.
+For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
+a value `ARM_UCP_LINUX_GENERIC`.
+
+
 ### Enabling Parsec
 
-[Parsec](https://parallaxsecond.github.io/parsec-book/index.html) is the Platfrom Abstraction for Security, an open-source initiative, which provides a platform-agnostic interface for calling the secure storage and operation services of a trusted platform module (TPM) on Linux.
+[Parsec](https://parallaxsecond.github.io/parsec-book/index.html) is the Platform Abstraction for Security, an open-source initiative, which provides a platform-agnostic interface for calling the secure storage and operation services of a trusted platform module (TPM) on Linux.
 
 This lets you generate the device's bootstrap private key on a TPM during the factory flow. Later, when the device calls the Device Management bootstrap server, Device Management Client calls the Parsec API and uses the bootstrap key as part of the DTLS handshake, without having to export the key.
 
-Parsec can be enabled by giving `-DPARSEC_TPM_SE_SUPPORT=ON` when creating
-CMake build:
-
-Note: You can only work with Edge Core in factory mode when you use Parsec and a TPM.
+To enable Parsec, pass `-DPARSEC_TPM_SE_SUPPORT=ON` when you run the CMake `build` command:
 
 ```
 $ mkdir build
@@ -112,13 +153,7 @@ $ cmake -DFACTORY_MODE=ON -DPARSEC_TPM_SE_SUPPORT=ON ..
 $ make
 ```
 
-For the demo, we use [IBM's Software TPM](https://sourceforge.net/projects/ibmswtpm2/) emulator on Linux x86. For information about integrating Device Management Client with Parsec on a hardware TPM, please [contact us](https://www.arm.com/company/contact-us/pelion-iot-product-inquiries).
-
-To use the TPM emulator with the factory tool demo:
-
-Install and run IBM's Software TPM, as explained on the [Parsec documentation website](https://parallaxsecond.github.io/parsec-book/index.html).
-Install and run Parsec on your machine, as explained on the [Parsec documentation website](https://parallaxsecond.github.io/parsec-book/parsec_service/install_parsec_linux.html).
-
+Note: You can only work with Edge Core in factory mode when you use Parsec and a TPM.
 
 ### Factory provisioning
 
@@ -160,36 +195,6 @@ read the [Device Management Client documentation](https://cloud.mbed.com/docs/la
 ```
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
 ```
-
-### Getting the update resources
-
-To enable the firmware update functionality, you need to set the following flag
-in the CMake command line: `-DFIRMWARE_UPDATE=ON`.
-
-In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
-The exact value of the define depends on the used Linux distribution and the
-machine used to run Edge.
-For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
-a value `ARM_UCP_LINUX_GENERIC`.
-
-When you have enabled the update, you need to generate the
-`update_default_resources.c` file. To create this file, use the
-[`manifest-tool` utility](https://cloud.mbed.com/docs/latest/updating-firmware/manifest-tool.html).
-Give, for example, the following command:
-
-```
-$ manifest-tool init -d "<company domain name>" -m "<product model identifier>"
-```
-
-When you have created the file, you need to move it to the `config` folder.
-The command also creates the `.update-certificates` folder. This folder contains
-the self-signed certificates that are used to sign the resources and can be used
-to sign the manifest for the firmware update.
-
-<span class="notes">**Note:** The generated certificates are not secure for use
-in production environments. Please read the
-[Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
-on how to build a resource file and certificates safe for a production environment.</span>
 
 ### Configuring the maximum number of registered endpoints
 
@@ -343,5 +348,5 @@ then to Edge Core:
 ### Protocol translator examples
 
 Some protocol translator example implementations exist. These can be found from their own
-[Github repository](https://github.com/ARMmbed/mbed-edge-examples). The repository contains
+[Github repository](https://github.com/PelionIoT/mbed-edge-examples). The repository contains
 instructions on building and running the examples.

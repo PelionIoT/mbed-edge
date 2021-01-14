@@ -43,6 +43,7 @@
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "serv"
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 void completed_download_asset(uint8_t *url, char *filename, int error_code, void *ctx)
 {
     sleep(1);
@@ -50,7 +51,7 @@ void completed_download_asset(uint8_t *url, char *filename, int error_code, void
         tr_warn("EST enrollment result missing context!");
         return;
     }
-    
+
     char* path = realpath(filename, NULL);
 
     protocol_api_async_request_context_t *pt_ctx = (protocol_api_async_request_context_t *) ctx;
@@ -69,12 +70,12 @@ void completed_download_asset(uint8_t *url, char *filename, int error_code, void
                                                         protocol_api_free_async_ctx_func,
                                                         (rpc_request_context_t *) ctx);
 
-if(path)
-    free(path);
-if(filename)
-    free(filename);
-if(url)
-    free(url);
+    if(path)
+        free(path);
+    if(filename)
+        free(filename);
+    if(url)
+        free(url);
 }
 
 /**
@@ -107,7 +108,7 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
             json_string("EST enrollment request failed. Memory allocation failed."));
         return JSONRPC_RETURN_CODE_ERROR;
     }
-    
+
     // Parse the URL, hash, and size from the JSON object coming from the protocol translator
     json_t *url_handle = json_object_get(json_params, "url");
     json_t *hash_handle = json_object_get(json_params, "hash");
@@ -132,7 +133,7 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
     if(filename == NULL)
     {
         tr_err("filename memory allocation fail");
-        return JSONRPC_RETURN_CODE_NO_RESPONSE;   
+        return JSONRPC_RETURN_CODE_NO_RESPONSE;
     }
     strcpy(filename, hash);
     strcat(filename, ".bin");
@@ -143,7 +144,7 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
     {
         tr_err("final_url memory allocation fail");
         free(filename);
-        return JSONRPC_RETURN_CODE_NO_RESPONSE;   
+        return JSONRPC_RETURN_CODE_NO_RESPONSE;
     }
     strcpy(final_url, url);
 
@@ -195,6 +196,9 @@ int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **res
     tr_cmdline("Device_Id %s Manifest Error %s",device_id,manifest_error);
     ARM_UC_SUBDEVICE_ReportUpdateResult(device_id,manifest_error);
 }
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
 struct jsonrpc_method_entry_t method_table[] = {
     { "protocol_translator_register", protocol_translator_register, "o" },
     { "device_register", device_register, "o" },
@@ -209,8 +213,10 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "crypto_asymmetric_verify", crypto_api_asymmetric_verify, "o" },
     { "crypto_ecdh_key_agreement", crypto_api_ecdh_key_agreement, "o" },
     { "est_request_enrollment", est_request_enrollment, "o" },
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
     { "download_asset", download_asset, "o" },
     { "subdevice_manifest_status", subdevice_manifest_status, "o"},
+#endif // MBED_EDGE_SUBDEVICE_FOTA
     { NULL, NULL, "o" }
 };
 
@@ -850,6 +856,8 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                         break;
                     }
                 } else {
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
                     pt_api_result_code_e set_resource_status = subdevice_set_resource_value(device_id_val,
                                                                                             object_id,
                                                                                             object_instance_id,
@@ -859,6 +867,17 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                                                                                             resource_type,
                                                                                             opr,
                                                                                             connection);
+#else
+                    pt_api_result_code_e set_resource_status = edgeclient_set_resource_value(device_id_val,
+                                                                                            object_id,
+                                                                                            object_instance_id,
+                                                                                            resource_id,
+                                                                                            resource_value,
+                                                                                            decoded_len,
+                                                                                            resource_type,
+                                                                                            opr,
+                                                                                            connection);
+#endif // MBED_EDGE_SUBDEVICE_FOTA
                     if (set_resource_status == PT_API_SUCCESS) {
                         tr_info("set_resource_value /d/%s/%d/%d/%d (type=%ud, operation=%d)",
                                 device_id_val,

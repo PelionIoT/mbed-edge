@@ -34,6 +34,7 @@
 #include "pt-client-2/pt_resource_api_internal.h"
 #include "pt-client-2/pt_certificate_api_internal.h"
 #include "pt-client-2/pt_firmware_download_api_internal.h"
+
 #include "ns_list.h"
 #include "common/edge_mutex.h"
 #include "common/msg_api.h"
@@ -64,7 +65,9 @@ struct pt_client_data_s {
     bool close_client;
     bool close_connection;
     bool reconnection_triggered;
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
     manifest_download_handler manifest_handler;
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 };
 /*
 struct pt_api_mutex_s {
@@ -79,12 +82,14 @@ typedef struct pt_customer_callback {
     void *userdata;
 } pt_customer_callback_t;
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 typedef struct pt_asset_download_callback {
     connection_id_t connection_id;
     pt_download_cb success_handler;
     pt_download_cb failure_handler;
     void *userdata;
 } pt_asset_download_callback_t;
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 typedef struct pt_device_customer_callback {
     connection_id_t connection_id;

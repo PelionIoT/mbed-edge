@@ -25,12 +25,15 @@
 #define TRACE_GROUP "edgecc"
 #endif
 
-#include <unistd.h>
+
 #include <stdio.h>
 #include "MbedCloudClient.h"
 #include "mbed-trace/mbed_trace.h"
-#include "update-client-common/arm_uc_types_internal.h"
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+#include <unistd.h>
+#include "update-client-common/arm_uc_types_internal.h"
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 class EdgeClientImpl : MbedCloudClientCallback {
 public:
@@ -185,25 +188,26 @@ public:
         _cloud_client.register_update();
     }
 
-    typedef struct {
-    char *device_id;                       // Endpoint Id
-    uint32_t size_max;                      // Maximum size of the fragment buffer
-    uint32_t size;                          // Actual size of the fragment buffer
-    uint8_t ptr[2048];                           // Pointer to the fragment buffer
-    int offset;                             // Offset in the entire asset that the fragment is at
-    char *filename;                         // Filename the asset is getting saved to
-    uint8_t *url;                           // URL the asset is getting downloaded from
-    int file_size;                          // Total size of the asset
-    M2MInterface* interface;                // Interface used for obtaining the asset
-    asset_download_complete_cb success_cb;  // Callback to run after the asset has been downloaded
-    void *ctx;                              // Original context used for sending the json struct later
-    int error_code;                         // Error code for the transaction
-    bool last_block;
-} arm_uc_asset_state_t;
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 
+    typedef struct {
+        char *device_id;                       // Endpoint Id
+        uint32_t size_max;                      // Maximum size of the fragment buffer
+        uint32_t size;                          // Actual size of the fragment buffer
+        uint8_t ptr[2048];                           // Pointer to the fragment buffer
+        int offset;                             // Offset in the entire asset that the fragment is at
+        char *filename;                         // Filename the asset is getting saved to
+        uint8_t *url;                           // URL the asset is getting downloaded from
+        int file_size;                          // Total size of the asset
+        M2MInterface* interface;                // Interface used for obtaining the asset
+        asset_download_complete_cb success_cb;  // Callback to run after the asset has been downloaded
+        void *ctx;                              // Original context used for sending the json struct later
+        int error_code;                         // Error code for the transaction
+        bool last_block;
+    } arm_uc_asset_state_t;
 
     static int checkHTTPstatus(int sock)
-    {       
+    {
         char buff[1024] = "", *ptr = buff + 1;
         int bytes_received, status;
         while (bytes_received = recv(sock, ptr, 1, 0)) {
@@ -228,7 +232,7 @@ public:
     }
 
     static int get_total_length_http_header(int sock)
-    {        
+    {
         char buff[1024] = "", *ptr = buff + 4;
         int bytes_received, status;
         tr_info("Begin HEADER ..\n");
@@ -245,14 +249,14 @@ public:
 
         *ptr = 0;
         ptr = buff + 4;
-     
+
         if (bytes_received) {
             ptr = strstr(ptr, "Content-Length:");
             if (ptr) {
                 sscanf(ptr, "%*s %d", &bytes_received);
 
             } else
-                bytes_received = -1; 
+                bytes_received = -1;
 
             tr_debug("Content-Length: %d\n", bytes_received);
         }
@@ -268,7 +272,7 @@ public:
         } else if (strstr((char *) state->url, "https://")) {
             url_without_http = strdup((char *) state->url + 8);
         }
-    
+
         char *fw_file = NULL;
         char *server_uri = strtok_r(url_without_http, "/", &fw_file);
 
@@ -303,7 +307,7 @@ public:
         server_addr.sin_port = htons(80);
         server_addr.sin_addr = *((struct in_addr *) host->h_addr);
         bzero(&(server_addr.sin_zero), 8);
-       
+
         if (connect(sock, (struct sockaddr *) &server_addr, sizeof(struct sockaddr)) == -1) {
             tr_err("HTTP Socket Connect Error");
             free(recv_data);
@@ -318,7 +322,6 @@ public:
             return ARM_UC_UPDATE_RESULT_FETCHER_NETWORK_CONNECTION_FAILURE;
         }
         tr_info("Data sent.\n");
-      
 
         uint totallength;
 
@@ -374,7 +377,7 @@ public:
         arm_uc_asset_state_t *state = (arm_uc_asset_state_t *)ctx;
 
         tr_cmdline("\n%s",state->filename);
-        //HTTP get request download 
+        //HTTP get request download
         arm_uc_update_result_t fw_download_status = fw_file_download(state);
         tr_info("\nFirmware completed %s %d %s", state->url, state->file_size, state->filename);
         if (fw_download_status != ARM_UC_UPDATE_RESULT_UPDATE_FIRST) {
@@ -386,8 +389,7 @@ public:
             state->filename = NULL;
             state->error_code = fw_download_status;
         }
-        state->success_cb(state->url, state->filename, state->error_code, state->ctx);       
-       
+        state->success_cb(state->url, state->filename, state->error_code, state->ctx);
 
         if (state->device_id)
             free(state->device_id);
@@ -423,16 +425,14 @@ public:
             strcpy(state->device_id, device_id);
 
         pthread_t subdevice_fw_download_thread;
-      
 
         /* Create independent threads to download fw each of which will execute function */
 
         pthread_create( &subdevice_fw_download_thread, NULL, &subdevice_download_fw, (void*) state);
         pthread_detach(subdevice_fw_download_thread);
-
-   
     }
 
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
     void client_registered()
     {

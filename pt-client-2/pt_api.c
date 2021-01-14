@@ -860,6 +860,8 @@ static void call_free_userdata_conditional(pt_userdata_t *userdata)
     }
 }
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
                                             manifest_download_handler cb)
 {
@@ -875,6 +877,7 @@ pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
     return PT_STATUS_SUCCESS;
 }
 
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection_id,
                                                 const char *device_id,
@@ -925,9 +928,11 @@ pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection
     device->objects = objects;
 
     pt_devices_add_device(connection->client->devices, device);
-   
+
     pt_status_t status = PT_STATUS_SUCCESS;
-#ifndef BUILD_TYPE_TEST    
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+#ifndef BUILD_TYPE_TEST
     if (device->features & PT_DEVICE_FEATURE_FIRMWARE_UPDATE) {
         status = pt_device_init_firmware_update_resources(connection_id, device_id, connection->client->manifest_handler);
         if (status != PT_STATUS_SUCCESS) {
@@ -937,7 +942,9 @@ pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection
             return PT_STATUS_FEATURE_INITIALIZATION_FAIL;
         }
     }
-#endif
+#endif // BUILD_TYPE_TEST
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
     if (device->features & PT_DEVICE_FEATURE_CERTIFICATE_RENEWAL) {
         status = pt_device_init_certificate_renewal_resources(connection_id, device_id);
         if (status != PT_STATUS_SUCCESS) {
@@ -2162,6 +2169,7 @@ pt_status_t pt_resource_set_userdata(connection_id_t connection_id,
     return status;
 }
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 
 pt_status_t pt_download_asset(const connection_id_t connection_id,
                               const char *device_id,
@@ -2181,3 +2189,5 @@ pt_status_t pt_download_asset(const connection_id_t connection_id,
                                       failure_handler,
                                       userdata);
 }
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA

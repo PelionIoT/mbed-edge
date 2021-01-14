@@ -53,8 +53,12 @@
 #include "edge_version_info.h"
 #include "edge-rpc/rpc_timeout_api.h"
 #include "common/msg_api.h"
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 #include "arm_uc_mmDerManifestAccessors.h"
 #include "arm_uc_certificate.h"
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 #define TRACE_GROUP "serv"
 
@@ -177,6 +181,9 @@ void transport_connection_t_destroy(transport_connection_t **transport_connectio
     }
 }
 
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manifest_info_t* manifest_info,arm_uc_update_result_t *error_manifest) {
     tr_info("parse_manifest_for_subdevice");
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
@@ -261,6 +268,8 @@ bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manif
 #endif
     return true;
 }
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 int callback_edge_core_protocol_translator(struct lws *wsi,
                                            enum lws_callback_reasons reason,

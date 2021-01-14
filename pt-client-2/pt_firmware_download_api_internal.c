@@ -17,6 +17,7 @@
  * limitations under the License.
  * ----------------------------------------------------------------------------
  */
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -543,3 +544,5 @@ pt_status_t pt_parse_manifest(const uint8_t *manifest_payload,
 
     return PT_STATUS_SUCCESS;
 }
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA

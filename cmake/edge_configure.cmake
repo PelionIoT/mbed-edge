@@ -63,7 +63,7 @@ elseif (${BYOC_MODE})
 elseif (${FACTORY_MODE})
   MESSAGE ("Factory mode provisioning set.")
   add_definitions("-DPARSEC_TPM_SE_SUPPORT")
-  
+
   if(PARSEC_TPM_SE_SUPPORT)
     option(LINK_WITH_TRUSTED_STORAGE "Explicitly link mbed TLS library to trusted_storage." ON)
     add_definitions(
@@ -99,9 +99,21 @@ else ()
    include ("${TARGET_CONFIG_ROOT}/target.cmake")
 endif()
 
+MESSAGE("FOTA_ENABLE is ${FOTA_ENABLE}")
+
+if (FOTA_ENABLE AND NOT FIRMWARE_UPDATE)
+  MESSAGE (FATAL_ERROR "FIRMWARE_UPDATE flag should be enabled when using FOTA_ENABLE")
+endif()
 
 if (${FIRMWARE_UPDATE})
   MESSAGE ("Enabling firmware update for Edge")
+
+  if (FOTA_ENABLE)
+    execute_process ( COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/fota/fota_install_callback.c ${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/fota/ )
+    add_definitions(-DFOTA_DEFAULT_APP_IFS=1)
+    add_definitions(-DTARGET_LIKE_LINUX=1)
+  endif()
+
   if (${DEVELOPER_MODE})
     if (NOT DEFINED MBED_UPDATE_RESOURCE_FILE)
       MESSAGE ("The custom update resource descriptor c-file not injected.")
@@ -124,7 +136,13 @@ if (${FIRMWARE_UPDATE})
     MESSAGE (FATAL_ERROR "Firmware update enabled, missing update storage flag")
   endif()
 
-  add_definitions ("-DMBED_CLOUD_CLIENT_SUPPORT_UPDATE=1")
+  if (NOT FOTA_ENABLE)
+     MESSAGE("Update client hub selected, enabling subdevice fota feature.")
+     add_definitions ("-DMBED_CLOUD_CLIENT_SUPPORT_UPDATE=1")
+     SET (ENABLE_SUBDEVICE_FOTA ON)
+     add_definitions(-DMBED_EDGE_SUBDEVICE_FOTA)
+  endif()
+
   add_definitions ("-DMBED_CLOUD_CLIENT_UPDATE_STORAGE=${MBED_CLOUD_CLIENT_UPDATE_STORAGE}")
 
 endif()
@@ -193,6 +211,8 @@ if (DEFINED PAL_UPDATE_FIRMWARE_DIR)
     add_definitions ("-DPAL_UPDATE_FIRMWARE_DIR=${PAL_UPDATE_FIRMWARE_DIR}")
     MESSAGE("Using firmware update directory: ${PAL_UPDATE_FIRMWARE_DIR}")
 endif()
+
+add_definitions ("-DDISABLE_PAL_TESTS")
 
 if (DEFINED TRACE_LEVEL)
   MESSAGE ("Trace level set to ${TRACE_LEVEL}")

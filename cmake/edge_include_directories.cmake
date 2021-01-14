@@ -41,9 +41,13 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client/source)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client/source/include)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client/mbed-client-c)
 
+MESSAGE ("Is Subdevice FOTA enable - ${ENABLE_SUBDEVICE_FOTA}")
 # update client
-include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/update-client-hub/)
-include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/update-client-hub/modules/common/)
+if (ENABLE_SUBDEVICE_FOTA)
+    MESSAGE ("Including UC HUB directories.")
+    include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/update-client-hub/)
+    include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/update-client-hub/modules/common/)
+endif()
 
 # CoAP lib
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-coap/mbed-coap)
@@ -62,6 +66,7 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-trace)
 
 # factory configuration headers
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/factory-configurator-client/factory-configurator-client)
+include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/crypto-service/crypto-service)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/fcc-bundle-handler/fcc-bundle-handler)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/fcc-output-info-handler/fcc-output-info-handler)
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/factory-configurator-client/key-config-manager/key-config-manager)

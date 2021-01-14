@@ -18,6 +18,8 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 #ifndef EDGE_MANIFEST_OBJECT_H_
 #define EDGE_MANIFEST_OBJECT_H_
 
@@ -42,3 +44,5 @@ extern "C" {
 #endif
 
 #endif /* EDGE_MANIFEST_OBJECT_H_ */
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA

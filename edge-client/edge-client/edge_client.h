@@ -93,6 +93,7 @@ typedef int (*handle_cert_renewal_status_cb)(const char *certificate_name,
                                              ce_initiator_e initiator,
                                              void *ctx);
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 /**
  * \brief callback for subdevice firmware download post process.
  * \param url Firmware URL
@@ -101,6 +102,25 @@ typedef int (*handle_cert_renewal_status_cb)(const char *certificate_name,
  * \param ctx User provided context.
  */
 typedef void (*asset_download_complete_cb)(uint8_t *url, char *filename, int error_code, void *ctx);
+
+void edgeclient_get_asset(char *device_id,uint8_t *, char *, size_t, asset_download_complete_cb, void *);
+
+int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name,char *error_manifest);
+
+pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id,
+                                                   const uint16_t object_instance_id, const uint16_t resource_id,
+                                                   const uint8_t *value, const uint32_t value_length,
+                                                   Lwm2mResourceType resource_type, int opr, void *ctx);
+
+bool edgeclient_create_resource_structure(const char *endpoint_name,
+                                          const uint16_t object_id,
+                                          const uint16_t object_instance_id,
+                                          const uint16_t resource_id,
+                                          Lwm2mResourceType resource_type,
+                                          int opr,
+                                          void *ctx);
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 /**
  * \brief callback for handling EST enrollment status callback.
@@ -192,10 +212,6 @@ void edgeclient_update_register_conditional();
  * \return number of objects removed.
  */
 uint32_t edgeclient_remove_objects_owned_by_client(void *client_context);
-
-void edgeclient_get_asset(char *device_id,uint8_t *, char *, size_t, asset_download_complete_cb, void *);
-
-int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name,char *error_manifest);
 
 /**
  * \brief Remove resources that have been added by this client.
@@ -403,10 +419,6 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
                                                    Lwm2mResourceType resource_type,
                                                    int opr,
                                                    void *ctx);
-pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id,
-                                                   const uint16_t object_instance_id, const uint16_t resource_id,
-                                                   const uint8_t *value, const uint32_t value_length,
-                                                   Lwm2mResourceType resource_type, int opr, void *ctx);
 
 /**
  * \brief Send asynchronous response for the given resource. Use this API to send the asynchronous response after
@@ -526,15 +538,6 @@ const char* edgeclient_get_endpoint_name();
  *         false if shutdown proces hasn't been started.
  */
 bool edgeclient_is_shutting_down();
-
-
-bool edgeclient_create_resource_structure(const char *endpoint_name,
-                                          const uint16_t object_id,
-                                          const uint16_t object_instance_id,
-                                          const uint16_t resource_id,
-                                          Lwm2mResourceType resource_type,
-                                          int opr,
-                                          void *ctx);
 
 #ifdef __cplusplus
 }

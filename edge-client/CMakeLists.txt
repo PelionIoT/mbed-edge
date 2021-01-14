@@ -12,7 +12,10 @@ add_definitions(-DMBED_CONF_MBED_TRACE_ENABLE=1)
 add_library (edge-client STATIC ${SOURCES})
 set_target_properties(edge-client PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories (edge-client PUBLIC ${ROOT_HOME}/edge-core)
+
+if (ENABLE_SUBDEVICE_FOTA)
 target_include_directories (edge-client PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/common/update-client-common)
+endif()
 
 if (TARGET_GROUP STREQUAL test)
   list (APPEND EDGE_CLIENT_LIBS libevent-mock-lib edge-server-mock-lib test-lib pal-mock-lib mbed-cloud-client-mock)

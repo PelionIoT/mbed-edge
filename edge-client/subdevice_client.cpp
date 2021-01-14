@@ -18,6 +18,8 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 #define TRACE_GROUP "edgesd"
 
 extern "C" {
@@ -169,3 +171,5 @@ pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name,
 
     return PT_API_SUCCESS;
 }
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA

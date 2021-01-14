@@ -10,7 +10,7 @@ These can use for example BacNET, Zigbee, BLE, LoRa or MQTT protocols. Also devi
 IP connectivity but cannot host full Device Management Client can be adapted with Device Management
 Edge API through the protocol translator.
 
-The APIs are implemented in C and some protocol translator examples are in the [mbed-edge-examples repository](https://github.com/ARMmbed/mbed-edge-examples).
+The APIs are implemented in C and some protocol translator examples are in the [mbed-edge-examples repository](https://github.com/PelionIoT/mbed-edge-examples).
 
 The requirements to connect to Device Management are similar between Device Management Edge and
 Device Management Client. Please read the [Device Management Client documentation](https://cloud.mbed.com/docs/current/connecting/index.html) to understand

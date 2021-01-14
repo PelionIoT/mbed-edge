@@ -18,6 +18,8 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 #ifndef PT_FIRMWARE_DOWNLOAD_API_INTERNAL_H
 #define PT_FIRMWARE_DOWNLOAD_API_INTERNAL_H
 
@@ -71,3 +73,5 @@ pt_status_t pt_parse_manifest(const uint8_t *manifest_payload,
                               arm_uc_update_result_t *error_manifest);
 
 #endif // PT_FIRMWARE_DOWNLOAD_API_INTERNAL_H
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA

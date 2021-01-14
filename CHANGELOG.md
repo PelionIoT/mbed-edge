@@ -1,5 +1,19 @@
 # Changelog for Edge
 
+## Release 0.15.0 (2021-1-12)
+
+* Migrated domains from ArmMbed to PelionIoT.
+* Updated to Pelion Device Management Client (PDMC) library version 4.7.0.
+* Updated Mbed TLS to version 2.22.0 in previous release.
+* Edge Core now supports the new Firmware-Over-the-Air (FOTA) Update Framework library introduced by Device Management Client 4.7.0.
+
+    * To enable the FOTA library, compile Edge Core with the CMake `-DFOTA_ENABLE=ON` and `-DFIRMWARE_UPDATE=ON` flags. Otherwise, Edge Core compiles with Update client hub.
+    * The FOTA Update Framework library does not support the Subdevice FOTA feature. To use this feature, compile Edge Core with Update client hub.
+    * By default, the FOTA Update Framework library is statically linked with `libcurl` version 7.72.0. To dynamically link the curl library provide CMake `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` flag.
+    * The FOTA callback function is defined in `./fota` directory. This functions invokes a bash script, which the function expects to be located at `/opt/pelion/fota_update_activate.sh`.
+
+* Validated the use of manifest-tool version 2.1.0 and updated the instructions in the Readme file to use the `manifest-dev-tool` tool to generate a developer update certificate.
+
 ## Release 0.14.0 (2020-12-07)
 
 * Added Gateway Resource Manager (GRM) [JSON Remote Procedure Call (RPC)](https://www.jsonrpc.org/specification) APIs. These APIS allow system management services on the gateway to register and add new LwM2M objects under gateway resources.
@@ -7,6 +21,8 @@
    * `add_resource` to add an LwM2M object to the list of existing gateway resources.
    * `write_resource_value` to update resource values.
    * `write` allows the resource manager to react to messages sent by Edge. Currently, the gateway resource manager should react to write requests with an `execute` or a `write` operation.
+* Removed the multi-instance LwM2M object with ID `/33457`. It reported the default capabilities of Edge such as terminal, logs, statistics and alerts but never managed those services. Maestro is responsible for the orchestration and configuration of the gateway services. It uses the JSON RPC APIs to register itself as a gateway resource manager and add an instance of LwM2M object with ID `/33457` upon detecting gateway features such as terminal, logs, remote configuration and KaaS.
+* Removed the multi-instance LwM2M object with ID `/33457`. It reported the default capabilities of Edge such as terminal, logs, statistics and alerts but never managed those services. Maestro is responsible for the orchestration and configuration of the gateway services. It uses the JSON RPC APIs to register itself as a gateway resource manager and add an instance of LwM2M object with ID `/33457` upon detecting gateway features such as terminal, logs, remote configuration and KaaS.
 * Removed the multi-instance LwM2M object with ID `/33457`. This object reported the default capabilities of Edge, such as terminal, logs, statistics and alerts, but never managed these services. Maestro manages the orchestration and configuration of the gateway services. Maestro uses the JSON RPC APIs to register itself as a gateway resource manager and add an instance of a LwM2M object with ID `/33457` when it detects gateway features such as terminal, logs, remote configuration and Kubernetes as a Service (KaaS).
 * Added a JS example (`simple-grm-example.js`) in the mbed-edge-examples project to demonstrate how to use GRM feature.
 * Added support for [Parsec](https://parallaxsecond.github.io/parsec-book/index.html). To compile Edge Core with Parsec, set the `-DPARSEC_TPM_SE_SUPPORT=ON` CMake flag. In this configuration, the secure connection with Pelion is established using a device bootstrap private key generated on the Trusted Platform Module (TPM). We have tested integration with:
