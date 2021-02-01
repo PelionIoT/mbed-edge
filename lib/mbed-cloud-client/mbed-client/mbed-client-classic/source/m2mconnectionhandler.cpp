@@ -75,6 +75,13 @@ void M2MConnectionHandler::set_platform_network_handler(void *handler)
     _private_impl->set_platform_network_handler(handler);
 }
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+void M2MConnectionHandler::set_proxy(const char *proxy)
+{
+    _private_impl->set_proxy(proxy);
+}
+#endif
+
 void M2MConnectionHandler::claim_mutex()
 {
     _private_impl->claim_mutex();

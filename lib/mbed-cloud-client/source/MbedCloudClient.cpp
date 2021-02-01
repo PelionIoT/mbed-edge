@@ -153,6 +153,9 @@ bool MbedCloudClient::setup(void* iface)
 
     // set the network interface to M2MInterface
     _client.connector_client().m2m_interface()->set_platform_network_handler(iface, _client.connector_client().connector_credentials_available());
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    _client.connector_client().m2m_interface()->set_proxy(_proxy);
+#endif
     _client.initialize_and_register(_object_list);
     return true;
 }
@@ -425,3 +428,10 @@ void MbedCloudClient::est_free_cert_chain_context(cert_chain_context_s *context)
     _client.connector_client().est_client().free_cert_chain_context(context);
 }
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+void MbedCloudClient::set_proxy(const char *proxy)
+{
+    _proxy = proxy;
+}
+#endif

@@ -315,6 +315,12 @@ public:
 
     virtual nsdl_s* get_nsdl_handle() const;
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    /**
+     */
+    virtual void set_proxy(const char *proxy);
+#endif
+
 protected: // From M2MNsdlObserver
 
     virtual void coap_message_ready(uint8_t *data_ptr,

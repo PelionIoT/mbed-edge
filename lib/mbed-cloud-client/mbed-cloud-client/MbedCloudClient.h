@@ -608,6 +608,12 @@ public:
     void est_free_cert_chain_context(cert_chain_context_s *context) const;
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    /**
+     */
+    void set_proxy(const char *proxy);
+#endif
+
 protected: // from ServiceClientCallback
 
     /**
@@ -666,6 +672,9 @@ private:
     bool                                            _init_done;
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     FP2<void, uint32_t, uint32_t>                   _on_external_update;
+#endif
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    const char                                      *_proxy;
 #endif
 
 #if MBED_CLOUD_CLIENT_STL_API

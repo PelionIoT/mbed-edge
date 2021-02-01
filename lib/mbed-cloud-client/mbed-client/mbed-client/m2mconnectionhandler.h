@@ -134,6 +134,12 @@ public:
      */
     void set_platform_network_handler(void *handler = NULL);
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    /**
+     */
+    void set_proxy(const char *proxy);
+#endif
+
     /**
     * \brief Claims mutex to prevent thread clashes
     * in multithreaded environment.

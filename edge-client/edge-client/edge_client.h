@@ -149,6 +149,9 @@ typedef struct {
     handle_est_status_cb handle_est_status_cb;
     void *cert_renewal_ctx;
     bool reset_storage;
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    char *proxy;
+#endif
 } edgeclient_create_parameters_t;
 
 /**

@@ -1532,3 +1532,10 @@ uint16_t M2MInterfaceImpl::stagger_wait_time(bool bootstrap) const
 {
     return _nsdl_interface.get_network_stagger_estimate(bootstrap);
 }
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+void M2MInterfaceImpl::set_proxy(const char *proxy)
+{
+    _connection_handler.set_proxy(proxy);
+}
+#endif

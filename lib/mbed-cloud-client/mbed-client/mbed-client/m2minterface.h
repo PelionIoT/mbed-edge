@@ -381,6 +381,13 @@ public:
     virtual nsdl_s* get_nsdl_handle() const = 0;
 
     virtual uint16_t stagger_wait_time(bool boostrap) const = 0;
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    /**
+     */
+    virtual void set_proxy(const char *proxy) = 0;
+#endif
+
 };
 
 #endif // M2M_INTERFACE_H
