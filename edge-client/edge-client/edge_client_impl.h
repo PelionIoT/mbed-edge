@@ -103,6 +103,13 @@ public:
         _on_est_result_cb = est_result_cb;
     }
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    void set_proxy(const char *proxy)
+    {
+        _cloud_client.set_proxy(proxy);
+    }
+#endif
+
     void est_free_cert_chain_context(struct cert_chain_context_s *chain_ctx)
     {
         _cloud_client.est_free_cert_chain_context(chain_ctx);

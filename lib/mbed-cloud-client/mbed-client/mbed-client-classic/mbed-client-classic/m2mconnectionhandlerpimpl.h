@@ -23,6 +23,7 @@
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2minterface.h"
 #include "mbed-client/m2mconnectionobserver.h"
+#include "mbed-client/m2mconnectionproxy.h"
 #include "mbed-client/m2mconnectionsecurity.h"
 #include "nsdl-c/sn_nsdl.h"
 #include "pal.h"
@@ -194,6 +195,29 @@ public:
      */
     bool is_cid_available();
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    /**
+     * \brief Specify an upstream proxy
+     */
+    void set_proxy(const char *proxy);
+
+    /**
+     * \brief Establishes a connection to a network proxy server specified in
+     * MBED_CLOUD_CLIENT_NETWORK_PROXY_HOST and issues a http CONNECT
+     * request to the proxy server, requesting that the proxy open a
+     * tunnel to the destination specified at _server_address:_server_port
+     * @return: palStatus_t, limited to the same return values as pal_connect()
+     *  for example:
+     * PAL_SUCCESS
+     * PAL_ERR_SOCKET_ALREADY_CONNECTED
+     * PAL_ERR_SOCKET_IN_PROGRES (sic)
+     * PAL_ERR_SOCKET_WOULD_BLOCK
+     */
+    palStatus_t proxy_connect(palSocket_t socket);
+
+    palStatus_t proxy_receive_handler();
+#endif
+
 private:
 
     /**
@@ -206,6 +230,13 @@ private:
     * @brief Handles socket initialization and connect phase.
     */
     void socket_connect_handler();
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    /**
+    * @brief Callback handler for receiving response from proxy server during proxy tunnel establish request.
+    */
+    void receive_proxy_response_handler();
+#endif
 
     /**
     * @brief Callback handler for receiving data for secured connection.
@@ -304,7 +335,18 @@ private:
         ESocketStateUnsecureConnection,
 
         /** Secure Connection to the server has been established */
-        ESocketStateSecureConnection
+        ESocketStateSecureConnection,
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        /** pal_connect has been called and we are waiting for asynchronous response */
+        ESocketStateConnectingToProxy,
+
+        /** pal_connect is complete */
+        ESocketStateConnectedToProxy,
+
+        /** http CONNECT has been sent and we are waiting for asynchronous response.  on completion, transitions to ESocketStateConnected */
+        ESocketStateEstablishingProxyTunnel
+#endif
     };
 
     typedef NS_LIST_HEAD(send_data_queue_s, link) send_data_list_t;
@@ -333,6 +375,14 @@ private:
     volatile palSocketAddress_t                 _socket_address;
     static int8_t                               _tasklet_id;
     String                                      _server_address;
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    M2MConnectionProxy                          _proxy;
+    String                                      _proxy_address;
+    uint16_t                                    _proxy_port;
+    String                                      _proxy_auth_type;
+    String                                      _proxy_creds;
+#endif
 
     // A state variable for the socket itself, which is needed to handle the
     // asynchronous events and callbacks. Note: the state may be accessed from

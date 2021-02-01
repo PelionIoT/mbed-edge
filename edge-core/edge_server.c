@@ -781,6 +781,9 @@ int testable_main(int argc, char **argv)
         edgeclient_create_params.handle_est_status_cb = (handle_est_status_cb)
             est_enrollment_result_notifier;
         edgeclient_create_params.cert_renewal_ctx = &g_program_context->ctx_data->registered_translators;
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        edgeclient_create_params.proxy = args.proxy;
+#endif
 
         // args.cbor_conf is in stack
         #ifdef DEVELOPER_MODE

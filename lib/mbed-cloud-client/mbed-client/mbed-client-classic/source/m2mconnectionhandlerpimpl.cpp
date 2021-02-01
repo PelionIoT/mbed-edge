@@ -84,6 +84,10 @@ void M2MConnectionHandlerPimpl::event_handler(arm_event_s *event)
 
             if (_socket_state == M2MConnectionHandlerPimpl::ESocketStateHandshaking) {
                 receive_handshake_handler();
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+            } else if (_socket_state == M2MConnectionHandlerPimpl::ESocketStateEstablishingProxyTunnel) {
+                receive_proxy_response_handler();
+#endif
             } else if ((_socket_state == M2MConnectionHandlerPimpl::ESocketStateUnsecureConnection) ||
                        (_socket_state == M2MConnectionHandlerPimpl::ESocketStateSecureConnection)) {
                 // the connection is established
@@ -163,6 +167,9 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
  _socket_address_len(0),
 #elif (PAL_DNS_API_VERSION == 2)
   _handler_async_DNS(0),
+#endif
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    _proxy_port(0),
 #endif
  _socket_state(ESocketStateDisconnected),
  _secure_connection(false),
@@ -258,7 +265,15 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
 #if (PAL_DNS_API_VERSION == 2)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:asynchronous DNS");
     _handler_async_DNS = 0;
-    status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    if (_proxy_address.size() > 0) {
+        tr_debug("M2MConnectionHandlerPimpl::address_resolver:resolving proxy addr: %s", _proxy_address.c_str());
+        status = pal_getAddressInfoAsync(_proxy_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
+    } else
+#endif
+    {
+        status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
+    }
     if (PAL_SUCCESS != status) {
        tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. %" PRIx32, status);
        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
@@ -268,7 +283,15 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     }
 #else // #if (PAL_DNS_API_VERSION == 0)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:synchronous DNS");
-    status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    if (_proxy_address.size() > 0) {
+        tr_debug("M2MConnectionHandlerPimpl::address_resolver:resolving proxy addr: %s", _proxy_address.c_str());
+        status = pal_getAddressInfo(_proxy_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
+    } else
+#endif
+    {
+        status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
+    }
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with %" PRIx32, status);
         send_event(ESocketDnsError);
@@ -356,6 +379,9 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
         case ESocketStateHandshaking:
         case ESocketStateUnsecureConnection:
         case ESocketStateSecureConnection:
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        case ESocketStateEstablishingProxyTunnel:
+#endif
             // Ignore these events
             break;
 
@@ -364,7 +390,14 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             // Initialize the socket to stable state
             close_socket();
 
-            status = pal_setSockAddrPort((palSocketAddress_t*)&_socket_address, _server_port);
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+            if (_proxy_port > 0) {
+                status = pal_setSockAddrPort((palSocketAddress_t*)&_socket_address, _proxy_port);
+            } else
+#endif
+            {
+                status = pal_setSockAddrPort((palSocketAddress_t*)&_socket_address, _server_port);
+            }
 
             if (PAL_SUCCESS != status) {
                 tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - setSockAddrPort err: %" PRIx32, status);
@@ -385,7 +418,12 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
 
                 _address._address = (void*)_ipV4Addr;
                 _address._length = PAL_IPV4_ADDRESS_SIZE;
-                _address._port = _server_port;
+                status = pal_getSockAddrPort((palSocketAddress_t*)&_socket_address, &_address._port);
+                if (PAL_SUCCESS != status) {
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sockAddr4Port, err: %" PRIx32, status);
+                    _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
+                    return;
+                }
             } else if (_socket_address.addressType == PAL_AF_INET6) {
                 status = pal_getSockAddrIPV6Addr((palSocketAddress_t*)&_socket_address,_ipV6Addr);
                 if (PAL_SUCCESS != status) {
@@ -398,7 +436,12 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
 
                 _address._address = (void*)_ipV6Addr;
                 _address._length = PAL_IPV6_ADDRESS_SIZE;
-                _address._port = _server_port;
+                status = pal_getSockAddrPort((palSocketAddress_t*)&_socket_address, &_address._port);
+                if (PAL_SUCCESS != status) {
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sockAddr6Port, err: %" PRIx32, status);
+                    _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
+                    return;
+                }
             } else {
                 tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - socket config error, stack: %d", (int)_socket_address.addressType);
                 _observer.socket_error(M2MConnectionHandler::SOCKET_ABORT);
@@ -419,9 +462,20 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
         // fall through is intentional
         case ESocketStateConnectBeingCalled:
         case ESocketStateConnecting:
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        case ESocketStateConnectingToProxy:
+#endif
             if (is_tcp_connection()) {
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
-                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Using TCP");
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+                if (_proxy_address.size() > 0) {
+                    tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Connecting To Proxy");
+                } else
+#endif
+                {
+                    tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Using TCP");
+                }
 
                 status = pal_connect(_socket, (palSocketAddress_t*)&_socket_address, sizeof(_socket_address));
 
@@ -430,13 +484,27 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                     // will be used to detect the end of connect.
                     tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): %" PRIx32 ", async connect started", status);
                     // we need to wait for the event
-                    _socket_state = ESocketStateConnecting;
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+                    if (_proxy_address.size() > 0) {
+                        _socket_state = ESocketStateConnectingToProxy;
+                    } else
+#endif
+                    {
+                        _socket_state = ESocketStateConnecting;
+                    }
                     break;
 
                 } else if (status == PAL_SUCCESS || status == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
 
                     tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): success");
-                    _socket_state = ESocketStateConnected;
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+                    if (_proxy_address.size() > 0) {
+                        _socket_state = ESocketStateConnectedToProxy;
+                    } else
+#endif
+                    {
+                        _socket_state = ESocketStateConnected;
+                    }
 
                 } else {
                     tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): failed: %" PRIx32, status);
@@ -453,6 +521,24 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             }
 
         // fall through is a normal flow in case the UDP was used or pal_connect() happened to return immediately with PAL_SUCCESS
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        case ESocketStateConnectedToProxy:
+            if (is_tcp_connection() && _proxy_address.size() > 0) {
+                M2MConnectionProxy::ProxyError ret;
+                tr_info("M2MConnectionHandlerPimpl::establishing proxy tunnel to %s:%d", _server_address.c_str(),
+                        _server_port);
+                _socket_state = ESocketStateEstablishingProxyTunnel;
+                ret = _proxy.establish_tunnel(_socket, _server_address, _server_port, _proxy_auth_type, _proxy_creds);
+                if (M2MConnectionProxy::ERROR_NONE != ret) {
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - failed to establish proxy tunnel");
+                    close_socket();
+                    _observer.socket_error(M2MConnectionHandler::ERROR_GENERIC, true);
+                    return;
+                }
+                return;
+            }
+            // fall through is a normal flow in case the UDP was used
+#endif
         case ESocketStateConnected:
             if (_security && security_instance_id >= 0) {
                 if (_secure_connection) {
@@ -683,6 +769,87 @@ void M2MConnectionHandlerPimpl::set_platform_network_handler(void *handler)
 
     tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler - index = %d", _net_iface);
 }
+
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+void M2MConnectionHandlerPimpl::set_proxy(const char *proxy)
+{
+    int c;
+
+    tr_debug("M2MConnectionHandlerPimpl::set_proxy: %s", proxy);
+    if (NULL == proxy) {
+        _proxy_address = "";
+        _proxy_port = 0;
+        _proxy_auth_type = "";
+        _proxy_creds = "";
+        return;
+    }
+
+    String addr = proxy;
+    // split host:port
+    c = addr.find_last_of(':');
+    if (c > 0 && c < (int)addr.length()) {
+        int64_t value;
+        _proxy_address = addr.substr(0, c);
+        // convert port string to integer
+        String port = addr.substr(c + 1, addr.length() - c);
+        bool converted = String::convert_ascii_to_int(port.c_str(), port.length(), value);
+        if (converted == true && value > 0 && value < 65535) {
+            _proxy_port = (uint16_t)value;
+        } else {
+            // failed to convert port to integer, use default
+            _proxy_port = 1080;
+        }
+    } else {
+        // no port found, use default
+        _proxy_address = proxy;
+        _proxy_port = 1080;
+    }
+
+    // strip http://
+    String HTTP = "http://";
+    String HTTPS = "https://";
+    if (_proxy_address.compare(0, HTTP.size(), HTTP) == 0) {
+        _proxy_address = _proxy_address.substr(HTTP.size(), _proxy_address.size() - HTTP.size());
+    } else if (_proxy_address.compare(0, HTTPS.size(), HTTPS) == 0) {
+        tr_error("M2MConnectionHandlerPimpl::set_proxy: HTTPS proxy is not supported.  Use HTTP");
+        _proxy_address = "";
+        return;
+        //_proxy_address = _proxy_address.substr(HTTPS.size(), _proxy_address.size() - HTTPS.size());
+    }
+
+    // split user:pass@server
+    c = _proxy_address.find_last_of('@');
+    if (c > 0 && c < (int)_proxy_address.length()) {
+        _proxy_auth_type = "Basic";
+        _proxy_creds = _proxy_address.substr(0, c);
+        _proxy_address = _proxy_address.substr(c + 1, _proxy_address.length() - c);
+    } else {
+        _proxy_auth_type = "";
+        _proxy_creds = "";
+    }
+
+    tr_debug("M2MConnectionHandlerPimpl::set_proxy: address=%s, port=%u", _proxy_address.c_str(), _proxy_port);
+}
+
+void M2MConnectionHandlerPimpl::receive_proxy_response_handler()
+{
+    M2MConnectionProxy::ProxyError ret;
+    tr_debug("M2MConnectionHandlerPimpl::receive_proxy_response_handler()");
+
+    // assert(_socket_state == ESocketStateEstablishingProxyTunnel);
+
+    ret = _proxy.receive_handler(_socket);
+    if (ret == M2MConnectionProxy::ERROR_NONE) {
+        _socket_state = ESocketStateConnected;
+        socket_connect_handler();
+
+    } else {
+        tr_error("M2MConnectionHandlerPimpl::receive_proxy_response_handler() - failed to interpret response: %d", ret);
+        _observer.socket_error(M2MConnectionHandler::ERROR_GENERIC, true);
+        close_socket();
+    }
+}
+#endif // #if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
 
 void M2MConnectionHandlerPimpl::receive_handshake_handler()
 {

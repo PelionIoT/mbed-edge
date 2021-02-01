@@ -695,6 +695,9 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         client->set_on_error_callback(edgeclient_on_error_callback);
         client->set_on_certificate_renewal_callback(edgeclient_on_certificate_renewal_callback);
         client->set_on_est_result_callback(edgeclient_on_est_status_callback);
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        client->set_proxy(params->proxy);
+#endif
         tr_debug("create_client - client = %p", client);
     }
 }
