@@ -338,13 +338,13 @@ static void initialize_pt_resources(char *name, int pt_id){
     // Set pt name
     uint32_t length = strlen(name);
     edgeclient_set_resource_value(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id,
-                                  PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_ID, (uint8_t*) name, length,
+                                  PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_ID, PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_NAME, (uint8_t*) name, length,
                                   LWM2M_OPAQUE, OPERATION_READ /*GET_ALLOWED*/, /* userdata */ NULL);
 
     //Set device counter to zero, the API expects values in network byte-order.
     uint16_t zero = htons(0);
     edgeclient_set_resource_value(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id,
-                                  PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID, (uint8_t*) &zero, sizeof(uint16_t),
+                                  PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID, PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_NAME, (uint8_t*) &zero, sizeof(uint16_t),
                                   LWM2M_INTEGER, OPERATION_READ /*GET_ALLOWED*/, /* userdata */ NULL);
 }
 
@@ -479,6 +479,7 @@ static void update_device_amount_resource_by_delta(struct connection* connection
             NULL, PROTOCOL_TRANSLATOR_OBJECT_ID,
             connection->client_data->id,
             PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID,
+            PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_NAME,
             (uint8_t*) &pt_device_amount, sizeof(int16_t),
             LWM2M_INTEGER,
             /* operations = allow read */ OPERATION_READ,
@@ -818,9 +819,9 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
             size_t resource_count = json_array_size(resource_array_handle);
             tr_debug("JSON parsed resource count = %zu", resource_count);
             for (size_t resource_index = 0; resource_index < resource_count; resource_index++) {
-                // Get handle to object instance
+                // Get handle to resource
                 json_t *resource_dict_handle = json_array_get(resource_array_handle, resource_index);
-                // And get objectInstanceId
+                // And get resourceId
                 json_t *resource_id_handle = json_object_get(resource_dict_handle, "resourceId");
                 if (!resource_id_handle) {
                     *error_detail = "Invalid or missing resource resourceId key.";
@@ -831,6 +832,14 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                 resource_id = json_integer_value(resource_id_handle);
 
                 tr_debug("JSON parsed resource, id = %d", resource_id);
+
+                // Get resourceName
+                json_t *resource_name_handle = json_object_get(resource_dict_handle, "resourceName");
+                const char *resource_name = json_string_value(resource_name_handle);
+                if (resource_name) {
+                    tr_debug("JSON parsed resource, name = %s", resource_name);
+                }
+
                 json_t *resource_value_handle = json_object_get(resource_dict_handle, "value");
                 uint32_t decoded_len = 0;
                 if (resource_value_handle) {
@@ -862,6 +871,7 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                                                                                             object_id,
                                                                                             object_instance_id,
                                                                                             resource_id,
+                                                                                            resource_name,
                                                                                             resource_value,
                                                                                             decoded_len,
                                                                                             resource_type,
@@ -872,6 +882,7 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                                                                                             object_id,
                                                                                             object_instance_id,
                                                                                             resource_id,
+                                                                                            resource_name,
                                                                                             resource_value,
                                                                                             decoded_len,
                                                                                             resource_type,

@@ -109,13 +109,14 @@ int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name,char *error_ma
 
 pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id,
                                                    const uint16_t object_instance_id, const uint16_t resource_id,
-                                                   const uint8_t *value, const uint32_t value_length,
+                                                   const char* resource_name, const uint8_t *value, const uint32_t value_length,
                                                    Lwm2mResourceType resource_type, int opr, void *ctx);
 
 bool edgeclient_create_resource_structure(const char *endpoint_name,
                                           const uint16_t object_id,
                                           const uint16_t object_instance_id,
                                           const uint16_t resource_id,
+                                          const char *resource_name,
                                           Lwm2mResourceType resource_type,
                                           int opr,
                                           void *ctx);
@@ -297,6 +298,7 @@ bool edgeclient_remove_object_instance(const char *endpoint_name, const uint16_t
  * \param object_id The ID of the object under which the resource should be created, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource should be created, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource to create, a 16-bit unsigned integer.
+ * \param resource_name const The optional name of the resource to create.
  * \param resource_type Type of the resource
  * \param opr Operations allowed on the resource
  * \param connection is the current connection.
@@ -306,6 +308,7 @@ bool edgeclient_add_resource(const char *endpoint_name,
                              const uint16_t object_id,
                              const uint16_t object_instance_id,
                              const uint16_t resource_id,
+                             const char *resource_name,
                              Lwm2mResourceType resource_type,
                              int opr,
                              void *connection);
@@ -390,6 +393,7 @@ pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param resource_name const The optional name of the resource to create.
  * \param value const The uint8_t* pointing to a new value buffer.
  *        For different LWM2M data types there are byte-order restrictions:
  *        String: UTF-8
@@ -414,6 +418,7 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
                                                    const uint16_t object_id,
                                                    const uint16_t object_instance_id,
                                                    const uint16_t resource_id,
+                                                   const char *resource_name,
                                                    const uint8_t *value,
                                                    uint32_t value_length,
                                                    Lwm2mResourceType resource_type,

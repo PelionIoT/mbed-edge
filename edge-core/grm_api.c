@@ -407,6 +407,7 @@ static pt_api_result_code_e update_json_gateway_objects(json_t *json_structure,
         // All default/reserved objects in edge-core should not be overwritten.
         if (object_id == 1
             || object_id == 3
+            || object_id == 14
             || object_id == 10252
             || object_id == 10255
             || object_id == 26241
@@ -470,9 +471,9 @@ static pt_api_result_code_e update_json_gateway_objects(json_t *json_structure,
             }
 
             for (size_t resource_index = 0; resource_index < resource_count; resource_index++) {
-                // Get handle to object instance
+                // Get handle to resource
                 json_t *resource_dict_handle = json_array_get(resource_array_handle, resource_index);
-                // And get objectInstanceId
+                // And get resourceId
                 json_t *resource_id_handle = json_object_get(resource_dict_handle, "resourceId");
                 if (!resource_id_handle) {
                     *error_detail = "Invalid or missing resource resourceId key.";
@@ -483,6 +484,13 @@ static pt_api_result_code_e update_json_gateway_objects(json_t *json_structure,
                 resource_id = json_integer_value(resource_id_handle);
 
                 tr_debug("JSON parsed resource, id = %d", resource_id);
+
+                // Get resourceName
+                json_t *resource_name_handle = json_object_get(resource_dict_handle, "resourceName");
+                const char *resource_name = json_string_value(resource_name_handle);
+                if (resource_name) {
+                    tr_debug("JSON parsed resource, name = %s", resource_name);
+                }
 
                 json_t *resource_value_handle = json_object_get(resource_dict_handle, "value");
                 uint32_t decoded_len = 0;
@@ -520,6 +528,7 @@ static pt_api_result_code_e update_json_gateway_objects(json_t *json_structure,
                                                                                             object_id,
                                                                                             object_instance_id,
                                                                                             resource_id,
+                                                                                            resource_name,
                                                                                             resource_value,
                                                                                             decoded_len,
                                                                                             resource_type,

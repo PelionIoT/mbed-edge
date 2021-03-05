@@ -154,6 +154,7 @@ struct pt_resource {
     Lwm2mResourceType type;
     uint16_t id;
     uint8_t operations;
+    const char *name;
     uint8_t changed_status;
     uint8_t *value;
     uint32_t value_size;

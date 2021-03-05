@@ -438,6 +438,7 @@ bool pt_device_resource_exists(const connection_id_t connection_id,
  * \param[in] object_id The object ID to which to add the resource.
  * \param[in] object_instance_id The object instance ID to which to add the resource.
  * \param[in] resource_id The resource ID for the added resource.
+ * \param[in] resource_name The optional resource name for the added resource.
  * \param[in] type The resource type.
  * \param[in] value A pointer to the value buffer.
  *            The ownership of the value buffer is within the `pt_client_t`.
@@ -467,6 +468,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
                                    const uint16_t object_id,
                                    const uint16_t object_instance_id,
                                    const uint16_t resource_id,
+                                   const char *resource_name,
                                    const Lwm2mResourceType type,
                                    uint8_t *value,
                                    uint32_t value_size,
@@ -484,6 +486,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
  * \param[in] object_id The object ID to which to add the resource.
  * \param[in] object_instance_id The object instance ID to which to add the resource.
  * \param[in] resource_id The resource ID for the added resource.
+ * \param[in] resource_name The optional resource name for the added resource.
  * \param[in] type The resource type.
  * \param[in] operations The operations this resource will allow.\n
  *                       For example, GET/#OPERATION_READ and PUT/#OPERATION_WRITE. The value is a bit field of
@@ -527,6 +530,7 @@ pt_status_t pt_device_add_resource_with_callback(const connection_id_t connectio
                                                  const uint16_t object_id,
                                                  const uint16_t object_instance_id,
                                                  const uint16_t resource_id,
+                                                 const char *resource_name,
                                                  const Lwm2mResourceType type,
                                                  const uint8_t operations,
                                                  uint8_t *value,

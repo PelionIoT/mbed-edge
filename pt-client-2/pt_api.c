@@ -597,6 +597,9 @@ static pt_status_t parse_objects(pt_object_list_t *objects, json_t *j_objects)
                             assert(encoded_length == encoded_length2);
                             tr_debug("Adding resource %d", current_resource->id);
                             json_object_set_new(j_resource, "resourceId", json_integer(current_resource->id));
+                            if (current_resource->name) {
+                                json_object_set_new(j_resource, "resourceName", json_string(current_resource->name));
+                            }
                             json_object_set_new(j_resource, "operations", json_integer(current_resource->operations));
                             json_object_set_new(j_resource,
                                                 "type",
@@ -1206,6 +1209,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
                             const uint16_t object_id,
                             const uint16_t object_instance_id,
                             const uint16_t resource_id,
+                            const char *resource_name,
                             const Lwm2mResourceType type,
                             uint8_t *value,
                             uint32_t value_size,
@@ -1216,6 +1220,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
                                                 object_id,
                                                 object_instance_id,
                                                 resource_id,
+                                                resource_name,
                                                 type,
                                                 OPERATION_READ,
                                                 value,
@@ -1236,6 +1241,7 @@ pt_status_t pt_device_add_resource_with_callback(const connection_id_t connectio
                                           const uint16_t object_id,
                                           const uint16_t object_instance_id,
                                           const uint16_t resource_id,
+                                          const char *resource_name,
                                           const Lwm2mResourceType type,
                                           const uint8_t operations,
                                           uint8_t *value,
@@ -1296,6 +1302,7 @@ pt_status_t pt_device_add_resource_with_callback(const connection_id_t connectio
     }
     resource->id = resource_id;
     resource->type = type;
+    resource->name = resource_name;
     resource->operations = operations;
     resource->value = value;
     resource->value_size = value_size;

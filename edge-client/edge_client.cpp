@@ -934,7 +934,7 @@ EDGE_LOCAL M2MResourceBase::ResourceType resolve_resource_type(Lwm2mResourceType
 }
 
 bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id,
-                  const uint16_t resource_id, Lwm2mResourceType resource_type, int opr, void *connection)
+                  const uint16_t resource_id, const char *resource_name, Lwm2mResourceType resource_type, int opr, void *connection)
 {
     AsyncCallbackParamsBase *acp = NULL;
     tr_debug("add_resource for endpoint: %s, object_id: %u, object_instance_id: %u, resource_id: %u",
@@ -954,7 +954,13 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
 
     m2m::itoa_c(resource_id, res_name);
     M2MResourceBase::ResourceType resolved_resource_type = resolve_resource_type(resource_type);
-    M2MResource *res = inst->create_dynamic_resource(String(res_name), "", resolved_resource_type, true, false, false);
+    M2MResource *res;
+    if(resource_name) {
+        res = inst->create_dynamic_resource(String(res_name), resource_name, resolved_resource_type, true, false, false);
+    } else {
+        res = inst->create_dynamic_resource(String(res_name), "", resolved_resource_type, true, false, false);
+    }
+
     if (res == NULL) {
         return false;
     }
@@ -1140,6 +1146,7 @@ bool edgeclient_create_resource_structure(const char *endpoint_name,
                                           const uint16_t object_id,
                                           const uint16_t object_instance_id,
                                           const uint16_t resource_id,
+                                          const char *resource_name,
                                           Lwm2mResourceType resource_type,
                                           int opr,
                                           void *ctx)
@@ -1199,6 +1206,7 @@ bool edgeclient_create_resource_structure(const char *endpoint_name,
                                      object_id,
                                      object_instance_id,
                                      resource_id,
+                                     resource_name,
                                      resource_type,
                                      opr,
                                      ctx)) {
@@ -1280,13 +1288,14 @@ pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
 
 pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, const uint16_t object_id,
                                                    const uint16_t object_instance_id, const uint16_t resource_id,
-                                                   const uint8_t *value, const uint32_t value_length,
+                                                   const char *resource_name, const uint8_t *value, const uint32_t value_length,
                                                    Lwm2mResourceType resource_type, int opr, void *ctx)
 {
     if (!edgeclient_create_resource_structure(endpoint_name,
                                               object_id,
                                               object_instance_id,
                                               resource_id,
+                                              resource_name,
                                               resource_type,
                                               opr,
                                               ctx)) {

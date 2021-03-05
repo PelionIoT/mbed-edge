@@ -73,9 +73,17 @@ typedef enum {
  */
 #define PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_ID 0
 /**
+ * \brief The Name for the resource storing the protocol translator name in a protocol translator object.
+ */
+#define PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_NAME "Protocol Translator Name"
+/**
  * \brief The ID for the resource storing the number of endpoint devices in the protocol translator.
  */
 #define PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID 1
+/**
+ * \brief The Name for the resource storing the number of endpoint devices in the protocol translator.
+ */
+#define PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_NAME "Protocol Translator Device Count"
 
 struct connection_list_elem {
     connection_t *conn;
