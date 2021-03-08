@@ -50,6 +50,7 @@
 #include "common/test_support.h"
 #include "edge_core_clip.h"
 #include "edge-client/reset_factory_settings.h"
+#include "edge-client/gateway_stats.h"
 #include "edge_version_info.h"
 #include "edge-rpc/rpc_timeout_api.h"
 #include "common/msg_api.h"
@@ -67,6 +68,9 @@
 #define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
 #define SERVER_GRM_WEBSOCKET_VERSION_PATH "/1/grm"
 
+#ifndef GATEWAY_STATS_REFRESH_INTERVAL
+    #define GATEWAY_STATS_REFRESH_INTERVAL 10
+#endif
 
 EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
 EDGE_LOCAL struct context *g_program_context = NULL;
@@ -585,9 +589,26 @@ EDGE_LOCAL void clean(struct context *ctx)
     }
 }
 
+static void edgeclient_gsr_update_gateway_stats_resources(evutil_socket_t fd, short what, void *arg)
+{
+    gsr_update_gateway_stats_resources(arg);
+}
+
 void register_cb(void)
 {
+    // who woulda thought register_cb gets called twice?
+    if ((g_program_context->ctx_data)->cloud_connection_status == EDGE_STATE_CONNECTED)
+        return;
     (g_program_context->ctx_data)->cloud_connection_status = EDGE_STATE_CONNECTED;
+
+    // kick off the gateway stats update thread
+    struct timeval interval = {GATEWAY_STATS_REFRESH_INTERVAL, 0};
+    struct event *ev1 = event_new(g_program_context->ev_base,
+                                  -1,
+                                  EV_TIMEOUT | EV_PERSIST,
+                                  edgeclient_gsr_update_gateway_stats_resources,
+                                  NULL);
+    event_add(ev1, &interval);
 }
 
 void unregister_cb(void)
@@ -807,6 +828,7 @@ int testable_main(int argc, char **argv)
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
         rfs_add_factory_reset_resource();
+        gsr_add_gateway_stats_resources();
 
         // Connect client
         edgeclient_connect();
