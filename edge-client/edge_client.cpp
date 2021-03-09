@@ -1322,6 +1322,62 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, co
     return PT_API_SUCCESS;
 }
 
+// sets the value of a resource without the forced text conversion
+pt_api_result_code_e edgeclient_set_resource_value_native(const char *endpoint_name,
+                                                          const uint16_t object_id,
+                                                          const uint16_t object_instance_id,
+                                                          const uint16_t resource_id,
+                                                          const uint8_t *value,
+                                                          uint32_t value_length)
+{
+    M2MResource *res = edgelient_get_resource(NULL, object_id, object_instance_id, resource_id);
+    if (res == NULL) {
+        return PT_API_RESOURCE_NOT_FOUND;
+    }
+
+    // set the value correctly for the type
+    switch (res->resource_instance_type()) {
+        case M2MBase::OBJLINK:
+        case M2MBase::OPAQUE:
+        case M2MBase::STRING: {
+            res->set_value((uint8_t *) value, value_length);
+            break;
+        }
+        case M2MBase::TIME:
+        case M2MBase::INTEGER: {
+            int64_t new_value = 0;
+            // convert the int types to int64_t
+            switch (value_length) {
+                case 1: //8 bits
+                    new_value = *((int8_t*)value);
+                break;
+                case 2: //16 bits
+                    new_value = *((int16_t*)value);
+                break;
+                case 4: //32 bits
+                    new_value = *((int32_t*)value);
+                break;
+                case 8: //64 bits
+                    new_value = *((int64_t*)value);
+                break;
+            }
+            res->set_value(new_value);
+            break;
+        }
+        case M2MBase::FLOAT: {
+            float new_value = *((float*)value);
+            res->set_value_float(new_value);
+            break;
+        }
+        case M2MBase::BOOLEAN: {
+            bool new_value = *((bool*)value);
+            res->set_value((int64_t)new_value);
+            break;
+        }
+    }
+
+    return PT_API_SUCCESS;
+}
 
 bool edgeclient_get_resource_value_and_attributes(const char *endpoint_name,
                                                   const uint16_t object_id,
