@@ -66,7 +66,7 @@ struct pt_client_data_s {
     bool close_connection;
     bool reconnection_triggered;
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-    manifest_download_handler manifest_handler;
+    manifest_class_and_vendor_handler manifest_class_vendor_handler;
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 };
 /*
@@ -154,6 +154,7 @@ struct pt_resource {
     Lwm2mResourceType type;
     uint16_t id;
     uint8_t operations;
+    const char *name;
     uint8_t changed_status;
     uint8_t *value;
     uint32_t value_size;

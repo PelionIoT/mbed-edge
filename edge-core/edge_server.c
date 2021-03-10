@@ -57,7 +57,6 @@
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 #include "arm_uc_mmDerManifestAccessors.h"
 #include "arm_uc_certificate.h"
-
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 
 #define TRACE_GROUP "serv"
@@ -183,36 +182,41 @@ void transport_connection_t_destroy(transport_connection_t **transport_connectio
 
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
+bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer,
+                                  struct manifest_info_t* manifest_info,
+                                  arm_uc_update_result_t *error_manifest) {
 
-bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manifest_info_t* manifest_info,arm_uc_update_result_t *error_manifest) {
     tr_info("parse_manifest_for_subdevice");
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
-    arm_uc_error_t error={0};
+
     arm_uc_buffer_t  fingerprint={0};
+    arm_uc_error_t error;
     error = ARM_UC_mmGetCertificateId(manifest_buffer,0,&fingerprint);
-      if (error.code != ERR_NONE) {
+
+    if (error.code != ERR_NONE) {
         tr_info("No Certificate: %d", error.code);
-        fingerprint.size=0;
+        fingerprint.size = 0;
     }
     tr_info("Finger print size: %d", fingerprint.size);
+
     uint8_t temp_buf[496]={0};
     arm_uc_buffer_t  certList={0};
     arm_uc_buffer_t  cert = {0};
     cert.size = manifest_buffer->size;
     cert.size_max = manifest_buffer->size_max;
     cert.ptr = temp_buf;
-    if(fingerprint.size)
-    {
+
+    if(fingerprint.size) {
         arm_uc_error_t error = ARM_UC_certificateFetch(&cert,
                                         &fingerprint,
                                         &certList,
                                         NULL);
-    if (error.code != ERR_NONE) {
-        *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_INVALID_CERTIFICATE;
-        tr_error("ERROR Certificate Not Found: %d", error.code);
-        return false;
+
+        if (error.code != ERR_NONE) {
+            *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_INVALID_CERTIFICATE;
+            tr_error("ERROR Invalid Certificate: %d", error.code);
+            return false;
+        }
     }
-  }
 
     error = ARM_UC_mmGetFwSize(manifest_buffer, &(manifest_info->firmware_size));
     if (error.code != ERR_NONE) {
@@ -220,6 +224,7 @@ bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manif
         tr_error("ERROR getting firmware size: %d", error.code);
         return false;
     }
+
     // Obtain the version from the manifest
     // NOTE: the version is actually an Epoch timestamp. Convert it to a string
     error = ARM_UC_mmGetTimestamp(manifest_buffer, &(manifest_info->fw_version));
@@ -229,6 +234,7 @@ bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manif
         return false;
     }
     tr_info("Firmware Version:%ld ", manifest_info->fw_version);
+
     // Obtain the URI from the manifest
     error = ARM_UC_mmGetFwUri(manifest_buffer, &(manifest_info->url_buffer));
     if (error.code != ERR_NONE) {
@@ -243,32 +249,11 @@ bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer, struct manif
         tr_error("ERROR getting firmware hash: %d", error.code);
         return false;
     }
-    //Check already fw file exist or not
-    if(manifest_info->hash_buffer.ptr && manifest_info->hash_buffer.size > 0)
-    {
-        char hash[manifest_info->hash_buffer.size*2];
-        for(int i = 0; i<manifest_info->hash_buffer.size; i++)
-            sprintf(hash+i*2, "%02X", manifest_info->hash_buffer.ptr[i]);
 
-        tr_info("Firmware hash: %s", hash);
-        char* filename = malloc((manifest_info->hash_buffer.size*2)+1+4);
-        if(filename == NULL)
-        {
-            tr_err("filename memory allocation fail");
-            return false;
-        }
-        memset(filename,0,(manifest_info->hash_buffer.size*2)+1+4);
-        strcpy(filename, hash);
-        strcat(filename, ".bin");
-
-
-        free(filename);
-    }
     *error_manifest = ARM_UC_UPDATE_STATE_UNINITIALISED;
-#endif
+
     return true;
 }
-
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 
 int callback_edge_core_protocol_translator(struct lws *wsi,
@@ -781,6 +766,11 @@ int testable_main(int argc, char **argv)
         }
         // Create client
         tr_info("Starting Device Management Edge Cloud Client");
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+        edgeclient_create_params.handle_write_to_fm_cb = write_to_pt_fota;
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
         edgeclient_create_params.handle_write_to_pt_cb = write_to_pt;
         edgeclient_create_params.handle_write_to_grm_cb = write_to_grm;
         edgeclient_create_params.handle_register_cb = register_cb;

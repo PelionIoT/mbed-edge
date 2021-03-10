@@ -597,6 +597,9 @@ static pt_status_t parse_objects(pt_object_list_t *objects, json_t *j_objects)
                             assert(encoded_length == encoded_length2);
                             tr_debug("Adding resource %d", current_resource->id);
                             json_object_set_new(j_resource, "resourceId", json_integer(current_resource->id));
+                            if (current_resource->name) {
+                                json_object_set_new(j_resource, "resourceName", json_string(current_resource->name));
+                            }
                             json_object_set_new(j_resource, "operations", json_integer(current_resource->operations));
                             json_object_set_new(j_resource,
                                                 "type",
@@ -863,7 +866,7 @@ static void call_free_userdata_conditional(pt_userdata_t *userdata)
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 
 pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
-                                            manifest_download_handler cb)
+                                            manifest_class_and_vendor_handler cb)
 {
     api_lock();
     connection_t *connection = find_connection(connection_id);
@@ -871,7 +874,7 @@ pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
         api_unlock();
         return PT_STATUS_NOT_CONNECTED;
     }
-    connection->client->manifest_handler = cb;
+    connection->client->manifest_class_vendor_handler = cb;
     api_unlock();
 
     return PT_STATUS_SUCCESS;
@@ -934,7 +937,7 @@ pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 #ifndef BUILD_TYPE_TEST
     if (device->features & PT_DEVICE_FEATURE_FIRMWARE_UPDATE) {
-        status = pt_device_init_firmware_update_resources(connection_id, device_id, connection->client->manifest_handler);
+        status = pt_device_init_firmware_update_resources(connection_id, device_id, connection->client->manifest_class_vendor_handler);
         if (status != PT_STATUS_SUCCESS) {
             tr_error("Initializing firmware update resource failed, status %d", status);
             pt_devices_remove_and_free_device(connection->client->devices, device);
@@ -1206,6 +1209,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
                             const uint16_t object_id,
                             const uint16_t object_instance_id,
                             const uint16_t resource_id,
+                            const char *resource_name,
                             const Lwm2mResourceType type,
                             uint8_t *value,
                             uint32_t value_size,
@@ -1216,6 +1220,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
                                                 object_id,
                                                 object_instance_id,
                                                 resource_id,
+                                                resource_name,
                                                 type,
                                                 OPERATION_READ,
                                                 value,
@@ -1236,6 +1241,7 @@ pt_status_t pt_device_add_resource_with_callback(const connection_id_t connectio
                                           const uint16_t object_id,
                                           const uint16_t object_instance_id,
                                           const uint16_t resource_id,
+                                          const char *resource_name,
                                           const Lwm2mResourceType type,
                                           const uint8_t operations,
                                           uint8_t *value,
@@ -1296,6 +1302,7 @@ pt_status_t pt_device_add_resource_with_callback(const connection_id_t connectio
     }
     resource->id = resource_id;
     resource->type = type;
+    resource->name = resource_name;
     resource->operations = operations;
     resource->value = value;
     resource->value_size = value_size;

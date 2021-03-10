@@ -74,6 +74,9 @@ typedef struct edgeclient_data_s {
 
     handle_write_to_pt_cb g_handle_write_to_pt_cb;
     handle_write_to_grm_cb g_handle_write_to_grm_cb;
+    #ifdef MBED_EDGE_SUBDEVICE_FOTA
+    handle_write_to_fm_cb g_handle_write_to_fm_cb;
+    #endif
     handle_register_cb g_handle_register_cb;
     handle_unregister_cb g_handle_unregister_cb;
     handle_error_cb g_handle_error_cb;

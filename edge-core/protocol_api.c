@@ -41,6 +41,9 @@
 
 #include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+#include "arm_uc_mmDerManifestAccessors.h"
+#endif
 #define TRACE_GROUP "serv"
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
@@ -70,12 +73,15 @@ void completed_download_asset(uint8_t *url, char *filename, int error_code, void
                                                         protocol_api_free_async_ctx_func,
                                                         (rpc_request_context_t *) ctx);
 
-    if(path)
+    if(path) {
         free(path);
-    if(filename)
+    }
+    if(filename) {
         free(filename);
-    if(url)
+    }
+    if(url) {
         free(url);
+    }
 }
 
 /**
@@ -113,12 +119,12 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
     json_t *url_handle = json_object_get(json_params, "url");
     json_t *hash_handle = json_object_get(json_params, "hash");
     json_t *size_handle = json_object_get(json_params, "size");
-    json_t *device_id_handle = json_object_get(json_params, "device_id");
+    json_t *device_id_handle = json_object_get(json_params, "deviceId");
     if (url_handle == NULL || hash_handle == NULL || size_handle == NULL || device_id_handle == NULL) {
         tr_warning("Download request missing fields.");
         *result = jsonrpc_error_object(
                 JSONRPC_INVALID_PARAMS,
-                "Invalid params. Missing 'url', 'hash', or 'size' field from request.",
+                "Invalid params. Missing 'url', 'hash', 'deviceId', or 'size' field from request.",
                 NULL);
         return JSONRPC_RETURN_CODE_ERROR;
     }
@@ -140,20 +146,19 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
 
     // Create URL data that we manage instead of the json managed data
     char* final_url = strdup(url);
-      if(final_url == NULL)
+    if(final_url == NULL)
     {
         tr_err("final_url memory allocation fail");
         free(filename);
         return JSONRPC_RETURN_CODE_NO_RESPONSE;
     }
-    strcpy(final_url, url);
 
     if( access( filename, F_OK ) != -1 ) {
-    tr_info("firmware already exist %s",filename); //File already exist, skip download and send it to PT
-    completed_download_asset(final_url,filename,0,ctx);
+        tr_info("firmware already exist %s",filename); //File already exist, skip download and send it to PT
+        completed_download_asset(final_url,filename,0,ctx);
     }
     else {
-    edgeclient_get_asset(device_id,(uint8_t*)final_url, filename, (size_t)size, completed_download_asset, ctx);
+        edgeclient_get_asset(device_id, (uint8_t*)final_url, filename, (size_t)size, completed_download_asset, ctx);
     }
 
     return JSONRPC_RETURN_CODE_NO_RESPONSE;
@@ -161,18 +166,22 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
 
 int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
-     tr_cmdline("subdevice_manifest_status");
+    tr_cmdline("subdevice_manifest_status");
+
     struct json_message_t *jt = (struct json_message_t*) userdata;
     struct connection *connection = jt->connection;
+
     if (!pt_api_check_service_availability(result)) {
         return JSONRPC_RETURN_CODE_ERROR;
     }
+
     if (!pt_api_check_request_id(jt)) {
         tr_warn("EST enrollment request failed. No request id was given.");
         *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
                                                   json_string("EST enrollment request renewal failed. No request id was given."));
         return JSONRPC_RETURN_CODE_ERROR;
     }
+
     protocol_api_async_request_context_t *ctx = protocol_api_prepare_async_ctx(request, connection->id);
     if (ctx == NULL) {
         tr_warn("EST enrollment request failed. Memory allocation failed.");
@@ -181,9 +190,10 @@ int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **res
             json_string("EST enrollment request failed. Memory allocation failed."));
         return JSONRPC_RETURN_CODE_ERROR;
     }
+
     json_t *error_manifest_handle = json_object_get(json_params, "error_manifest");
     json_t *device_id_handle = json_object_get(json_params, "device_id");
-    if (error_manifest_handle == NULL || device_id_handle==NULL) {
+    if (error_manifest_handle == NULL || device_id_handle == NULL) {
         tr_warning("Manifest status missing fields.");
         *result = jsonrpc_error_object(
                 JSONRPC_INVALID_PARAMS,
@@ -191,8 +201,10 @@ int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **res
                 NULL);
         return JSONRPC_RETURN_CODE_ERROR;
     }
+
     const char *manifest_error = json_string_value(error_manifest_handle);
     const char *device_id = json_string_value(device_id_handle);
+
     tr_cmdline("Device_Id %s Manifest Error %s",device_id,manifest_error);
     ARM_UC_SUBDEVICE_ReportUpdateResult(device_id,manifest_error);
 }
@@ -247,10 +259,14 @@ void protocol_api_free_async_ctx_func(rpc_request_context_t *ctx)
 {
     protocol_api_async_request_context_t *pt_api_ctx = (protocol_api_async_request_context_t *) ctx;
     if (pt_api_ctx) {
-        free(pt_api_ctx->data_ptr);
-        free(pt_api_ctx->request_id);
+        if(pt_api_ctx->data_ptr) {
+            free(pt_api_ctx->data_ptr);
+        }
+        if(pt_api_ctx->request_id) {
+            free(pt_api_ctx->request_id);
+        }
+        free(pt_api_ctx);
     }
-    free(pt_api_ctx);
 }
 
 protocol_api_async_request_context_t *protocol_api_prepare_async_ctx(const json_t *request, const connection_id_t connection_id)
@@ -338,13 +354,15 @@ static void initialize_pt_resources(char *name, int pt_id){
     // Set pt name
     uint32_t length = strlen(name);
     edgeclient_set_resource_value(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id,
-                                  PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_ID, (uint8_t*) name, length,
+                                  PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_ID, PROTOCOL_TRANSLATOR_OBJECT_NAME_RESOURCE_NAME,
+                                  (uint8_t*) name, length,
                                   LWM2M_OPAQUE, OPERATION_READ /*GET_ALLOWED*/, /* userdata */ NULL);
 
     //Set device counter to zero, the API expects values in network byte-order.
     uint16_t zero = htons(0);
     edgeclient_set_resource_value(NULL, PROTOCOL_TRANSLATOR_OBJECT_ID, pt_id,
-                                  PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID, (uint8_t*) &zero, sizeof(uint16_t),
+                                  PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID, PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_NAME,
+                                  (uint8_t*) &zero, sizeof(uint16_t),
                                   LWM2M_INTEGER, OPERATION_READ /*GET_ALLOWED*/, /* userdata */ NULL);
 }
 
@@ -479,6 +497,7 @@ static void update_device_amount_resource_by_delta(struct connection* connection
             NULL, PROTOCOL_TRANSLATOR_OBJECT_ID,
             connection->client_data->id,
             PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_ID,
+            PROTOCOL_TRANSLATOR_OBJECT_COUNT_RESOURCE_NAME,
             (uint8_t*) &pt_device_amount, sizeof(int16_t),
             LWM2M_INTEGER,
             /* operations = allow read */ OPERATION_READ,
@@ -800,9 +819,9 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
             if (ret != PT_API_SUCCESS) {
                 break;
             }
-            // Get handle to object instance
+            // Get handle to resource
             json_t *instance_dict_handle = json_array_get(object_instance_array_handle, object_instance_index);
-            // And get objectInstanceId
+            // And get resourceId
             json_t *instance_id_handle = json_object_get(instance_dict_handle, "objectInstanceId");
             if (!instance_id_handle) {
                 *error_detail = "Invalid or missing objectInstanceId key.";
@@ -831,6 +850,14 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                 resource_id = json_integer_value(resource_id_handle);
 
                 tr_debug("JSON parsed resource, id = %d", resource_id);
+
+                // Get resourceName
+                json_t *resource_name_handle = json_object_get(resource_dict_handle, "resourceName");
+                const char *resource_name = json_string_value(resource_name_handle);
+                if (resource_name) {
+                    tr_debug("JSON parsed resource, name = %s", resource_name);
+                }
+
                 json_t *resource_value_handle = json_object_get(resource_dict_handle, "value");
                 uint32_t decoded_len = 0;
                 if (resource_value_handle) {
@@ -858,25 +885,27 @@ pt_api_result_code_e update_json_device_objects(json_t *json_structure,
                 } else {
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-                    pt_api_result_code_e set_resource_status = subdevice_set_resource_value(device_id_val,
-                                                                                            object_id,
-                                                                                            object_instance_id,
-                                                                                            resource_id,
-                                                                                            resource_value,
-                                                                                            decoded_len,
-                                                                                            resource_type,
-                                                                                            opr,
-                                                                                            connection);
+                pt_api_result_code_e set_resource_status = subdevice_set_resource_value(device_id_val,
+                                                                                        object_id,
+                                                                                        object_instance_id,
+                                                                                        resource_id,
+                                                                                        resource_name,
+                                                                                        resource_value,
+                                                                                        decoded_len,
+                                                                                        resource_type,
+                                                                                        opr,
+                                                                                        connection);
 #else
-                    pt_api_result_code_e set_resource_status = edgeclient_set_resource_value(device_id_val,
-                                                                                            object_id,
-                                                                                            object_instance_id,
-                                                                                            resource_id,
-                                                                                            resource_value,
-                                                                                            decoded_len,
-                                                                                            resource_type,
-                                                                                            opr,
-                                                                                            connection);
+                pt_api_result_code_e set_resource_status = edgeclient_set_resource_value(device_id_val,
+                                                                                        object_id,
+                                                                                        object_instance_id,
+                                                                                        resource_id,
+                                                                                        resource_name,
+                                                                                        resource_value,
+                                                                                        decoded_len,
+                                                                                        resource_type,
+                                                                                        opr,
+                                                                                        connection);
 #endif // MBED_EDGE_SUBDEVICE_FOTA
                     if (set_resource_status == PT_API_SUCCESS) {
                         tr_info("set_resource_value /d/%s/%d/%d/%d (type=%ud, operation=%d)",
@@ -1074,6 +1103,247 @@ write_to_pt_cleanup:
 
     return ret_val;
 }
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) {
+
+    tr_info("write_to_pt_fota");
+
+    // Sanity checks
+    if (!request_ctx) {
+        tr_error("Request context was NULL.");
+        return 1;
+    }
+
+    if (request_ctx->device_id == NULL) {
+        tr_error("No device id set for write context");
+        return 1;
+    }
+
+    if (request_ctx->operation & OPERATION_WRITE) {
+        if (request_ctx->value == NULL) {
+            tr_debug("Operation is WRITE and value to update is NULL. Abort value write.");
+            return 1;
+        }
+
+        if (request_ctx->value_len == 0) {
+            tr_debug("Operation is WRITE and value length is 0. Abort value write.");
+            return 1;
+        }
+    }
+
+    tr_debug("write_to_pt_fota uri is '%s/%d/%d/%d'",
+             request_ctx->device_id,
+             request_ctx->object_id,
+             request_ctx->object_instance_id,
+             request_ctx->resource_id);
+
+    arm_uc_buffer_t manifest_buffer, url_buffer, hash_buffer;
+    manifest_buffer.ptr = request_ctx->value;
+    manifest_buffer.size = request_ctx->value_len;
+    manifest_buffer.size_max = SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE;
+
+    uint32_t fw_size = 0;
+    uint64_t fw_version = 0;
+
+    //Check Vendor ID
+    arm_uc_buffer_t manifest_vendor_id, manifest_class_id;
+    arm_uc_error_t error = ARM_UC_mmGetVendorGuid(&manifest_buffer,&manifest_vendor_id);
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting vendor ID from manifest: %d", error.code);
+        return 1;
+    }
+
+    //Class ID Check
+    error = ARM_UC_mmGetClassGuid(&manifest_buffer,&manifest_class_id);
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting class ID from manifest: %d", error.code);
+        return 1;
+    }
+
+    //firmware size check
+    error = ARM_UC_mmGetFwSize(&manifest_buffer, &(fw_size));
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware size: %d", error.code);
+        return 1;
+    }
+
+    // firmware url
+    error = ARM_UC_mmGetFwUri(&manifest_buffer,&url_buffer );
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware URI: %d", error.code);
+        return 1;
+    }
+
+    error = ARM_UC_mmGetFwHash(&manifest_buffer, &(hash_buffer));
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware hash: %d", error.code);
+        return 1;
+    }
+
+    error = ARM_UC_mmGetTimestamp(&manifest_buffer, &fw_version);
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware version: %d", error.code);
+        return 1;
+    }
+
+    struct connection *connection = (struct connection*) userdata;
+    json_t *request = allocate_base_request("manifest_vendor_and_class");
+    json_t *params = json_object_get(request, "params");
+    json_t *uri_obj = json_object();
+    json_object_set_new(uri_obj, "deviceId", json_string(request_ctx->device_id));
+    json_object_set(params, "uri", uri_obj);
+    json_decref(uri_obj);
+    json_object_set_new(params, "operation", json_integer(request_ctx->operation));
+
+    tr_debug("write_to_pt - base64 encoding the value to json object");
+    size_t vendor_size = 0;
+    size_t class_size = 0;
+    size_t url_size = 0;
+    size_t hash_size = 0;
+
+    int32_t ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id.ptr, manifest_vendor_id.size);
+    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+        tr_error("cannot estimate the size of encoded value - %d", ret_val);
+        return 1;
+    }
+
+    ret_val = mbedtls_base64_encode(NULL, 0, &class_size, manifest_class_id.ptr, manifest_class_id.size);
+    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+        tr_error("cannot estimate the size of encoded value - %d", ret_val);
+        return 1;
+    }
+
+    ret_val = mbedtls_base64_encode(NULL, 0, &url_size, url_buffer.ptr, url_buffer.size);
+    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+        tr_error("cannot estimate the size of encoded value - %d", ret_val);
+        return 1;
+    }
+
+    ret_val = mbedtls_base64_encode(NULL, 0, &hash_size, hash_buffer.ptr, hash_buffer.size);
+    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+        tr_error("cannot estimate the size of encoded value - %d", ret_val);
+        return 1;
+    }
+
+    unsigned char* vendor_id = NULL;
+    unsigned char* class_id = NULL;
+    unsigned char* hash = NULL;
+    unsigned char* url = NULL;
+
+    vendor_id = (unsigned char *) calloc((vendor_size+1), sizeof(unsigned char));
+    if (!vendor_id) {
+        tr_error("allocating vendor id base64 buffer failed");
+        goto write_to_pt_fota_cleanup;
+    }
+
+    class_id = (unsigned char *) calloc((class_size+1), sizeof(unsigned char));
+    if (!class_id) {
+        tr_error("allocating classid base64 buffer failed");
+        goto write_to_pt_fota_cleanup;
+    }
+
+    hash = (unsigned char*) calloc(hash_size+1, sizeof(unsigned char));
+    if (!hash) {
+        tr_error("allocating hash base64 buffer failed");
+        goto write_to_pt_fota_cleanup;
+    }
+
+    url = (unsigned char*) calloc(url_size+1, sizeof(unsigned char));
+    if (!url) {
+        tr_error("allocating hash base64 buffer failed");
+        goto write_to_pt_fota_cleanup;
+    }
+
+    if (vendor_size != 0) {
+        if (0 != mbedtls_base64_encode(vendor_id, vendor_size, &vendor_size, manifest_vendor_id.ptr, manifest_vendor_id.size)) {
+            tr_error("Could not encode vendor_id to base64.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+
+    if (class_size != 0) {
+        if (0 != mbedtls_base64_encode(class_id, class_size, &class_size, manifest_class_id.ptr, manifest_class_id.size)) {
+            tr_error("Could not encode class_id to base64.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+
+    if (hash_size != 0) {
+        if (0 != mbedtls_base64_encode(hash, hash_size, &hash_size, hash_buffer.ptr, hash_buffer.size)) {
+            tr_error("Could not encode hash to base64.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+
+    if (url_size != 0) {
+        if (0 != mbedtls_base64_encode(url, url_size, &url_size, url_buffer.ptr, url_buffer.size)) {
+            tr_error("Can not encode url to base64.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+
+    if (json_object_set_new(params, "vendorid", json_string((const char *) vendor_id))) {
+        tr_error("Can not write vendor id to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
+    if (json_object_set_new(params, "classid", json_string((const char *) class_id))) {
+        tr_error("Can not write classid  to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
+    if (json_object_set_new(params, "hash", json_string((const char *) hash))) {
+        tr_error("Can not write hash to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
+    if (json_object_set_new(params, "url", json_string((const char *) url))) {
+        tr_error("Can not write url to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
+    if (json_object_set_new(params, "version", json_integer( fw_version))) {
+        tr_error("Can not write version to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
+    if (json_object_set_new(params, "size", json_integer(fw_size))) {
+        tr_error("Can not write fw_size to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
+    ret_val = rpc_construct_and_send_message(connection,
+                                             request,
+                                             handle_write_to_pt_success,
+                                             handle_write_to_pt_failure,
+                                             pt_write_free_func,
+                                             (rpc_request_context_t *) request_ctx,
+                                             connection->transport_connection->write_function);
+
+write_to_pt_fota_cleanup:
+    // json_string makes a copy of json_value above.
+    if(class_id)
+        free(class_id);
+    if(vendor_id)
+        free(vendor_id);
+    if(url)
+        free(url);
+    if(hash)
+        free(hash);
+    return ret_val;
+}
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 static void certificate_list_clear(client_data_t *client_data)
 {

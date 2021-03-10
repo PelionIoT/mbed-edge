@@ -263,20 +263,40 @@ bool edgeclient_endpoint_value_execute_handler(const M2MResourceBase *resource_b
 
     if (request_ctx) {
 
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
         if (!res->get_manifest_check_status()) {
             edgeclient_execute_success(request_ctx);
             tr_err("Manifest Rejected");
             return true;
         }
-#endif // MBED_EDGE_SUBDEVICE_FOTA
-        if (0 == edgeclient_write_to_pt_cb(request_ctx, endpoint_context)) {
-            return true;
-        } else {
-            tr_err("Executing to protocol translator failed.");
-            edgeclient_deallocate_request_context(request_ctx);
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+        tr_info("request_ctx->object_id %d request_ctx->object_instance_id %d request_ctx->resource_id %d",request_ctx->object_id,request_ctx->object_instance_id,request_ctx->resource_id );
+        if ((request_ctx->object_id == MANIFEST_OBJECT) &&
+            (request_ctx->object_instance_id == MANIFEST_INSTANCE) &&
+            (request_ctx->resource_id == MANIFEST_RESOURCE_PAYLOAD)) {
+            if (0 == edgeclient_write_to_pt_fm(request_ctx, endpoint_context)) {
+                return true;
+            } else {
+                    tr_err("Executing to fota protocol translator failed.");
+                    edgeclient_deallocate_request_context(request_ctx);
+                }
         }
-    } else {
+        else {
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
+            if (0 == edgeclient_write_to_pt_cb(request_ctx, endpoint_context)) {
+                return true;
+            } else {
+                tr_err("Executing to protocol translator failed.");
+                edgeclient_deallocate_request_context(request_ctx);
+            }
+        }
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+    }
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
+    else {
         tr_err("Could not allocate request context for writing to protocol translator.");
         free(buffer);
     }
@@ -599,7 +619,7 @@ void edgeclient_get_asset(char *device_id,
                           asset_download_complete_cb cb,
                           void *userdata)
 {
-    client->client_obtain_asset(device_id,uri_buffer, filename, size, cb, userdata);
+    client->client_obtain_asset(device_id, uri_buffer, filename, size, cb, userdata);
 }
 
 #endif // MBED_EDGE_SUBDEVICE_FOTA
@@ -656,6 +676,10 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
         edgeclient_setup_credentials(params->reset_storage, byoc_data);
         client = new EdgeClientImpl();
         edgeclient_data_init();
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+        client_data->g_handle_write_to_fm_cb = params->handle_write_to_fm_cb;
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
         client_data->g_handle_write_to_pt_cb = params->handle_write_to_pt_cb;
         client_data->g_handle_write_to_grm_cb = params->handle_write_to_grm_cb;
@@ -934,7 +958,7 @@ EDGE_LOCAL M2MResourceBase::ResourceType resolve_resource_type(Lwm2mResourceType
 }
 
 bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id,
-                  const uint16_t resource_id, Lwm2mResourceType resource_type, int opr, void *connection)
+                  const uint16_t resource_id, const char *resource_name, Lwm2mResourceType resource_type, int opr, void *connection)
 {
     AsyncCallbackParamsBase *acp = NULL;
     tr_debug("add_resource for endpoint: %s, object_id: %u, object_instance_id: %u, resource_id: %u",
@@ -954,7 +978,13 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
 
     m2m::itoa_c(resource_id, res_name);
     M2MResourceBase::ResourceType resolved_resource_type = resolve_resource_type(resource_type);
-    M2MResource *res = inst->create_dynamic_resource(String(res_name), "", resolved_resource_type, true, false, false);
+    M2MResource *res;
+    if(resource_name) {
+        res = inst->create_dynamic_resource(String(res_name), resource_name, resolved_resource_type, true, false, false);
+    } else {
+        res = inst->create_dynamic_resource(String(res_name), "", resolved_resource_type, true, false, false);
+    }
+
     if (res == NULL) {
         return false;
     }
@@ -1140,6 +1170,7 @@ bool edgeclient_create_resource_structure(const char *endpoint_name,
                                           const uint16_t object_id,
                                           const uint16_t object_instance_id,
                                           const uint16_t resource_id,
+                                          const char *resource_name,
                                           Lwm2mResourceType resource_type,
                                           int opr,
                                           void *ctx)
@@ -1199,6 +1230,7 @@ bool edgeclient_create_resource_structure(const char *endpoint_name,
                                      object_id,
                                      object_instance_id,
                                      resource_id,
+                                     resource_name,
                                      resource_type,
                                      opr,
                                      ctx)) {
@@ -1280,13 +1312,14 @@ pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
 
 pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name, const uint16_t object_id,
                                                    const uint16_t object_instance_id, const uint16_t resource_id,
-                                                   const uint8_t *value, const uint32_t value_length,
+                                                   const char *resource_name, const uint8_t *value, const uint32_t value_length,
                                                    Lwm2mResourceType resource_type, int opr, void *ctx)
 {
     if (!edgeclient_create_resource_structure(endpoint_name,
                                               object_id,
                                               object_instance_id,
                                               resource_id,
+                                              resource_name,
                                               resource_type,
                                               opr,
                                               ctx)) {
@@ -1662,6 +1695,14 @@ int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *c
 {
     return client_data->g_handle_write_to_pt_cb(request_ctx, ctx);
 }
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+int edgeclient_write_to_pt_fm(edgeclient_request_context_t *request_ctx, void *ctx)
+{
+    return client_data->g_handle_write_to_fm_cb(request_ctx, ctx);
+}
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
 
 int edgeclient_write_to_grm_cb(edgeclient_request_context_t *request_ctx)
 {

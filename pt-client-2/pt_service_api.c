@@ -33,10 +33,18 @@
 
 EDGE_LOCAL int pt_receive_write_value(json_t *request, json_t *json_params, json_t **result, void *userdata);
 EDGE_LOCAL int pt_receive_certificate_renewal_result(json_t *request, json_t *json_params, json_t **result, void *userdata);
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+EDGE_LOCAL int pt_receive_manifest_vendor_class(json_t *request, json_t *json_params, json_t **result, void *userdata);
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 struct jsonrpc_method_entry_t pt_service_method_table[] = {
   { "write", pt_receive_write_value, "o" },
   { "certificate_renewal_result", pt_receive_certificate_renewal_result, "o" },
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+  { "manifest_vendor_and_class", pt_receive_manifest_vendor_class, "o" },
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
   { NULL, NULL, "o" }
 };
 
@@ -134,6 +142,10 @@ pt_status_t pt_devices_call_resource_callback(connection_id_t connection_id,
                                       value,
                                       value_size,
                                       userdata);
+        }
+        else {
+            tr_error("cannot execute resource callback");
+            return PT_STATUS_ERROR;
         }
     } else {
         return PT_STATUS_NOT_FOUND;
@@ -242,6 +254,223 @@ int update_device_values_from_json(struct connection *connection,
     free(resource_value);
     return success;
 }
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+int update_manifest_vendor_class_values_from_json(struct connection *connection,
+                                                  json_t *params,
+                                                  json_t **result)
+{
+    tr_info("update_manifest_vendor_class_values_from_json");
+
+    if (!params) {
+        *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
+                                       "Invalid params. Missing 'params'-field from request.",
+                                       NULL);
+        tr_error("No parameters element");
+        return 1;
+    }
+
+    json_t *uri_handle = get_handle(params, result, "uri");
+    if (!uri_handle && *result) {
+        return 1;
+    }
+    // Get the device id
+    json_t *device_id_handle = get_handle(uri_handle, result, "deviceId");
+    if (!device_id_handle && *result) {
+        return 1;
+    }
+
+    json_t *class_id_handle = get_handle(params, result, "classid");
+    if (!class_id_handle && *result) {
+        tr_error("class_id_handle");
+        return 1;
+    }
+    json_t *vendor_id_handle = get_handle(params, result, "vendorid");
+    if (!vendor_id_handle && *result) {
+        tr_error("vendor_id_handle");
+        return 1;
+    }
+    json_t *url_handle = get_handle(params, result, "url");
+    if (!url_handle && *result) {
+        tr_error("url_id_handle");
+        return 1;
+    }
+    json_t *hash_handle = get_handle(params, result, "hash");
+    if (!hash_handle && *result) {
+        tr_error("hash_id_handle");
+        return 1;
+    }
+    json_t *version_handle = get_handle(params, result, "version");
+    if (!version_handle && *result) {
+        tr_error("version_id_handle");
+        return 1;
+    }
+    json_t *operation_handle = get_handle(params, result, "operation");
+    if (!operation_handle && *result) {
+        tr_error("operation_id_handle");
+        return 1;
+    }
+
+    json_t *size_handle = get_handle(params, result, "size");
+    if (!size_handle && *result) {
+        tr_error("size_handle");
+        return 1;
+    }
+    const char* device_id = json_string_value(device_id_handle);
+    if (device_id == NULL) {
+        tr_err("Could not allocate device id copy");
+        return 1;
+    }
+    /* Create an object and add it to device */
+
+    const char *classid_encoded = json_string_value(class_id_handle);
+    if (classid_encoded == NULL) {
+        return 1;
+    }
+    const char *vendorid_encoded = json_string_value(class_id_handle);
+    if (vendorid_encoded == NULL) {
+        return 1;
+    }
+    const char *url_encoded = json_string_value(url_handle);
+    if (url_encoded == NULL) {
+        return 1;
+    }
+    const char *hash_encoded = json_string_value(hash_handle);
+    if (hash_encoded == NULL) {
+        return 1;
+    }
+    uint32_t classid_len = apr_base64_decode_len(classid_encoded);
+    uint32_t vendorid_len = apr_base64_decode_len(vendorid_encoded);
+    uint32_t url_len = apr_base64_decode_len(url_encoded);
+    uint32_t hash_len = apr_base64_decode_len(hash_encoded);
+    uint8_t *class_id = malloc(classid_len);
+    if (NULL == class_id) {
+        tr_error("classid is null");
+        return 1;
+    }
+    uint32_t r_class_id = apr_base64_decode_binary(class_id, classid_encoded);
+    assert(classid_len >= r_class_id);
+
+    uint8_t *vendor_id = malloc(vendorid_len);
+    if (NULL == vendor_id) {
+        tr_error("vendorid is null");
+        free(class_id);
+        return 1;
+    }
+    uint32_t r_vendor_id = apr_base64_decode_binary(vendor_id, vendorid_encoded);
+    assert(vendorid_len >= r_vendor_id);
+    uint8_t *url = malloc(url_len);
+    if (NULL == url) {
+        tr_error("url is null");
+        free(vendor_id);
+        free(class_id);
+        return 1;
+    }
+    uint32_t r_url = apr_base64_decode_binary(url, url_encoded);
+    assert(url_len >= r_url);
+    uint8_t *hash = malloc(hash_len);
+    if (NULL == hash) {
+        free(vendor_id);
+        free(url);
+        free(class_id);
+        tr_error("hash is null");
+        return 1;
+    }
+    uint32_t r_hash_len = apr_base64_decode_binary(hash, hash_encoded);
+    assert(hash_len >= r_hash_len);
+    uint32_t r_version = json_integer_value(version_handle);
+    uint8_t operation = json_integer_value(operation_handle);
+    uint32_t fw_size = json_integer_value(size_handle);
+    /* Ready to call write handler with received write data */
+    if (NULL == connection || NULL == connection->client->devices || NULL == device_id) {
+        tr_error("Connection is null!!!!");
+        return PT_STATUS_INVALID_PARAMETERS;
+    }
+    tr_info("Calling manifest callback");
+    tr_info("deviceid:%s",device_id);
+    int success = connection->client->manifest_class_vendor_handler(get_connection_id(connection),
+                                                        device_id,
+                                                        operation,
+                                                        class_id,
+                                                        r_class_id,
+                                                        vendor_id,
+                                                        r_vendor_id,
+                                                        hash,
+                                                        r_hash_len,
+                                                        url,
+                                                        r_url,
+                                                        r_version,
+                                                        fw_size,
+                                                        NULL);
+    if(success!=0) {
+        if(url)
+            free(url);
+        if(vendor_id)
+            free(vendor_id);
+        if(class_id)
+            free(class_id);
+        if(hash)
+            free(hash);
+        return PT_STATUS_NOT_FOUND;
+        }
+    if(url)
+        free(url);
+    if(vendor_id)
+        free(vendor_id);
+    if(class_id)
+        free(class_id);
+    if(hash)
+        free(hash);
+    return success;
+}
+
+EDGE_LOCAL int pt_receive_manifest_vendor_class(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    (void) request;
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    tr_debug("Recieve manifest class and vendor value to protocol translator.");
+    int status = 0;
+
+    if (!check_request_id(jt, result) != 0) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    // Prepare response params context
+    response_params_t *params = (response_params_t *) calloc(1, sizeof(response_params_t));
+    json_t *response = json_object();
+    if (params == NULL || response == NULL) {
+        free(params);
+        json_decref(response);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+    params->response = response;
+    connection_t *connection = jt->connection;
+    params->connection_id = connection->id;
+    json_object_set_new(response, "id", json_copy(json_object_get(request, "id")));
+    json_object_set_new(response, "jsonrpc", json_string("2.0"));
+
+    status = update_manifest_vendor_class_values_from_json(jt->connection, json_params, result);
+    if (status != 0) {
+        // Write failed, prepare error response and push to eventloop
+        if (*result == NULL) {
+            *result = jsonrpc_error_object(JSONRPC_INVALID_PARAMS,
+                                           "Invalid params.",
+                                           NULL);
+        }
+        json_object_set_new(response, "error", *result);
+    }
+    else {
+        // Write was success, prepare response and push it into eventloop
+        json_object_set_new(response, "result", json_string("ok"));
+    }
+
+    if (pt_api_send_to_event_loop(connection->id, params, event_loop_send_response_callback) != PT_STATUS_SUCCESS) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    return JSONRPC_RETURN_CODE_NO_RESPONSE;
+}
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 EDGE_LOCAL int pt_receive_write_value(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {

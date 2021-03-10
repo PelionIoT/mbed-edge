@@ -44,7 +44,7 @@ Currently, there are a few dependencies in the build system:
 * librt
 * libstdc++
 
-Install these in Ubuntu 16.04:
+Install these in Ubuntu 18.04:
 
 ```
 $ apt install libc6-dev
@@ -104,8 +104,6 @@ You can create a `update_default_resources.c` file, using the
 $ manifest-dev-tool init
 ```
 
-where `-d` is company domain and `-m` is product model identifier.
-
 Move the created `update_default_resources.c` file to the `config` folder.
 
 The command also creates a `.update-certificates` folder, which contains self-signed
@@ -144,7 +142,31 @@ a value `ARM_UCP_LINUX_GENERIC`.
 
 This lets you generate the device's bootstrap private key on a TPM during the factory flow. Later, when the device calls the Device Management bootstrap server, Device Management Client calls the Parsec API and uses the bootstrap key as part of the DTLS handshake, without having to export the key.
 
-To enable Parsec, pass `-DPARSEC_TPM_SE_SUPPORT=ON` when you run the CMake `build` command:
+To build Parsec client in Edge Core, first install the following prerequisites -
+
+1. pip3 and python3 are required to clone the pal-platform dependencies - trusted_storage and parsec_se_driver.
+    ```
+    apt install -y python3 python3-pip
+    ```
+
+1. Install `libclang` which is required to build parsec-se-driver.
+    ```
+    apt install -y libclang-dev clang
+    ```
+
+1. Install Rust, required to build parse-se-driver.
+    ```
+    curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+    # configure the PATH environment variable
+    export PATH=$PATH:~/.cargo/bin
+
+    # To verify, run
+    rustc --version
+    cargo version
+    ```
+
+Now let's try building Parsec client and Edge core. Pass `-DPARSEC_TPM_SE_SUPPORT=ON` when you run the CMake `build` command:
 
 ```
 $ mkdir build
@@ -293,7 +315,7 @@ You can use the following commands to build the Doxygen documentation:
 ```
 $ mkdir build-doc
 $ cd build-doc
-$ cmake ..
+$ cmake -DBUILD_DOCUMENTATION=ON ..
 $ make edge-doc
 ```
 

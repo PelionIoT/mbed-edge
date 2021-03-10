@@ -42,27 +42,22 @@
 #define MANIFEST_OBJECT 10252
 #define DEVICE_META_OBJECT 10255
 
-#define MANIFEST_INSTANCE 0
-#define MANIFEST_RESOURCE_PAYLOAD 1
-#define MANIFEST_RESOURCE_STATE 2
-#define MANIFEST_RESOURCE_RESULT 3
-#define MANIFEST_RESOURCE_HASH 5
-#define MANIFEST_RESOURCE_VERSION 6
-#define MANIFEST_RESOURCE_PROTOCOL 0
-#define MANIFEST_RESOURCE_BOOT_HASH 1
-#define MANIFEST_RESOURCE_OEMBOOT_HASH 2
-#define MANIFEST_RESOURCE_VENDOR    3
-#define MANIFEST_RESOURCE_CLASS    4
-
-#define MANIFEST_DEFAULT_PROTOCOL 3
-#define MANIFEST_DEFAULT_INT "-1"
+#define MANIFEST_INSTANCE                   0
+#define MANIFEST_RESOURCE_PAYLOAD           1
+#define MANIFEST_RESOURCE_STATE             2
+#define MANIFEST_RESOURCE_RESULT            3
+#define MANIFEST_RESOURCE_HASH              5
+#define MANIFEST_RESOURCE_VERSION           6
+#define MANIFEST_RESOURCE_PROTOCOL          0
+#define MANIFEST_RESOURCE_BOOT_HASH         1
+#define MANIFEST_RESOURCE_OEMBOOT_HASH      2
+#define MANIFEST_RESOURCE_VENDOR            3
+#define MANIFEST_RESOURCE_CLASS             4
+#define MANIFEST_DEFAULT_PROTOCOL           3
+#define MANIFEST_DEFAULT_INT                "-1"
 #define MANIFEST_DEFAULT_INT_SIZE strlen(MANIFEST_DEFAULT_INT)
-#define MANIFEST_DEFAULT_STR "INVALID"
+#define MANIFEST_DEFAULT_STR                "INVALID"
 #define MANIFEST_DEFAULT_STR_SIZE strlen(MANIFEST_DEFAULT_STR)
-#define MANIFEST_VENDOR_STR "SUBDEVICE-VENDOR"
-#define MANIFEST_VENDOR_STR_SIZE strlen(MANIFEST_VENDOR_STR)
-#define MANIFEST_CLASS_STR "SUBDEVICE-_CLASS"
-#define MANIFEST_CLASS_STR_SIZE strlen(MANIFEST_CLASS_STR)
 
 void reverse(char s[], uint32_t length)
 {
@@ -94,7 +89,7 @@ uint32_t itoa_c (int64_t n, char s[])
 pt_status_t pt_device_update_firmware_update_resources(connection_id_t connection_id,
                                                        const char *device_id,
                                                        char *asset_hash,
-                                                       char *asset_version)
+                                                       uint64_t asset_version)
 {
     // Check if device exists
     if (device_id == NULL) {
@@ -122,7 +117,8 @@ pt_status_t pt_device_update_firmware_update_resources(connection_id_t connectio
         return status;
     }
 
-    char *version = strdup(asset_version);
+    char* version = (char*)calloc(9,sizeof(char));
+    sprintf(version,"%d",asset_version);
     status = pt_device_set_resource_value(connection_id,
                                           device_id,
                                           MANIFEST_OBJECT,
@@ -141,7 +137,7 @@ pt_status_t pt_device_update_firmware_update_resources(connection_id_t connectio
 
 pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_id,
                                                      const char *device_id,
-                                                     manifest_download_handler manifest_handler)
+                                                     manifest_class_and_vendor_handler manifest_class_vendor_handler)
 {
     // Check if device exists
     if (device_id == NULL || pt_device_exists(connection_id, device_id) == false) {
@@ -168,7 +164,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
     }
 
     // Verify that the manifest handler callback is set
-    if (manifest_handler == NULL) {
+    if (manifest_class_vendor_handler == NULL) {
         tr_warn("Manifest handler not set");
     }
 
@@ -177,12 +173,13 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                                   MANIFEST_OBJECT,
                                                   MANIFEST_INSTANCE,
                                                   MANIFEST_RESOURCE_PAYLOAD,
+                                                  /* resource name */ NULL,
                                                   LWM2M_STRING,
                                                   OPERATION_EXECUTE,
                                                   NULL,
                                                   0,
                                                   free,
-                                                  manifest_handler);
+                                                  manifest_class_vendor_handler);
     if (status != PT_STATUS_SUCCESS) {
         tr_err("Could not create firmware update resource %d! Error was %d", MANIFEST_RESOURCE_PAYLOAD, status);
         return status;
@@ -194,6 +191,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     MANIFEST_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_HASH,
+                                    /* resource name */ NULL,
                                     LWM2M_STRING,
                                     hash,
                                     strlen(hash),
@@ -210,6 +208,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     MANIFEST_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_STATE,
+                                    /* resource name */ NULL,
                                     LWM2M_INTEGER,
                                     status_version,
                                     1,
@@ -225,6 +224,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     MANIFEST_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_RESULT,
+                                    /* resource name */ NULL,
                                     LWM2M_INTEGER,
                                     manifest_status,
                                     1,
@@ -239,6 +239,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     MANIFEST_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_VERSION,
+                                    /* resource name */ NULL,
                                     LWM2M_STRING,
                                     version,
                                     strlen(version),
@@ -255,6 +256,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     DEVICE_META_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_PROTOCOL,
+                                    /* resource name */ NULL,
                                     LWM2M_INTEGER,
                                     protocol_version,
                                     1,
@@ -272,6 +274,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     DEVICE_META_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_BOOT_HASH,
+                                    /* resource name */ NULL,
                                     LWM2M_STRING,
                                     boot_hash,
                                     strlen(boot_hash),
@@ -289,6 +292,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     DEVICE_META_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_OEMBOOT_HASH,
+                                    /* resource name */ NULL,
                                     LWM2M_STRING,
                                     oem_boot_hash,
                                     strlen(oem_boot_hash),
@@ -306,6 +310,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     DEVICE_META_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_VENDOR,
+                                    /* resource name */ NULL,
                                     LWM2M_STRING,
                                     vendor_id,
                                     strlen(vendor_id),
@@ -323,6 +328,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                     DEVICE_META_OBJECT,
                                     MANIFEST_INSTANCE,
                                     MANIFEST_RESOURCE_CLASS,
+                                    /* resource name */ NULL,
                                     LWM2M_STRING,
                                     class_id,
                                     strlen(class_id),
@@ -395,7 +401,7 @@ pt_status_t pt_download_asset_internal(const connection_id_t connection_id,
     json_object_set_new(params, "url", json_string(url));
     json_object_set_new(params, "size", json_integer(size));
     json_object_set_new(params, "hash", json_string(hash));
-    json_object_set_new(params, "device_id", json_string(device_id));
+    json_object_set_new(params, "deviceId", json_string(device_id));
 
     pt_asset_download_callback_t *customer_callback = (pt_asset_download_callback_t*)allocate_customer_callback(connection_id,
                                                                                                                 (pt_response_handler)success_handler,
@@ -452,97 +458,6 @@ pt_status_t pt_subdevice_manifest_status(const connection_id_t connection_id,
                                                PT_CUSTOMER_CALLBACK_T,
                                                customer_callback);
 }
-pt_status_t pt_parse_manifest(const uint8_t *manifest_payload,
-                              const uint32_t manifest_payload_size,
-                              pt_manifest_context_t *manifest_context,
-                              arm_uc_update_result_t *error_manifest)
-{
-    arm_uc_error_t error;
 
-    if (manifest_context == NULL) {
-        //free(manifest_context);
-        tr_error("Manifest context not allocated");
-        return PT_STATUS_ALLOCATION_FAIL;
-    }
-
-    arm_uc_buffer_t manifest_buffer;
-    manifest_buffer.ptr = manifest_payload;
-    manifest_buffer.size = manifest_payload_size;
-    manifest_buffer.size_max = SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE;
-    //Check Vendor ID
-   arm_uc_buffer_t manifest_vendor_id, manifest_class_id;
-    error = ARM_UC_mmGetVendorGuid(&manifest_buffer,&manifest_vendor_id);
-    if (error.code != ERR_NONE) {
-        tr_error("ERROR getting vendor ID from manifest: %d", error.code);
-    }
-    if(manifest_vendor_id.size) {
-        if(memcmp(manifest_vendor_id.ptr, MANIFEST_VENDOR_STR,manifest_vendor_id.size) != 0) {
-            tr_error("VIncorrect Vendor ID");
-            *error_manifest =  ARM_UC_UPDATE_RESULT_MANIFEST_WRONG_VENDOR_ID;
-            return PT_STATUS_ERROR;
-        }
-    }
-    //Class ID Check
-    error = ARM_UC_mmGetClassGuid(&manifest_buffer,&manifest_class_id);
-    if (error.code != ERR_NONE) {
-        tr_error("ERROR getting class ID from manifest: %d", error.code);
-    }
-    if(manifest_class_id.size) {
-        if(memcmp(manifest_class_id.ptr, MANIFEST_CLASS_STR, manifest_class_id.size) != 0) {
-            tr_error("Incorrect Class ID");
-            *error_manifest =  ARM_UC_UPDATE_RESULT_MANIFEST_WRONG_CLASS_ID;
-            return PT_STATUS_ERROR;
-        }
-    }
-
-    // Obtain the Size from the manifest
-    error = ARM_UC_mmGetFwSize(&manifest_buffer, &manifest_context->size);
-    tr_cmdline("Firmware Update Process Started");
-    if (error.code != ERR_NONE) {
-        tr_error("ERROR getting firmware size: %d", error.code);
-        pt_manifest_context_free(manifest_context);
-        return PT_STATUS_ERROR;
-    }
-
-    // Obtain the version from the manifest
-    // NOTE: the version is actually an Epoch timestamp. Convert it to a string
-    uint64_t fw_version;
-    error = ARM_UC_mmGetTimestamp(&manifest_buffer, &fw_version);
-    if (error.code != ERR_NONE) {
-        tr_error("ERROR getting firmware version: %d", error.code);
-        pt_manifest_context_free(manifest_context);
-        return PT_STATUS_ERROR;
-    }
-    sprintf(manifest_context->version, "%" PRIu64, fw_version);
-
-    // Obtain the URI from the manifest
-    arm_uc_buffer_t url_buffer;
-    error = ARM_UC_mmGetFwUri(&manifest_buffer, &url_buffer);
-    if (error.code != ERR_NONE) {
-        tr_error("ERROR getting firmware URI: %d", error.code);
-        pt_manifest_context_free(manifest_context);
-        return PT_STATUS_ERROR;
-    }
-    memcpy(manifest_context->url, url_buffer.ptr, url_buffer.size);
-    manifest_context->url[url_buffer.size] = 0;
-
-    // Obtain the hash from the manifest
-    arm_uc_buffer_t hash_buffer;
-    error = ARM_UC_mmGetFwHash(&manifest_buffer, &hash_buffer);
-    if (error.code != ERR_NONE) {
-        tr_error("ERROR getting firmware hash: %d", error.code);
-        pt_manifest_context_free(manifest_context);
-        return PT_STATUS_ERROR;
-    }
-
-    // Convert the non-ascii string into a hex string
-    char *ptr = &manifest_context->hash[0];
-    for (unsigned i = 0; i < hash_buffer.size; i++) {
-        ptr += sprintf (ptr, "%02x", hash_buffer.ptr[i]);
-    }
-    manifest_context->hash[hash_buffer.size * 2] = 0;
-
-    return PT_STATUS_SUCCESS;
-}
 
 #endif // MBED_EDGE_SUBDEVICE_FOTA

@@ -95,32 +95,109 @@ typedef int (*handle_cert_renewal_status_cb)(const char *certificate_name,
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 /**
+ * \brief callback for handling request regarding manifest decoding.
+ * \param request_ctx The request context to pass back to response handlers.
+ * \param connection The connection to write the request.
+ * \return 0 - for successful write to gateway resource manager.
+ *         1 - for failed write to gateway resource manager.
+ */
+typedef int(*handle_write_to_fm_cb) (edgeclient_request_context_t *request_ctx, void *connection);
+
+/**
  * \brief callback for subdevice firmware download post process.
- * \param url Firmware URL
- * \param filename Firmware file name.
+ * \param url Update firmware URL.
+ * \param filename Update firmware file name.
  * \param error_code Error Code.
  * \param ctx User provided context.
  */
 typedef void (*asset_download_complete_cb)(uint8_t *url, char *filename, int error_code, void *ctx);
 
-void edgeclient_get_asset(char *device_id,uint8_t *, char *, size_t, asset_download_complete_cb, void *);
+/**
+ * \brief Request to initiate downloading the update firmware image.
+ * \param device_id ID of the endpoint for which the firmware update is initiated.
+ * \param uri_buffer Update firmware URL.
+ * \param filename Update firmware file name.
+ * \param size Size of the update firmware image.
+ * \param asset_download_complete_cb On success, execute this callback.
+ * \param ctx User provided context.
+ */
+void edgeclient_get_asset(char *device_id,
+                          uint8_t *uri_buffer,
+                          char *filename,
+                          size_t size,
+                          asset_download_complete_cb,
+                          void *ctx);
 
-int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name,char *error_manifest);
+/**
+ * \brief Report back the subdevice firmware update manifest resource value
+ * \param endpoint_name The name of the endpoint under which the resource is located.
+ * \param error_manifest UpdateResult value. The char* pointing to a new value buffer.
+ * \return 0 - for successful write to protocol translator.
+ *         1 - for failed write to protocol translator.
+ */
+int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name,
+                                        char *error_manifest);
+/**
+ * \brief Set a value to subdevice firmware update manifest resource with given path, consisting of endpoint_name (optional),
+ * object_id, object_instance_id and resource_id. If any of the path elements are missing, they will be created before setting the value.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
+ * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param value const The uint8_t* pointing to a new value buffer.
+ *        For different LWM2M data types there are byte-order restrictions:
+ *        String: UTF-8
+ *        Integer: binary signed integer in network byte-order (8, 16, 32 or 64 bits).
+ *        Float: IEEE 754-2008 floating point value in network byte-order (32 or 64 bits).
+ *        Boolean: 8 bit unsigned integer with value 0 or 1.
+ *        Opaque: sequence of binary data.
+ *        Time: Same representation as Integer.
+ *        Objlnk: Two 16 bit unsigned integers one beside the other.
+ *                First is the Object ID and second is the Object Instance ID.
+ *
+ *        Refer to: OMA Lightweight Machine to Machine Technical Specification
+ *        for data type specifications.
+ * \param value_length The length of the new value.
+ * \param resource_type Type of the resource
+ * \param opr Operations that are valid on the resource
+ * \param ctx User supplied data pointer
+ * \return #PT_API_SUCCESS on success
+ *         Other codes on failure
+ */
+pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name,
+                                                  const uint16_t object_id,
+                                                  const uint16_t object_instance_id,
+                                                  const uint16_t resource_id,
+                                                  const char* resource_name,
+                                                  const uint8_t *value,
+                                                  const uint32_t value_length,
+                                                  Lwm2mResourceType resource_type,
+                                                  int opr,
+                                                  void *ctx);
 
-pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id,
-                                                   const uint16_t object_instance_id, const uint16_t resource_id,
-                                                   const uint8_t *value, const uint32_t value_length,
-                                                   Lwm2mResourceType resource_type, int opr, void *ctx);
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
+/**
+ * \brief Create resource with given path, consisting of endpoint_name (optional), object_id, object_instance_id and resource_id.
+ * If any of the path elements are missing, they will be created before setting the value.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
+ * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param resource_type Type of the resource
+ * \param opr Operations that are valid on the resource
+ * \param ctx User supplied data pointer
+ * \return True if created successfully, otherwise false.
+ */
 bool edgeclient_create_resource_structure(const char *endpoint_name,
                                           const uint16_t object_id,
                                           const uint16_t object_instance_id,
                                           const uint16_t resource_id,
+                                          const char *resource_name,
                                           Lwm2mResourceType resource_type,
                                           int opr,
                                           void *ctx);
 
-#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 /**
  * \brief callback for handling EST enrollment status callback.
@@ -141,6 +218,11 @@ typedef int (*handle_est_status_cb)(est_enrollment_result_e result,
 typedef struct {
     handle_write_to_pt_cb handle_write_to_pt_cb;
     handle_write_to_grm_cb handle_write_to_grm_cb;
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+    handle_write_to_fm_cb handle_write_to_fm_cb;
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
     handle_register_cb handle_register_cb;
     handle_unregister_cb handle_unregister_cb;
     handle_error_cb handle_error_cb;
@@ -158,6 +240,16 @@ typedef struct {
  *         1 if request couldn't be sent.
  */
 int edgeclient_write_to_pt_cb(edgeclient_request_context_t *request_ctx, void *ctx);
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+/**
+ * \brief Calls firmware-over the air write callback
+ * \param request_context current request context data
+ * \return 0 if request was successfully sent.
+ *         1 if request couldn't be sent.
+*/
+int edgeclient_write_to_pt_fm(edgeclient_request_context_t *request_ctx, void *ctx);
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 /**
  * \brief Calls Edge Client's Gateway Resource Manager handle write call-back function.
@@ -297,6 +389,7 @@ bool edgeclient_remove_object_instance(const char *endpoint_name, const uint16_t
  * \param object_id The ID of the object under which the resource should be created, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource should be created, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource to create, a 16-bit unsigned integer.
+ * \param resource_name const The optional name of the resource to create.
  * \param resource_type Type of the resource
  * \param opr Operations allowed on the resource
  * \param connection is the current connection.
@@ -306,6 +399,7 @@ bool edgeclient_add_resource(const char *endpoint_name,
                              const uint16_t object_id,
                              const uint16_t object_instance_id,
                              const uint16_t resource_id,
+                             const char *resource_name,
                              Lwm2mResourceType resource_type,
                              int opr,
                              void *connection);
@@ -390,6 +484,7 @@ pt_api_result_code_e edgeclient_update_resource_value(const char *endpoint_name,
  * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
  * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
  * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param resource_name const The optional name of the resource to create.
  * \param value const The uint8_t* pointing to a new value buffer.
  *        For different LWM2M data types there are byte-order restrictions:
  *        String: UTF-8
@@ -414,6 +509,7 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
                                                    const uint16_t object_id,
                                                    const uint16_t object_instance_id,
                                                    const uint16_t resource_id,
+                                                   const char *resource_name,
                                                    const uint8_t *value,
                                                    uint32_t value_length,
                                                    Lwm2mResourceType resource_type,

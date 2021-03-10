@@ -191,10 +191,10 @@ public:
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 
     typedef struct {
-        char *device_id;                       // Endpoint Id
+        char *device_id;                        // Endpoint Id
         uint32_t size_max;                      // Maximum size of the fragment buffer
         uint32_t size;                          // Actual size of the fragment buffer
-        uint8_t ptr[2048];                           // Pointer to the fragment buffer
+        uint8_t ptr[2048];                      // Pointer to the fragment buffer
         int offset;                             // Offset in the entire asset that the fragment is at
         char *filename;                         // Filename the asset is getting saved to
         uint8_t *url;                           // URL the asset is getting downloaded from
@@ -267,22 +267,28 @@ public:
     static arm_uc_update_result_t fw_file_download(arm_uc_asset_state_t *state)
     {
         char *url_without_http = NULL;
+        tr_debug("URL WITH HTTP:%s",state->url);
         if (strstr((char *) state->url, "http://")) {
             url_without_http = strdup((char *) state->url + 7);
         } else if (strstr((char *) state->url, "https://")) {
             url_without_http = strdup((char *) state->url + 8);
         }
+        tr_debug("URL WITHOUT HTTP:%s",url_without_http);
 
         char *fw_file = NULL;
         char *server_uri = strtok_r(url_without_http, "/", &fw_file);
-
+        if(server_uri == NULL) {
+            tr_error("server url is null");
+        }
         uint sock, bytes_received;
         char send_data[1024], *p;
-        char *recv_data;
-        if((state) && (state->file_size>0))
+        char *recv_data = NULL;
+        if((state) && (state->file_size > 0))
         {
+
+            printf("File size: %d ",state->file_size);
             recv_data = (char *) malloc(state->file_size+1);
-	        if(recv_data==NULL)
+	        if(recv_data == NULL)
 	        {
 	            tr_err("File size memory allocation fail");
                 return ARM_UC_UPDATE_RESULT_FETCHER_NONSPECIFIC_ERROR;
@@ -372,11 +378,12 @@ public:
 
     static void *subdevice_download_fw(void *ctx)
     {
-           // Begin asset download
-        tr_cmdline("\nFirmware Downloading");
+        // Begin asset download
+        tr_cmdline("Firmware Downloading");
         arm_uc_asset_state_t *state = (arm_uc_asset_state_t *)ctx;
 
-        tr_cmdline("\n%s",state->filename);
+        tr_cmdline("state->filename %s",state->filename);
+        tr_cmdline("state->uri %s",state->url);
         //HTTP get request download
         arm_uc_update_result_t fw_download_status = fw_file_download(state);
         tr_info("\nFirmware completed %s %d %s", state->url, state->file_size, state->filename);
@@ -390,11 +397,9 @@ public:
             state->error_code = fw_download_status;
         }
         state->success_cb(state->url, state->filename, state->error_code, state->ctx);
-
-        if (state->device_id)
-            free(state->device_id);
-         if (state)
+        if(state != NULL) {
             free(state);
+        }
     }
 
     void client_obtain_asset(char *device_id,
@@ -409,7 +414,7 @@ public:
             return;
         }
         // Create a new state and fill with appropriate information
-        arm_uc_asset_state_t *state = (arm_uc_asset_state_t *)calloc(1, sizeof(arm_uc_asset_state_t));
+        arm_uc_asset_state_t* state = (arm_uc_asset_state_t*) malloc(sizeof(arm_uc_asset_state_t));
         state->size_max = 1024;
         state->size = 1024;
         state->offset = 0;
@@ -420,15 +425,13 @@ public:
         state->success_cb = cb;
         state->ctx = ctx;
         state->error_code = 0;
-        state->device_id = (char *) malloc(strlen(device_id));
-        if (state->device_id)
-            strcpy(state->device_id, device_id);
+        state->device_id = device_id;
 
         pthread_t subdevice_fw_download_thread;
 
         /* Create independent threads to download fw each of which will execute function */
 
-        pthread_create( &subdevice_fw_download_thread, NULL, &subdevice_download_fw, (void*) state);
+        pthread_create(&subdevice_fw_download_thread, NULL, &subdevice_download_fw, (void*)state);
         pthread_detach(subdevice_fw_download_thread);
     }
 

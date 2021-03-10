@@ -1,5 +1,39 @@
 # Changelog for Edge
 
+## Release 0.16.0 (2021-3-15)
+
+* Updated to Pelion Device Management Client (PDMC) library version 4.7.1.
+* Allow LwM2M resources to be optionally named by Protocol Translators and Gateway Resource Managers.
+* Updated the design of subdevice (devices behind the gateway) firmware update feature. Edge core will now parse and also validate the firmware update manifest intended for the subdevice. It will then forward the manifest's vendorID and classID to PT for validation before downloading the update image.
+   * `manifest_vendor_and_class` allows PT to receive the vendorID and classID provided in the update manifest.
+* Update libcurl to version 7.75 (in `lib/pal-platform.json`) to fix multiple CVEs.
+    * BDSA-2020-3058
+    * BDSA-2020-3694 (CVE-2020-8284)
+    * BDSA-2020-3697
+    * BDSA-2020-3711
+    * BDSA BDSA-2021-0018
+* Update parsec-se-driver to version 0.4.0 (in `lib/pal-platform.json`).
+* Updated libwebsockets library to v3.1.
+
+### Known issues
+
+ * When Edge communicates on behalf of multiple devices, there is an underlying limitation in the CoAP communication. This limitation effectively reduces the number of requests in flight to one. When there is very heavy communication, this introduces extra latency. An example calculation:
+   * 30 mediated devices with a resource tree of 20 resources.
+   * 200ms round trip time to Device Management.
+   * 10KB registration message.
+   * Underlying Device Management Client sends data in 1KB blocks and waits for an acknowledgement for each block. This equals 10 * 200ms = 2 seconds.
+   * During this time, Edge does not process other messages.
+ * If Edge passes a lot of notification updates to Device Management, the responsiveness to requests initiated by Device Management may be hindered.
+
+### Limitations
+ * Mediated device lifetime tracking is not supported. Devices have the same lifetime as the Edge device. The default is one hour. The `#define` parameter used to change the lifetime is `MBED_CLOUD_CLIENT_LIFETIME`.
+ * `DELETE` (CoAP/LwM2M) operation not supported.
+ * Devices moving between Edge instances have corner cases that are not supported. Deregister the devices from the current Edge instance before connecting to another Edge instance.
+
+### Best practices
+ * Protocol translators (PT) should register endpoints with unique names. The names should be idempotent meaning that the name of the device remains same even when its re-onboarded or a new session is established with the device. One way to derive this name could be to use the device's mac address which is suppose to be unique.
+ * In scenarios where multiple protocol translators can derive the same name of 2 different physical or virtual devices then add an identifier to it in order to make it unique. For example, by adding a prefix or suffix based on the protocol translator name, which must be unique.
+
 ## Release 0.15.0 (2021-1-12)
 
 * Migrated domains from ArmMbed to PelionIoT.

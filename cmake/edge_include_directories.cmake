@@ -17,6 +17,8 @@ include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libevent/libevent/include)
 
 # Libwebsockets include
 include_directories (lib/libwebsockets/libwebsockets/lib)
+include_directories (lib/libwebsockets/libwebsockets/include)
+include_directories (lib/libwebsockets/libwebsockets/include/libwebsockets)
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets)
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets/include)
 
