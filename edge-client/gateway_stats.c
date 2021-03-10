@@ -30,6 +30,7 @@
 
 #define GATEWAY_STATS_OBJ_ID 3
 
+#define GATEWAY_STATS_CPU_TEMP_RES_ID 3303
 #define GATEWAY_STATS_CPU_PCT_RES_ID 3320
 
 /**
@@ -78,6 +79,20 @@ static int sys_exec(const char *cmd, char *out_buffer, size_t out_buffer_size)
     }
     pclose(fp);
     return 0;
+}
+
+// run a shell command with the return result expected to
+// be an unsigned integer value
+static int64_t int_exec(const char* cmd)
+{
+    char result[256];
+    memset(result, 0, sizeof(result));
+
+    int ret = sys_exec(cmd, result, sizeof(result));
+    if (ret == -1)
+        strcpy(result, "0");
+
+    return strtoll(result, (char **)NULL, 10);
 }
 
 static pt_api_result_code_e gsr_create_resource(const uint16_t object_id,
@@ -188,9 +203,26 @@ static inline void gsr_set_resource_helper_float(uint32_t obj_id, uint16_t obj_i
         tr_debug("EdgeClient update resource /%d/0/%d failed with code: %d", obj_id, res_id, eret);
 }
 
+static void gsr_set_resource_helper_int(uint32_t obj_id, uint16_t res_id, int64_t value)
+{
+    pt_api_result_code_e eret = edgeclient_set_resource_value_native(NULL,
+                                                                     obj_id,
+                                                                     0,
+                                                                     res_id,
+                                                                     (uint8_t *)&value,
+                                                                     sizeof(value));
+
+    if (eret != PT_API_SUCCESS)
+        tr_debug("EdgeClient update resource /%d/0/%d failed with code: %d", obj_id, res_id, eret);
+}
+
 // updates gateway statistics resources
 void gsr_update_gateway_stats_resources(void *arg)
 {
+    // CPU temperature in Celsius, whole degrees no decimal
+    const char cmd_cpu_temp[] = "{ echo -1; cat /sys/class/hwmon/hwmon0/temp*_input 2>/dev/null; } | awk '{if (max<$1) max=$1} END {print max/1000}'";
+    gsr_set_resource_helper_int(GATEWAY_STATS_OBJ_ID, GATEWAY_STATS_CPU_TEMP_RES_ID, int_exec(cmd_cpu_temp));
+
     // cpu usage
     gsr_set_resource_helper_float(GATEWAY_STATS_OBJ_ID, 0, GATEWAY_STATS_CPU_PCT_RES_ID, get_cpu());
 
@@ -200,7 +232,19 @@ void gsr_update_gateway_stats_resources(void *arg)
 // add gateway statistics
 void gsr_add_gateway_stats_resources()
 {
+    int64_t int_default = 0;
     float float_default = 0;
+
+    // cpu temp
+    gsr_create_resource(GATEWAY_STATS_OBJ_ID,
+                        0,
+                        GATEWAY_STATS_CPU_TEMP_RES_ID,
+                        "cpu temp",
+                        LWM2M_INTEGER,
+                        OPERATION_READ,
+                        (uint8_t *)&int_default,
+                        sizeof(int_default),
+                        NULL);
 
     // cpu usage percent
     gsr_create_resource(GATEWAY_STATS_OBJ_ID,
