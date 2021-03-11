@@ -34,6 +34,8 @@
 #define GATEWAY_STATS_CPU_PCT_RES_ID 3320
 #define GATEWAY_STATS_RAM_FREE_RES_ID 3321
 #define GATEWAY_STATS_RAM_TOTAL_RES_ID 3322
+#define GATEWAY_STATS_DISK_FREE_RES_ID 3323
+#define GATEWAY_STATS_DISK_TOTAL_RES_ID 3324
 
 /**
  * \struct cpu_info
@@ -232,6 +234,10 @@ void gsr_update_gateway_stats_resources(void *arg)
     const char cmd_ram_free[] = "awk '/^MemFree:/{ print $2*1024 }' /proc/meminfo";
     gsr_set_resource_helper_int(GATEWAY_STATS_OBJ_ID, GATEWAY_STATS_RAM_FREE_RES_ID, int_exec(cmd_ram_free));
 
+    // disk info in megabytes
+    const char cmd_disk_free[] = "df /home --output=avail | sed '$!d;s/ *//'";
+    gsr_set_resource_helper_int(GATEWAY_STATS_OBJ_ID, GATEWAY_STATS_DISK_FREE_RES_ID, int_exec(cmd_disk_free));
+
     return;
 }
 
@@ -282,6 +288,30 @@ void gsr_add_gateway_stats_resources()
                         0,
                         GATEWAY_STATS_RAM_FREE_RES_ID,
                         "mem free",
+                        LWM2M_INTEGER,
+                        OPERATION_READ,
+                        (uint8_t *)&int_default,
+                        sizeof(int_default),
+                        NULL);
+
+    // disk total
+    const char cmd_disk_total[] = "df /home --output=size | sed '$!d;s/ *//'";
+    int_actual = int_exec(cmd_disk_total);
+    gsr_create_resource(GATEWAY_STATS_OBJ_ID,
+                        0,
+                        GATEWAY_STATS_DISK_TOTAL_RES_ID,
+                        "disk total",
+                        LWM2M_INTEGER,
+                        OPERATION_READ,
+                        (uint8_t *)&int_actual,
+                        sizeof(int_actual),
+                        NULL);
+
+    // disk free
+    gsr_create_resource(GATEWAY_STATS_OBJ_ID,
+                        0,
+                        GATEWAY_STATS_DISK_FREE_RES_ID,
+                        "disk free",
                         LWM2M_INTEGER,
                         OPERATION_READ,
                         (uint8_t *)&int_default,
