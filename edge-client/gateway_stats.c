@@ -22,12 +22,42 @@
 
 #include "edge-client/gateway_stats.h"
 #include "edge-client/edge_client.h"
+#include "mbed-trace/mbed_trace.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define GATEWAY_STATS_OBJ_ID 3
+
+#define GATEWAY_STATS_CPU_PCT_RES_ID 3320
+
+/**
+ * \struct cpu_info
+ * \brief a sample of cpu info from /proc/stat used by get_cpuu()
+ */
+struct cpu_info
+{
+    // raw data
+    char cpu[20];
+
+    // various cpu usage types from linux
+    unsigned long long  user;
+    unsigned long long  nice;
+    unsigned long long  system;
+    unsigned long long  idle;
+    unsigned long long  io_wait;
+    unsigned long long  irq;
+    unsigned long long  soft_irq;
+    unsigned long long  steal;
+    unsigned long long  guest;
+    unsigned long long  guest_nice;
+
+    // combined stats for computing total cpu % with prev
+    int all_idle;  // idle+iowate
+    int non_idle;  // user + nice + system + irq + softirq + steal
+    int total;     // all_idle + non_idle
+};
 
 // run shell cmd and copy results to out_buffer
 // return 0 for success or -1 on failure
@@ -75,14 +105,113 @@ static pt_api_result_code_e gsr_create_resource(const uint16_t object_id,
     return edgeclient_set_resource_value_native(NULL, object_id, object_instance_id, resource_id, value, value_length);
 }
 
+// set a value in the cloud for obj_id/res_id to value
+// process a string from /proc/stat and return cpu percentage
+// 1st sample will always be zero because it requires previous state to compute
+static float get_cpu()
+{
+    const char cmd_cpu_pct[] = "head -1 /proc/stat";    // get cpu status bash command
+    float cpu_percent = 0;                              // return value
+    struct cpu_info current_stats;                      // current info from /proc/stat
+    char proc_stat[256];
+
+    // previous cpu usage stats
+    static struct cpu_info previous_stats = {"",0,0,0,0,0,0,0,0,0,0};
+
+    // clear result of exec
+    memset(proc_stat, 0, sizeof(proc_stat));
+
+    // run cmd
+    int ret = sys_exec(cmd_cpu_pct, proc_stat, sizeof(proc_stat));
+    if (ret != 0) {
+        return 0;
+    }
+
+    memset(&current_stats, 0, sizeof(current_stats));
+
+    // pull the 1st line out of /proc/stat
+    sscanf(proc_stat,
+           "%s %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu",
+           current_stats.cpu,
+           &current_stats.user,
+           &current_stats.nice,
+           &current_stats.system,
+           &current_stats.idle,
+           &current_stats.io_wait,
+           &current_stats.irq,
+           &current_stats.soft_irq,
+           &current_stats.steal,
+           &current_stats.guest,
+           &current_stats.guest_nice);
+
+    // calc all idle
+    current_stats.all_idle = current_stats.idle +
+                             current_stats.io_wait;
+
+    // calc all cpu
+    current_stats.non_idle = current_stats.user +
+                             current_stats.nice +
+                             current_stats.system +
+                             current_stats.irq +
+                             current_stats.soft_irq +
+                             current_stats.steal;
+
+    // calc totals
+    current_stats.total =    current_stats.all_idle +
+                             current_stats.non_idle;
+
+    //if we have a previous sample then do the cpu percent
+    if (strlen(previous_stats.cpu) > 0) {
+        // get the diffs
+        int total_diff  = current_stats.total - previous_stats.total;
+        int idle_diff   = current_stats.all_idle - previous_stats.all_idle;
+        // now make the cpu %
+        cpu_percent = (float)(((float)total_diff - (float)idle_diff) / (float)total_diff)*100;
+    }
+
+    // save the current as previous for next run
+    memcpy(&previous_stats, &current_stats, sizeof(previous_stats));
+
+    return cpu_percent;
+}
+
+static inline void gsr_set_resource_helper_float(uint32_t obj_id, uint16_t obj_inst_id, uint16_t res_id, float value)
+{
+    pt_api_result_code_e eret = edgeclient_set_resource_value_native(NULL,
+                                                                     obj_id,
+                                                                     obj_inst_id,
+                                                                     res_id,
+                                                                     (uint8_t *)&value,
+                                                                     sizeof(value));
+
+    if (eret != PT_API_SUCCESS)
+        tr_debug("EdgeClient update resource /%d/0/%d failed with code: %d", obj_id, res_id, eret);
+}
+
 // updates gateway statistics resources
 void gsr_update_gateway_stats_resources(void *arg)
 {
+    // cpu usage
+    gsr_set_resource_helper_float(GATEWAY_STATS_OBJ_ID, 0, GATEWAY_STATS_CPU_PCT_RES_ID, get_cpu());
+
     return;
 }
 
 // add gateway statistics
 void gsr_add_gateway_stats_resources()
 {
+    float float_default = 0;
+
+    // cpu usage percent
+    gsr_create_resource(GATEWAY_STATS_OBJ_ID,
+                        0,
+                        GATEWAY_STATS_CPU_PCT_RES_ID,
+                        "cpu usage",
+                        LWM2M_FLOAT,
+                        OPERATION_READ,
+                        (uint8_t *)&float_default,
+                        sizeof(float_default),
+                        NULL);
+
     return;
 }
