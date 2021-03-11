@@ -36,6 +36,7 @@
 #define GATEWAY_STATS_RAM_TOTAL_RES_ID 3322
 #define GATEWAY_STATS_DISK_FREE_RES_ID 3323
 #define GATEWAY_STATS_DISK_TOTAL_RES_ID 3324
+#define GATEWAY_STATS_VERSION_RES_ID 4001
 
 /**
  * \struct cpu_info
@@ -247,6 +248,23 @@ void gsr_add_gateway_stats_resources()
     int64_t int_default = 0;
     float float_default = 0;
     int64_t int_actual;
+    char version[64];
+
+    // snap version
+    memset(version, 0, sizeof(version));
+    const char cmd_version[] = "curl -sS -H \"Content-Type: application/json\" --unix-socket /run/snapd.socket http://localhost/v2/snaps/" SNAPCRAFT_PROJECT_NAME " | jq -r .result.version";
+    if (sys_exec(cmd_version, version, sizeof(version)) != 0) {
+        strcpy(version, "-1");
+    }
+    gsr_create_resource(GATEWAY_STATS_OBJ_ID,
+                        0,
+                        GATEWAY_STATS_VERSION_RES_ID,
+                        "edge snap version",
+                        LWM2M_STRING,
+                        OPERATION_READ,
+                        (uint8_t *)version,
+                        strlen(version),
+                        NULL);
 
     // cpu temp
     gsr_create_resource(GATEWAY_STATS_OBJ_ID,
