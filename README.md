@@ -37,39 +37,34 @@ The contents of the repository.
 | `config/mbed_cloud_client_user_config.h` | A configuration file for the Device Management Client settings.
 | `config/mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
 
-## Dependencies
+## Prerequisites
 
-Currently, there are a few dependencies in the build system:
-
-* librt
-* libstdc++
-
-Install these in Ubuntu 18.04:
+### 1. Install these in Ubuntu 18.04:
 
 ```
-$ apt install libc6-dev
-$ apt install libmosquitto-dev mosquitto-clients
+sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
 ```
 
-## Build tool dependencies
-
-Tools needed for building:
- * Git for cloning this repository.
- * CMake 2.8 or later.
- * GCC for compiling.
- * Doxygen for documentation generation.
- * Graphviz for documentation generation.
-
-```
-$ apt install build-essential cmake git doxygen graphviz
-```
-
-## Initialize repositories
+### 2. Initialize repositories
 
 Fetch the Git submodules that are direct dependencies for Edge.
 ```
 $ git submodule update --init --recursive
 ```
+
+### 3. Install Rust
+    This is required only when building with Parsec.
+
+    ```
+    curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+    # configure the PATH environment variable
+    export PATH=$PATH:~/.cargo/bin
+
+    # To verify, run
+    rustc --version
+    cargo version
+    ```
 
 ## Configuring Edge build
 
@@ -141,30 +136,6 @@ a value `ARM_UCP_LINUX_GENERIC`.
 [Parsec](https://parallaxsecond.github.io/parsec-book/index.html) is the Platform Abstraction for Security, an open-source initiative, which provides a platform-agnostic interface for calling the secure storage and operation services of a trusted platform module (TPM) on Linux.
 
 This lets you generate the device's bootstrap private key on a TPM during the factory flow. Later, when the device calls the Device Management bootstrap server, Device Management Client calls the Parsec API and uses the bootstrap key as part of the DTLS handshake, without having to export the key.
-
-To build Parsec client in Edge Core, first install the following prerequisites -
-
-1. pip3 and python3 are required to clone the pal-platform dependencies - trusted_storage and parsec_se_driver.
-    ```
-    apt install -y python3 python3-pip
-    ```
-
-1. Install `libclang` which is required to build parsec-se-driver.
-    ```
-    apt install -y libclang-dev clang
-    ```
-
-1. Install Rust, required to build parse-se-driver.
-    ```
-    curl https://sh.rustup.rs -sSf | bash -s -- -y
-
-    # configure the PATH environment variable
-    export PATH=$PATH:~/.cargo/bin
-
-    # To verify, run
-    rustc --version
-    cargo version
-    ```
 
 Now let's try building Parsec client and Edge core. Pass `-DPARSEC_TPM_SE_SUPPORT=ON` when you run the CMake `build` command:
 
