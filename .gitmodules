@@ -10,3 +10,12 @@
 [submodule "lib/mbedtls"]
 	path = lib/mbedtls
 	url = https://github.com/ARMmbed/mbedtls
+[submodule "lib/mbed-cloud-client"]
+	path = lib/mbed-cloud-client
+	url = https://github.com/PelionIoT/mbed-cloud-client
+[submodule "lib/cpputest"]
+	path = lib/cpputest
+	url = https://github.com/cpputest/cpputest
+[submodule "lib/docopt.c"]
+	path = lib/docopt.c
+	url = https://github.com/docopt/docopt.c
