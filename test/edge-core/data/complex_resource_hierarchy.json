@@ -1,0 +1,64 @@
+{
+    "deviceId": "complex",
+    "lifetime": 86400,
+    "queuemode": "Q",
+    "objects": [{
+        "objectId": 0,
+        "objectInstances": [{
+            "objectInstanceId": 0,
+            "resources": [{
+                "resourceId": 0,
+                "operations": 1,
+                "type": "int",
+                "value": "AAAAAA=="
+            }, {
+                "resourceId": 1,
+                "operations": 1,
+                "type": "string",
+                "value": "MA=="
+            }]
+        }, {
+            "objectInstanceId": 1,
+            "resources": [{
+                "resourceId": 0,
+                "operations": 1,
+                "type": "int",
+                "value": "AAAAAA=="
+            }, {
+                "resourceId": 1,
+                "operations": 1,
+                "type": "string",
+                "value": "MA=="
+            }]
+        }]
+    }, {
+        "objectId": 1,
+        "objectInstances": [{
+            "objectInstanceId": 0,
+            "resources": [{
+                "resourceId": 0,
+                "operations": 1,
+                "type": "int",
+                "value": "AAAAAA=="
+            }, {
+                "resourceId": 1,
+                "operations": 1,
+                "type": "string",
+                "value": "MA=="
+            }]
+        }, {
+            "objectInstanceId": 1,
+            "resources": [{
+                "resourceId": 0,
+                "operations": 1,
+                "type": "int",
+                "value": "AAAAAA=="
+            }, {
+                "resourceId": 1,
+                "operations": 1,
+                "type": "string",
+                "value": "MA=="
+            }]
+        }]
+    }]
+}
