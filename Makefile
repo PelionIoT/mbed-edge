@@ -55,9 +55,6 @@ build-doc:
 run-edge-core:
 	./build/bin/edge-core -p 22225 -o 8080
 
-run-edge-core-valgrind:
-	valgrind --leak-check=full --show-reachable=yes --suppressions=./valgrind-osmo-tests.supp --track-origins=yes --log-file=valgrind.log ./build/bin/edge-core -p 22225 -o 8080 | tee edge-core.log
-
 run-edge-core-resetting-storage:
 	./build/bin/edge-core -p 22225 -o 8080 --reset-storage
 
