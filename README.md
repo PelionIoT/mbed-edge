@@ -148,6 +148,22 @@ $ make
 
 Note: You can only work with Edge Core in factory mode when you use Parsec and a TPM.
 
+## Makefile Commands to Generate Test Builds
+
+At the root of repository, Makefile and Makefile.test is present that is used to generate "test-builds". Commands to trigger test builds are given below:
+### Test Makefile `Makefile.test`:
+
+* `make -f Makefile.test [build-test-byoc|build-test-devmode]` builds and runs tests.
+* `make -f Makefile.test [run-tests|run-tests-with-valgrind]` runs the Edge core tests without Valgrind or with Valgrind.
+* `make -f Makefile.test [run-coverage]` builds, runs tests and collects coverage.
+
+## Command for Generating Doxygen
+
+```bash
+make build-doc
+```
+
+
 ### Factory provisioning
 
 Factory provisioning is the process of injecting the cryptographic credentials
