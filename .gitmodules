@@ -18,4 +18,4 @@
 	url = https://github.com/cpputest/cpputest.git
 [submodule "lib/docopt.c"]
 	path = lib/docopt.c
-	url = git@github.com:docopt/docopt.c.git
+	url = https://github.com/docopt/docopt.c.git
