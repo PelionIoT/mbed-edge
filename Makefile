@@ -15,8 +15,7 @@ generate-cli-parsers:
 	cd edge-core && ./gen_docopt.sh
 
 lib/mbed-cloud-client/source/update_default_resources.c: lib/mbed-cloud-client
-	manifest-tool init -d "mbed.com" -m "mbed-edge" -q
-	cp update_default_resources.c config/
+	manifest-dev-tool init
 
 build-developer-debug: lib/mbed-cloud-client/source/update_default_resources.c generate-cli-parsers build
 	cd build && cmake -DDEBUG=ON -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=ON -DTRACE_COAP_PAYLOAD=ON -DTRACE_LEVEL=DEBUG -DCMAKE_BUILD_TYPE=Debug .. && make -j ${JOBS} && cd ..
