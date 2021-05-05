@@ -200,7 +200,7 @@ mediated endpoints from the Edge Core. You should set the expiration
 time to a meaningful value for your setup. For more the details of the expiration,
 read the [Device Management Client documentation](https://cloud.mbed.com/docs/latest/connecting/deregister-your-device.html).
 
-```
+```C
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
 ```
 
