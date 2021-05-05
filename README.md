@@ -63,7 +63,7 @@ sudo apt install doxygen graphviz
 
 Fetch the Git submodules that are direct dependencies for Edge.
 ```
-$ git submodule update --init --recursive
+git submodule update --init --recursive
 ```
 
 ### 3. Install Rust
@@ -91,10 +91,10 @@ Edge during compilation. For factory provisioning, you need to give the mode
 `-DFACTORY_MODE=ON`.
 
 ```
-$ mkdir build
-$ cd build
-$ cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=OFF ..
-$ make
+mkdir build
+cd build
+cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=OFF ..
+make
 ```
 
 In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-dev-tool` to generate the `update_default_resources.c` file. For more information, see the documentation on [enabling firmware updates](#enabling-firmware-update).
@@ -111,7 +111,7 @@ You can create a `update_default_resources.c` file, using the
 [`manifest-dev-tool` utility](https://github.com/PelionIoT/manifest-tool), by running:
 
 ```
-$ manifest-dev-tool init
+manifest-dev-tool init
 ```
 
 Move the created `update_default_resources.c` file to the `config` folder.
@@ -131,10 +131,10 @@ The FOTA Update Framework library uses `curl` to fetch the images. By default, t
 Hence, to enable the firmware update using new FOTA library and dynamically linking `curl`, pass the CMake `-DFIRMWARE_UPDATE=ON`, `-DFOTA_ENABLE=ON` and `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` when you build Edge Core:
 
 ```
-$ mkdir build
-$ cd build
-$ cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON ..
-$ make
+mkdir build
+cd build
+cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON ..
+make
 ```
 
 Alternativley, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
@@ -155,10 +155,10 @@ This lets you generate the device's bootstrap private key on a TPM during the fa
 Now let's try building Parsec client and Edge core. Pass `-DPARSEC_TPM_SE_SUPPORT=ON` when you run the CMake `build` command:
 
 ```
-$ mkdir build
-$ cd build
-$ cmake -DFACTORY_MODE=ON -DPARSEC_TPM_SE_SUPPORT=ON ..
-$ make
+mkdir build
+cd build
+cmake -DFACTORY_MODE=ON -DPARSEC_TPM_SE_SUPPORT=ON ..
+make
 ```
 
 Note: You can only work with Edge Core in factory mode when you use Parsec and a TPM.
@@ -211,10 +211,10 @@ Maximum number of registered endpoints can be configured by giving
 The default limit is `500` endpoints.
 
 ```
-$ mkdir build
-$ cd build
-$ cmake -D[MODE] -DFIRMWARE_UPDATE=[ON|OFF] -DEDGE_REGISTERED_ENDPOINT_LIMIT=10 ..
-$ make
+mkdir build
+cd build
+cmake -D[MODE] -DFIRMWARE_UPDATE=[ON|OFF] -DEDGE_REGISTERED_ENDPOINT_LIMIT=10 ..
+make
 ```
 
 This value helps to limit the computation and memory resources usage.
@@ -228,10 +228,10 @@ correct value in the CMake command line `-DEDGE_PRIMARY_NETWORK_INTERFACE_ID=eth
 Default value is `eth0`.
 
 ```
-$ mkdir build
-$ cd build
-$ cmake -D[MODE] -DFIRMWARE_UPDATE=[ON|OFF] -DEDGE_REGISTERED_ENDPOINT_LIMIT=[LIMIT] -DEDGE_PRIMARY_NETWORK_INTERFACE_ID=eth0 ..
-$ make
+mkdir build
+cd build
+cmake -D[MODE] -DFIRMWARE_UPDATE=[ON|OFF] -DEDGE_REGISTERED_ENDPOINT_LIMIT=[LIMIT] -DEDGE_PRIMARY_NETWORK_INTERFACE_ID=eth0 ..
+make
 ```
 You can find the correct value for example using the Linux command `ifconfig`.
 Networking should mostly work with a fake interface ID. However, you need the
@@ -244,10 +244,10 @@ network interface if there are several available.
 You change the verbosity of the log messages (useful for debugging) by giving `-DTRACE_LEVEL=DEBUG` when creating the CMake build:
 
 ```
-$ mkdir build
-$ cd build
-$ cmake -D[MODE] -DTRACE_LEVEL=[DEBUG|INFO|WARN|ERROR] ..
-$ make
+mkdir build
+cd build
+cmake -D[MODE] -DTRACE_LEVEL=[DEBUG|INFO|WARN|ERROR] ..
+make
 ```
 
 ### Root of Trust device key generation
@@ -285,10 +285,10 @@ needs to be edited to include the new targets.
 You can use the following commands to build the Doxygen documentation:
 
 ```
-$ mkdir build-doc
-$ cd build-doc
-$ cmake -DBUILD_DOCUMENTATION=ON ..
-$ make edge-doc
+mkdir build-doc
+cd build-doc
+cmake -DBUILD_DOCUMENTATION=ON ..
+make edge-doc
 ```
 
 The generated documentation can be found from the `build-doc/doxygen`-folder.
@@ -298,7 +298,7 @@ The generated documentation can be found from the `build-doc/doxygen`-folder.
 Before running any Protocol Translator clients, start Edge Core first, for example like following:
 
 ```
-$ ./edge-core --edge-pt-domain-socket <domain-socket> -o <http-port>
+./edge-core --edge-pt-domain-socket <domain-socket> -o <http-port>
 ```
 
 In the `edge-core` command, the `edge-pt-domain-socket` parameter is the domain socket
@@ -309,7 +309,7 @@ translator API) and the default HTTP port is `8080` (for the HTTP status API).
 To see other command line options, write:
 
 ```
-$ ./edge-core --help
+./edge-core --help
 ```
 
 When you run the `edge-core` the first time, it creates the folder `./mcc_config` which is
@@ -351,8 +351,8 @@ At the repository root a Makefile is present with shortcuts to have specific
 build templates.
 
 At first it is recommended to run the tests to see that the build environment is
-in correct shape: `$ make run-tests`. When environment is good to go the next
-step is to create a developer certificate build: `$ make build-developer`.
+in correct shape: `make run-tests`. When environment is good to go the next
+step is to create a developer certificate build: `make build-developer`.
 
 Default Makefile:
 
@@ -388,7 +388,7 @@ firefox build/coverage.html/index.html
 ### Running the tests with valgrind by issuing
 
 ```
-$ make -f Makefile.test run-tests-with-valgrind
+make -f Makefile.test run-tests-with-valgrind
 ```
 
 ### Debugging with gdb:
@@ -398,12 +398,12 @@ debugging easier. The debug mode can be switched with CMake by giving the
 build type `-DCMAKE_BUILD_TYPE=Debug`.
 
 ```
-$ mkdir build-test
-$ cd build-test
-$ cmake -DBUILD_TARGET=test -DCMAKE_BUILD_TYPE=Debug -D[FLAGS] ..
-$ make
-$ gdb ./bin/edge-core-test
-$ gdb ./bin/pt-client-test
+mkdir build-test
+cd build-test
+cmake -DBUILD_TARGET=test -DCMAKE_BUILD_TYPE=Debug -D[FLAGS] ..
+make
+gdb ./bin/edge-core-test
+gdb ./bin/pt-client-test
 ```
 
 ### Generating Doxygen
