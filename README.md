@@ -62,7 +62,7 @@ sudo apt install doxygen graphviz
 ### 2. Initialize repositories
 
 Fetch the Git submodules that are direct dependencies for Edge.
-```
+```bash
 git submodule update --init --recursive
 ```
 
