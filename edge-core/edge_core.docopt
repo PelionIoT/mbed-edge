@@ -1,0 +1,21 @@
+Edge Core
+
+Usage:
+  edge-core [options]
+  edge-core --help
+  edge-core --version
+
+Options:
+  -h --help                            Show this screen.
+  -v --version                         Show the version number
+  --color-log                          Use ANSI colors in log.
+  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].
+  -o --http-port <int>                 HTTP port number [default: 8080].
+  -r --reset-storage                   Before starting the server, clean the old Device Management Client
+                                       configuration.
+  -c --cbor-conf <cbor>                The CBOR configuration file path.
+                                       The CBOR configuration option is mandatory for the first
+                                       start of the Edge Core when it is built with BYOC_MODE.
+                                       This option cannot be used if built with DEVELOPER_MODE or FACTORY_MODE.
+                                       If this option is given second time (without --reset-storage) the current
+                                       Device Management Client configuration is used.

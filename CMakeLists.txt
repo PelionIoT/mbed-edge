@@ -46,6 +46,9 @@ include (cmake/edge_configure.cmake)
 # Edge include directories
 include (cmake/edge_include_directories.cmake)
 
+if (BUILD_TARGET STREQUAL test)
+  SET (TARGET_GROUP test)
+endif()
 
 include(git_details.cmake)
 
