@@ -23,10 +23,12 @@ The contents of the repository.
 | `edge-core`           | Edge Core server process.
 | `edge-rpc`            | Common RPC functionality of edge-core and pt-client.
 | `edge-tool`           | A helper tool to observe and manipulate Edge mediated resources.
+| `fota`                | Firmware update callback function defintions.
 | `include`             | Header files for Edge.
 | `lib`                 | Edge library dependencies
 | `pt-client`           | **Deprecated** Protocol translator client v1 stub.
 | `pt-client-2`         | Protocol translator client v2 stub.
+| `test`                | Unit tests.
 
 ### Files
 
@@ -45,6 +47,18 @@ The contents of the repository.
 sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
 ```
 
+For debugging, install also these:
+
+```
+sudo apt install lcov gcovr valgrind
+```
+
+For documentation, install also these:
+
+```
+sudo apt install doxygen graphviz
+```
+
 ### 2. Initialize repositories
 
 Fetch the Git submodules that are direct dependencies for Edge.
@@ -53,18 +67,19 @@ $ git submodule update --init --recursive
 ```
 
 ### 3. Install Rust
-    This is required only when building with Parsec.
 
-    ```
-    curl https://sh.rustup.rs -sSf | bash -s -- -y
+This is required only when building with Parsec.
 
-    # configure the PATH environment variable
-    export PATH=$PATH:~/.cargo/bin
+```
+curl https://sh.rustup.rs -sSf | bash -s -- -y
 
-    # To verify, run
-    rustc --version
-    cargo version
-    ```
+# configure the PATH environment variable
+export PATH=$PATH:~/.cargo/bin
+
+# To verify, run
+rustc --version
+cargo version
+```
 
 ## Configuring Edge build
 
@@ -148,22 +163,6 @@ $ make
 
 Note: You can only work with Edge Core in factory mode when you use Parsec and a TPM.
 
-## Makefile Commands to Generate Test Builds
-
-At the root of repository, Makefile and Makefile.test is present that is used to generate "test-builds". Commands to trigger test builds are given below:
-### Test Makefile `Makefile.test`:
-
-* `make -f Makefile.test [build-test-byoc|build-test-devmode]` builds and runs tests.
-* `make -f Makefile.test [run-tests|run-tests-with-valgrind]` runs the Edge core tests without Valgrind or with Valgrind.
-* `make -f Makefile.test [run-coverage]` builds, runs tests and collects coverage.
-
-## Command for Generating Doxygen
-
-```bash
-make build-doc
-```
-
-
 ### Factory provisioning
 
 Factory provisioning is the process of injecting the cryptographic credentials
@@ -240,7 +239,7 @@ correct interface ID for example for the UDP/server like functionality to get th
 correct IP address of the interface. Setting this value helps to select the best
 network interface if there are several available.
 
-## Configuring the log messages
+### Configuring the log messages
 
 You change the verbosity of the log messages (useful for debugging) by giving `-DTRACE_LEVEL=DEBUG` when creating the CMake build:
 
@@ -280,20 +279,6 @@ Custom targets can be set by creating custom cmake files to `./cmake/targets` an
 Edge build options, whereas the `toolchains`-folder is used for setting the build
 environment variables. After creating the custom cmake file, the `./cmake/edge_configure.cmake`
 needs to be edited to include the new targets.
-
-### Building the Edge Core server
-
-You can use the following commands to do a developer build:
-
-```
-$ cp [DEVELOPER_CLOUD_CREDENTIALS] config/mbed_cloud_dev_credentials.c
-$ mkdir build
-$ cd build
-$ cmake -DDEVELOPER_MODE=ON ..
-$ make
-```
-
-The built `edge-core` binary will be in `build/bin`-folder.
 
 ### Building Edge Doxygen API
 
@@ -359,3 +344,73 @@ then to Edge Core:
 Some protocol translator example implementations exist. These can be found from their own
 [Github repository](https://github.com/PelionIoT/mbed-edge-examples). The repository contains
 instructions on building and running the examples.
+
+## Makefile shortcuts for builds and running
+
+At the repository root a Makefile is present with shortcuts to have specific
+build templates.
+
+At first it is recommended to run the tests to see that the build environment is
+in correct shape: `$ make run-tests`. When environment is good to go the next
+step is to create a developer certificate build: `$ make build-developer`.
+
+Default Makefile:
+
+* `make [build-developer|build-developer-debug|build-developer-with-coverage|build-byoc|build-factory]` will build the project for
+  the specified provisioning .
+* `make [run-edge-core|run-edge-core-valgrind|]` runs the Edge Core.
+  Pre-condition is one of the builds above.
+* `make [run-edge-core-resetting-storage]` runs Edge Core resetting the storage
+  i.e. it gives `edge-core` the `--reset-storage` parameter.
+  Pre-condition is one of the builds above.
+
+Test Makefile `Makefile.test`:
+
+* `make -f Makefile.test [build-test-byoc|build-test-devmode]` builds and runs tests.
+* `make -f Makefile.test [run-tests|run-tests-with-valgrind]` runs the Edge core tests without
+  Valgrind or with Valgrind.
+* `make -f Makefile.test [run-coverage]` builds, runs tests and collects coverage.
+
+### Running tests and generating and viewing test coverage report manually
+
+The coverage report can be generated by issuing:
+
+```
+make -f Makefile.test run-coverage
+```
+
+To view the report:
+
+```
+firefox build/coverage.html/index.html
+```
+
+### Running the tests with valgrind by issuing
+
+```
+$ make -f Makefile.test run-tests-with-valgrind
+```
+
+### Debugging with gdb:
+
+Make a debug build so that compiler optimizations are disabled to make
+debugging easier. The debug mode can be switched with CMake by giving the
+build type `-DCMAKE_BUILD_TYPE=Debug`.
+
+```
+$ mkdir build-test
+$ cd build-test
+$ cmake -DBUILD_TARGET=test -DCMAKE_BUILD_TYPE=Debug -D[FLAGS] ..
+$ make
+$ gdb ./bin/edge-core-test
+$ gdb ./bin/pt-client-test
+```
+
+### Generating Doxygen
+
+```bash
+make build-doc
+```
+
+This generates the Doxygen documentation under `build-doc/doxygen` folder.
+Run for example: `firefox build-doc/doxygen/index.html &` to view them.
