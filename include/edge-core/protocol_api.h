@@ -150,6 +150,20 @@ typedef struct edgeclient_request_context edgeclient_request_context_t;
  */
 int write_to_pt(edgeclient_request_context_t *ctx, void *userdata);
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+/**
+ * \brief write the parsed value of vendor and class ID from the manifest to PT
+ *
+ * \param ctx The user-supplied write context.
+ * \param userdata The user-supplied data.
+ * \return 0 if values were written successfully.\n
+ *         1 if the values couldn't be written.
+ */
+
+int write_to_pt_fota(edgeclient_request_context_t *ctx, void *userdata);
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
 /**
  * \brief Writes the certificate renewal status to the protocol translator.
  *

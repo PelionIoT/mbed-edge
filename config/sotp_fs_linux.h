@@ -27,4 +27,6 @@
 #define PAL_USE_SECURE_TIME 1
 #define PAL_SIMULATOR_TEST_ENABLE 1
 
+#include "Linux_default.h"
+
 #endif //PAL_HEADER_SOTP_FS_LINUX

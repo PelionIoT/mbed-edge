@@ -156,7 +156,40 @@ typedef enum {
     /**
      * \brief Certificate renewal failed because a  memory allocation failed.
      */
-    PT_API_CERTIFICATE_RENEWAL_MEMORY_ALLOCATION_FAILURE = -30110
+    PT_API_CERTIFICATE_RENEWAL_MEMORY_ALLOCATION_FAILURE = -30110,
+
+    /*
+     * Error codes related to gateway resource management server state.
+     */
+
+    /**
+     * \brief The resource manager is not registered.
+     */
+    GRM_API_RESOURCE_MANAGER_NOT_REGISTERED = -30200,
+
+    /**
+     * \brief The given resource manager is already registered.
+     */
+    GRM_API_RESOURCE_MANAGER_ALREADY_REGISTERED = -30201,
+
+    /**
+     * \brief The resource manager name is reserved.
+     */
+    GRM_API_RESOURCE_MANAGER_NAME_RESERVED = -30202,
+
+    /*
+     * Error codes related to grm client state.
+     */
+
+    /**
+     * \brief The given object id is reserved.
+     */
+    GRM_API_OBJECT_RESERVED = -30250,
+
+    /**
+     * \brief Cannot add the given gateway resource because it already exists.
+     */
+    GRM_API_RESOURCE_AlREADY_EXISTS = -30251
 
 } pt_api_result_code_e;
 

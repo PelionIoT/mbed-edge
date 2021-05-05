@@ -537,6 +537,7 @@ pt_status_t pt_device_init_certificate_renewal_resources(connection_id_t connect
                                                   PT_CERTIFICATE_RENEWAL_OBJECT_ID,
                                                   0,
                                                   PT_CERTIFICATE_RENEWAL_RENEW_RESOURCE_ID,
+                                                  /* resource name */ NULL,
                                                   LWM2M_STRING,
                                                   OPERATION_EXECUTE,
                                                   NULL,
@@ -553,6 +554,7 @@ pt_status_t pt_device_init_certificate_renewal_resources(connection_id_t connect
                                     PT_CERTIFICATE_RENEWAL_OBJECT_ID,
                                     0,
                                     PT_CERTIFICATE_RENEWAL_STATUS_RESOURCE_ID,
+                                    /* resource name */ NULL,
                                     LWM2M_OPAQUE,
                                     NULL,
                                     0,
@@ -676,6 +678,7 @@ pt_status_t pt_device_certificate_renew_request_finish(const connection_id_t con
     if (tlv_status != CE_TLV_STATUS_SUCCESS) {
         free(tlv_buf);
         free(request_id);
+        return PT_STATUS_ERROR;
     }
     tlv_status = tlv_add_bytes(CE_TLV_TYPE_REQUEST_ID, request_id_len, request_id, false, &encoder);
     if (tlv_status != CE_TLV_STATUS_SUCCESS) {

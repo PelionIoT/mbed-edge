@@ -76,6 +76,7 @@ typedef enum {
 typedef enum {
     PT_DEVICE_FEATURE_NONE = 0,
     PT_DEVICE_FEATURE_CERTIFICATE_RENEWAL = (1 << 1),
+    PT_DEVICE_FEATURE_FIRMWARE_UPDATE = (1 << 2),
 } pt_device_feature_e;
 
 #endif

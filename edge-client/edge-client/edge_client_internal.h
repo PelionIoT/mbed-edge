@@ -53,6 +53,7 @@ typedef struct edgeclient_error_callback_params {
 typedef struct edgeclient_data_s {
     edgeclient_data_s() : m2m_resources_added_or_removed(false),
                           g_handle_write_to_pt_cb(NULL),
+                          g_handle_write_to_grm_cb(NULL),
                           g_handle_register_cb(NULL),
                           g_handle_unregister_cb(NULL),
                           g_handle_error_cb(NULL),
@@ -72,6 +73,10 @@ typedef struct edgeclient_data_s {
     Vector<ResourceListObject_t*> resource_list;
 
     handle_write_to_pt_cb g_handle_write_to_pt_cb;
+    handle_write_to_grm_cb g_handle_write_to_grm_cb;
+    #ifdef MBED_EDGE_SUBDEVICE_FOTA
+    handle_write_to_fm_cb g_handle_write_to_fm_cb;
+    #endif
     handle_register_cb g_handle_register_cb;
     handle_unregister_cb g_handle_unregister_cb;
     handle_error_cb g_handle_error_cb;
@@ -137,7 +142,8 @@ EDGE_LOCAL M2MEndpoint *edgeclient_get_endpoint_with_index(const char *endpoint_
 EDGE_LOCAL M2MEndpoint *edgeclient_get_endpoint(const char *endpoint_name);
 EDGE_LOCAL M2MObject *edgeclient_get_object(const char *endpoint_name, const uint16_t object_id);
 EDGE_LOCAL M2MObjectInstance *edgeclient_get_object_instance(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id);
-EDGE_LOCAL M2MResource *edgelient_get_resource(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id, const uint16_t resource_id);
+M2MResource *edgelient_get_resource(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id, const uint16_t resource_id);
+void * edgeclient_get_resource_connection(M2MResource *resource);
 EDGE_LOCAL void edgeclient_add_client_objects_for_registering();
 EDGE_LOCAL void edgeclient_execute_success(edgeclient_request_context_t *ctx);
 EDGE_LOCAL void edgeclient_execute_failure(edgeclient_request_context_t *ctx);

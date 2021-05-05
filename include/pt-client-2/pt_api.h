@@ -40,6 +40,10 @@
 #include "pt-client-2/pt_userdata_api.h"
 #include "pt-client-2/pt_devices_api.h"
 
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+#include "pt-client-2/pt_firmware_download_api_internal.h"
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
 /**
  * \file pt-client-2/pt_api.h
  * \brief Protocol translator external API V2.
@@ -136,7 +140,7 @@
  * }
  * ~~~
  *
- * Refer to `pt-example/client_example.c` in the https://github.com/ARMMbed/mbed-edge-examples repository for the
+ * Refer to `pt-example/client_example.c` in the https://github.com/PelionIoT/mbed-edge-examples repository for the
  * example use of full protocol translator API.
  */
 
@@ -227,6 +231,22 @@ pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
                                     const uint32_t lifetime,
                                     const queuemode_t queuemode,
                                     pt_userdata_t *userdata);
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
+pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
+                                            manifest_class_and_vendor_handler cb);
+
+pt_status_t pt_download_asset(const connection_id_t connection_id,
+                              const char *device_id,
+                              const char *url,
+                              const char *hash,
+                              uint32_t size,
+                              pt_download_cb success_handler,
+                              pt_download_cb failure_handler,
+                              void *userdata);
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 /**
  * \brief Creates the device structure and enables additional features.
@@ -418,6 +438,7 @@ bool pt_device_resource_exists(const connection_id_t connection_id,
  * \param[in] object_id The object ID to which to add the resource.
  * \param[in] object_instance_id The object instance ID to which to add the resource.
  * \param[in] resource_id The resource ID for the added resource.
+ * \param[in] resource_name The optional resource name for the added resource.
  * \param[in] type The resource type.
  * \param[in] value A pointer to the value buffer.
  *            The ownership of the value buffer is within the `pt_client_t`.
@@ -447,6 +468,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
                                    const uint16_t object_id,
                                    const uint16_t object_instance_id,
                                    const uint16_t resource_id,
+                                   const char *resource_name,
                                    const Lwm2mResourceType type,
                                    uint8_t *value,
                                    uint32_t value_size,
@@ -464,6 +486,7 @@ pt_status_t pt_device_add_resource(const connection_id_t connection_id,
  * \param[in] object_id The object ID to which to add the resource.
  * \param[in] object_instance_id The object instance ID to which to add the resource.
  * \param[in] resource_id The resource ID for the added resource.
+ * \param[in] resource_name The optional resource name for the added resource.
  * \param[in] type The resource type.
  * \param[in] operations The operations this resource will allow.\n
  *                       For example, GET/#OPERATION_READ and PUT/#OPERATION_WRITE. The value is a bit field of
@@ -507,6 +530,7 @@ pt_status_t pt_device_add_resource_with_callback(const connection_id_t connectio
                                                  const uint16_t object_id,
                                                  const uint16_t object_instance_id,
                                                  const uint16_t resource_id,
+                                                 const char *resource_name,
                                                  const Lwm2mResourceType type,
                                                  const uint8_t operations,
                                                  uint8_t *value,

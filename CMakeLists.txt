@@ -6,8 +6,7 @@
 if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libwebsockets/libwebsockets/CMakeLists.txt" OR
     NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/jansson/jansson/CMakeLists.txt" OR
     NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libevent/libevent/CMakeLists.txt" OR
-    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/library" OR
-    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/crypto"
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/mbedtls/library"
    )
 	MESSAGE (FATAL_ERROR "Cannot find required libraries, please run \
                        `git submodule update --init --recursive`")
@@ -47,14 +46,13 @@ include (cmake/edge_configure.cmake)
 # Edge include directories
 include (cmake/edge_include_directories.cmake)
 
+if (BUILD_TARGET STREQUAL test)
+  SET (TARGET_GROUP test)
+endif()
 
 include(git_details.cmake)
 
 ADD_DEFINITIONS(-D__STDC_FORMAT_MACROS)
-if (NOT (CMAKE_BUILD_TYPE STREQUAL Release))
-    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
-    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
-endif ()
 
 if (TARGET_GROUP STREQUAL test)
   SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -86,6 +84,11 @@ add_subdirectory (edge-core)
 add_subdirectory (edge-rpc)
 add_subdirectory (pt-client)
 add_subdirectory (pt-client-2)
+
+if (NOT (CMAKE_BUILD_TYPE STREQUAL Release) AND (NOT (_FORTIFY_SOURCE GREATER 0)))
+    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+endif ()
 
 # Add doc target for building documentation with Doxygen
 # add a target to generate API documentation with Doxygen
