@@ -138,6 +138,7 @@ void rfs_add_factory_reset_resource()
                                   EDGE_DEVICE_OBJECT_ID,
                                   0,
                                   EDGE_FACTORY_RESET_RESOURCE_ID,
+                                  "",
                                   (uint8_t *) NULL,
                                   0,
                                   LWM2M_OPAQUE,

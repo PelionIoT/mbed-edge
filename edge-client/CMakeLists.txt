@@ -13,6 +13,10 @@ add_library (edge-client STATIC ${SOURCES})
 set_target_properties(edge-client PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories (edge-client PUBLIC ${ROOT_HOME}/edge-core)
 
+if (ENABLE_SUBDEVICE_FOTA)
+target_include_directories (edge-client PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/common/update-client-common)
+endif()
+
 if (TARGET_GROUP STREQUAL test)
   list (APPEND EDGE_CLIENT_LIBS libevent-mock-lib edge-server-mock-lib test-lib pal-mock-lib mbed-cloud-client-mock)
 else ()
@@ -24,4 +28,9 @@ else ()
     list (APPEND EDGE_CLIENT_LIBS mbed-update-default-resources)
   endif ()
 endif ()
+
+if(PARSEC_TPM_SE_SUPPORT)
+  list (APPEND EDGE_CLIENT_LIBS palFilesystem fccstorage mbedcrypto trusted_storage)
+endif()
+
 target_link_libraries(edge-client ${EDGE_CLIENT_LIBS})

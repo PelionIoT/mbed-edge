@@ -62,11 +62,14 @@ EDGE_LOCAL void event_cb(evutil_socket_t fd, short what, void *arg)
 static event_message_t *msg_api_allocate_and_init_message(void *data, event_loop_callback_t callback)
 {
     event_message_t *message = (event_message_t *) calloc(1, sizeof(event_message_t));
+    if(message==NULL){
+        tr_err("msg_api_allocate_and_init_message message cannot allocate memory!");
+        return NULL;
+    }
     struct event *ev = calloc(1, event_get_struct_event_size());
-    if (ev == NULL || message == NULL) {
+    if (ev == NULL) {     
+        tr_err("msg_api_allocate_and_init_message event cannot allocate memory!");
         free(message);
-        free(ev);
-        tr_err("msg_api_allocate_and_init_message cannot allocate memory!");
         return NULL;
     }
     message->ev = ev;
@@ -86,7 +89,9 @@ bool msg_api_send_message(struct event_base *base, void *data, event_loop_callba
     if (event_assign(message->ev, base, -1, 0, event_cb, message) == 0) {
         return msg_api_add_event_from_thread(message->ev);
     } else {
+    if(message->ev)
         free(message->ev);
+    if(message)    
         free(message);
         tr_err("Cannot assign event in msg_api_send_message");
         return false;

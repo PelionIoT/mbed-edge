@@ -1,0 +1,11 @@
+# Auto-detect
+* text=auto
+
+# If line feed normalization auto-detection fails
+# add known files here. Few examples below.
+# C sources
+# *.c text
+# *.h text
+# Compiled object files
+# *.o binary
+# *.so binary

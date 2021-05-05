@@ -1,0 +1,121 @@
+# Execute dirs
+BACKUP
+WORKING
+pal
+
+# build dir
+build
+
+# test build dirs
+build-test
+build-test-devmode
+
+#documentation build dir
+build-doc
+
+# generated files
+generated
+compilation_info.txt
+config/edge_version_info.h
+release_whitelist_remove_intermediate_files
+
+### C ###
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+.gdb_history
+
+### Emacs ###
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+### Emacs + gtags ###
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+### IntelliJ Idea ###
+.idea
+*.iml
+
+### Javascript + node.js
+node_modules
+package-lock.json
+
+### Eclipse IDE ###
+.cproject
+.classpath
+.project
+.settings/
+classes/
+
+### VSCode ###
+.vscode
+
+### libs ###
+mbed-trace
+nanostack-libservice
+
+### Mac generating files ###
+.DS_Store
+
+### User's own custom makefile
+Makefile.user
+
+### Current session created by the vim Obsession plugin https://github.com/tpope/vim-obsession
+Session.vim
+
+### Edge tool Python3 virtualenv
+mbed-cloud-sdk-env
+
+### Mbed Cloud SDK configuration file
+.mbed_cloud_config.json
+
+### Update client scripts
+arm_update*
+update_default_resources.c
+.update-certificates
+.manifest_tool.json
+/docs/HTML5Application/nbproject/private/
+
+lib/pal-platform/Middleware/parsec_se_driver/parsec_se_driver
+lib/pal-platform/Middleware/trusted_storage/trusted_storage/
+lib/pal-platform/Middleware/mbedtls/mbedtls
+lib/pal-platform/x86_x64_NativeLinux_mbedtls.txt

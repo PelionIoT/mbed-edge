@@ -37,40 +37,34 @@ The contents of the repository.
 | `config/mbed_cloud_client_user_config.h` | A configuration file for the Device Management Client settings.
 | `config/mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
 
-## Dependencies
+## Prerequisites
 
-Currently, there are a few dependencies in the build system:
-
-* librt
-* libstdc++
-
-Install these in Ubuntu 16.04:
+### 1. Install these in Ubuntu 18.04:
 
 ```
-$ apt install libc6-dev
-$ apt install libmosquitto-dev mosquitto-clients
+sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
 ```
 
-## Build tool dependencies
-
-Tools needed for building:
- * Git for cloning this repository.
- * CMake 2.8 or later.
- * GCC for compiling.
- * Doxygen for documentation generation.
- * Graphviz for documentation generation.
-
-```
-$ apt install build-essential cmake git doxygen graphviz
-```
-
-## Initialize repositories
+### 2. Initialize repositories
 
 Fetch the Git submodules that are direct dependencies for Edge.
 ```
-$ git submodule init
-$ git submodule update --recursive
+$ git submodule update --init --recursive
 ```
+
+### 3. Install Rust
+    This is required only when building with Parsec.
+
+    ```
+    curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+    # configure the PATH environment variable
+    export PATH=$PATH:~/.cargo/bin
+
+    # To verify, run
+    rustc --version
+    cargo version
+    ```
 
 ## Configuring Edge build
 
@@ -88,12 +82,71 @@ $ cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=OFF ..
 $ make
 ```
 
-In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-tool` to generate the `update_default_resources.c`,
-see the documentation on [getting the update resources](#getting-the-update-resources).
+In order to have FIRMWARE_UPDATE enabled (ON) you must run the `manifest-dev-tool` to generate the `update_default_resources.c` file. For more information, see the documentation on [enabling firmware updates](#enabling-firmware-update).
 
 With the `BYOC_MODE` it is possible to inject the Device Management Client configuration as CBOR file. The `--cbor-conf` argument takes the path to CBOR file. The `edge-tool` can be used to convert the C source file Device Management developer credentials file to CBOR format. See the instructions in [`edge-tool/README.md`](./edge-tool/README.md)
 
 Other build flags can also be set with this method.
+
+### Enabling firmware update
+
+To use the firmware update functionality, you must generate a `update_default_resources.c` file.
+
+You can create a `update_default_resources.c` file, using the
+[`manifest-dev-tool` utility](https://github.com/PelionIoT/manifest-tool), by running:
+
+```
+$ manifest-dev-tool init
+```
+
+Move the created `update_default_resources.c` file to the `config` folder.
+
+The command also creates a `.update-certificates` folder, which contains self-signed
+certificates that the manifest tool uses to sign resources and the manifest for the firmware update.
+
+<span class="notes">**Note:** The generated certificates are not secure for use
+in production environments. Please read the
+[Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
+on how to build a resource file and certificates safe for a production environment.</span>
+
+Version 0.15.0 introduces a new Firmware-Over-the-Air (FOTA) Update Framework library which extends the capability of the previous library aka Update Client (UC) Hub. Using the new library you can not only update the device itself but also push update to a component of the device. For instance, you can leverage the features of new library to update the firmware driver of a BLE or a WiFi module connected to the device managed by Pelion. By default, UC Hub library is compiled into the binary. In order to switch to new FOTA library, add this CMake flag `-DFOTA_ENABLE=ON` during build time.
+
+The FOTA Update Framework library uses `curl` to fetch the images. By default, the curl library is statically compiled. We also support dynamic linking and to enable that add this flag - `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` during build time.
+
+Hence, to enable the firmware update using new FOTA library and dynamically linking `curl`, pass the CMake `-DFIRMWARE_UPDATE=ON`, `-DFOTA_ENABLE=ON` and `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` when you build Edge Core:
+
+```
+$ mkdir build
+$ cd build
+$ cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON ..
+$ make
+```
+
+Alternativley, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
+
+In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
+The exact value of the define depends on the used Linux distribution and the
+machine used to run Edge.
+For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
+a value `ARM_UCP_LINUX_GENERIC`.
+
+
+### Enabling Parsec
+
+[Parsec](https://parallaxsecond.github.io/parsec-book/index.html) is the Platform Abstraction for Security, an open-source initiative, which provides a platform-agnostic interface for calling the secure storage and operation services of a trusted platform module (TPM) on Linux.
+
+This lets you generate the device's bootstrap private key on a TPM during the factory flow. Later, when the device calls the Device Management bootstrap server, Device Management Client calls the Parsec API and uses the bootstrap key as part of the DTLS handshake, without having to export the key.
+
+Now let's try building Parsec client and Edge core. Pass `-DPARSEC_TPM_SE_SUPPORT=ON` when you run the CMake `build` command:
+
+```
+$ mkdir build
+$ cd build
+$ cmake -DFACTORY_MODE=ON -DPARSEC_TPM_SE_SUPPORT=ON ..
+$ make
+```
+
+Note: You can only work with Edge Core in factory mode when you use Parsec and a TPM.
 
 ### Factory provisioning
 
@@ -135,36 +188,6 @@ read the [Device Management Client documentation](https://developer.pelion.com/d
 ```
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
 ```
-
-### Getting the update resources
-
-To enable the firmware update functionality, you need to set the following flag
-in the CMake command line: `-DFIRMWARE_UPDATE=ON`.
-
-In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
-The exact value of the define depends on the used Linux distribution and the
-machine used to run Edge.
-For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
-a value `ARM_UCP_LINUX_GENERIC`.
-
-When you have enabled the update, you need to generate the
-`update_default_resources.c` file. To create this file, use the
-[`manifest-tool` utility](https://developer.pelion.com/docs/device-management/current/updating-firmware/preparing-manifests.html).
-Give, for example, the following command:
-
-```
-$ manifest-tool init -d "<company domain name>" -m "<product model identifier>"
-```
-
-When you have created the file, you need to move it to the `config` folder.
-The command also creates the `.update-certificates` folder. This folder contains
-the self-signed certificates that are used to sign the resources and can be used
-to sign the manifest for the firmware update.
-
-<span class="notes">**Note:** The generated certificates are not secure for use
-in production environments. Please read the
-[Provisioning devices for Device Management documentation](https://developer.pelion.com/docs/device-management-provision/latest/introduction/index.html)
-on how to build a resource file and certificates safe for a production environment.</span>
 
 ### Configuring the maximum number of registered endpoints
 
@@ -263,7 +286,7 @@ You can use the following commands to build the Doxygen documentation:
 ```
 $ mkdir build-doc
 $ cd build-doc
-$ cmake ..
+$ cmake -DBUILD_DOCUMENTATION=ON ..
 $ make edge-doc
 ```
 
@@ -318,5 +341,5 @@ then to Edge Core:
 ### Protocol translator examples
 
 Some protocol translator example implementations exist. These can be found from their own
-[Github repository](https://github.com/ARMmbed/mbed-edge-examples). The repository contains
+[Github repository](https://github.com/PelionIoT/mbed-edge-examples). The repository contains
 instructions on building and running the examples.
