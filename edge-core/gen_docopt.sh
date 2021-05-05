@@ -15,5 +15,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ----------------------------------------------------------------------------
-python ../lib/docopt.c/docopt_c.py -t ../cli_template.tmpl -o edge_core_clip.h edge_core.docopt
+python3 ../lib/docopt.c/docopt_c.py -t ../cli_template.tmpl -o edge_core_clip.h edge_core.docopt
 
