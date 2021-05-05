@@ -1,0 +1,15 @@
+{
+  "jsonrpc": "2.0",
+  "id": "1234567890",
+  "method": "write",
+  "params": {
+    "operation": 2,
+    "uri": {
+      "deviceId": "device-id-1",
+      "objectId": 3306,
+      "objectInstanceId": 0,
+      "resourceId": 5700
+    },
+    "value": "QCg9cKPXCj0="
+  }
+}

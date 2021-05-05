@@ -1,0 +1,32 @@
+{
+  "deviceId": "test-device",
+  "lifetime": 123456,
+  "queuemode": "",
+  "objects": [{
+    "objectId": 10,
+    "objectInstances": [{
+      "objectInstanceIdInvalid": 0,
+      "resources": [{
+        "resourceIdInvalid": 1,
+        "operations": 1,
+        "type": "opaque"
+      }, {
+        "resourceId": 2,
+        "operations": 3,
+        "type": "opaque"
+      }]
+    }]
+  },
+  {
+    "objectId": 13,
+    "objectInstances": [{
+      "objectInstanceId": 0,
+      "resources": [{
+        "resourceId": 37,
+        "operations": 1,
+        "type": "opaque"
+      }]
+    }]
+  }]
+}
+
