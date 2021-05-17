@@ -31,7 +31,7 @@
 #define MBED_CLOUD_CLIENT_LIFETIME               3600
 
 #define SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE       1024
-#define SN_COAP_DISABLE_RESENDINGS               1
+#define SN_COAP_DISABLE_RESENDINGS
 
 /* set download buffer size in bytes (min. 1024 bytes) */
 #define MBED_CLOUD_CLIENT_UPDATE_BUFFER          (2 * 1024 * 1024)
