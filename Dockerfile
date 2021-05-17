@@ -1,8 +1,3 @@
-# docker system prune
-# docker build -t edge-core:latest -f ./Dockerfile .
-# docker build --build-arg developer_certificate=./config/mbed_cloud_dev_credentials.c --build-arg update_certificate=./config/update_default_resources.c -t edge-core:latest -f ./Dockerfile .
-# docker run -v mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp -p 127.0.0.1:9101:8080 edge-core:latest
-
 FROM ubuntu:20.04
 
 ARG developer_certificate=./config/mbed_cloud_dev_credentials.c
