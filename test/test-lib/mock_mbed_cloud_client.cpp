@@ -62,7 +62,9 @@ void ConnectorClient::value_updated(M2MBase *base, M2MBase::BaseType type) {
 void ConnectorClient::timer_expired(M2MTimerObserver::Type type) {
 
 }
+void ConnectorClient::network_status_changed(bool connected) {
 
+}
 ServiceClient::ServiceClient(ServiceClientCallback &callback) :
         _service_callback(callback),
         _service_uri(NULL),

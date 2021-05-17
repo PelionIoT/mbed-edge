@@ -48,9 +48,8 @@ M2MResourceBase::M2MResourceBase(const String &res_name,
               multiple_instance,
               type),
 #ifndef DISABLE_BLOCK_MESSAGE
-      _block_message_data(NULL),
+      _block_message_data(NULL)
 #endif
-      _notification_status(M2MResourceBase::INIT)
 {
     mock().actualCall("M2MResourceBasei::M2MResourceBase");
 }
@@ -75,9 +74,8 @@ M2MResourceBase::M2MResourceBase(
           multiple_instance,
           type)
 #ifndef DISABLE_BLOCK_MESSAGE
- ,_block_message_data(NULL),
+ ,_block_message_data(NULL)
 #endif
- _notification_status(M2MResourceBase::INIT)
 {
     mock().actualCall("M2MResourceBase::M2MResourceBase");
 }
@@ -87,9 +85,8 @@ M2MResourceBase::M2MResourceBase(
                                          M2MBase::DataType /*type*/)
 : M2MBase(s)
 #ifndef DISABLE_BLOCK_MESSAGE
-  ,_block_message_data(NULL),
+  ,_block_message_data(NULL)
 #endif
-  _notification_status(M2MResourceBase::INIT)
 {
     mock().actualCall("M2MResourceBase::M2MResourceBase");
 }
@@ -264,56 +261,11 @@ bool M2MResourceBase::set_outgoing_block_message_callback(outgoing_block_message
 }
 #endif
 
-bool M2MResourceBase::set_notification_sent_callback(notification_sent_callback callback)
-{
-    return mock().actualCall("M2MResourceBase::set_notification_sent_callback")
-            .returnBoolValue();
-}
-
-bool M2MResourceBase::set_notification_sent_callback(notification_sent_callback_2 callback)
-{
-    return mock().actualCall("M2MResourceBase::set_notification_sent_callback")
-            .returnBoolValue();
-}
-
-bool M2MResourceBase::set_notification_status_callback(notification_status_callback callback)
-{
-    return mock().actualCall("M2MResourceBase::set_notification_status_callback")
-            .returnBoolValue();
-}
-
-bool M2MResourceBase::set_notification_status_callback(notification_status_callback_2 callback)
-{
-    return mock().actualCall("M2MResourceBase::set_notification_status_callback")
-            .returnBoolValue();
-}
-
-void M2MResourceBase::notification_sent()
-{
-    mock().actualCall("M2MResourceBase::notification_sent");
-}
-
-void M2MResourceBase::notification_status(const uint16_t msg_id, const NotificationStatus status)
-{
-    mock().actualCall("M2MResourceBase::notification_status");
-}
-
 M2MResourceBase::ResourceType M2MResourceBase::convert_data_type(M2MBase::DataType type) const
 {
     mock().actualCall("M2MResourceBase::convert_data_type");
     return (M2MResourceBase::ResourceType) 0;
 
-}
-
-M2MResourceBase::NotificationStatus M2MResourceBase::notification_status() const
-{
-    mock().actualCall("M2MResourceBase::notification_status");
-    return (M2MResourceBase::NotificationStatus)0;
-}
-
-void M2MResourceBase::clear_notification_status()
-{
-    mock().actualCall("M2MResourceBase::clear_notification_status");
 }
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
