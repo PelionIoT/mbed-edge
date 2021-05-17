@@ -44,7 +44,8 @@ M2MInterface* M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
                                                     const String &domain,
                                                     M2MInterface::BindingMode mode,
                                                     M2MInterface::NetworkStack stack,
-                                                    const String &context_address)
+                                                    const String &context_address,
+                                                    const String &version)
 {
     mock().actualCall("M2MInterfaceFactory::create_interface");
     return NULL;
