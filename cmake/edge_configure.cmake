@@ -163,7 +163,6 @@ if (NOT DEFINED CLOUD_CLIENT_CONFIG)
   MESSAGE ("Using default Device Management Client config: ${CLOUD_CLIENT_CONFIG}")
 endif()
 add_definitions ("-DMBED_CLOUD_CLIENT_USER_CONFIG_FILE=\"${CLOUD_CLIENT_CONFIG}\"")
-add_definitions ("-DMBED_CLIENT_USER_CONFIG_FILE=\"${CLOUD_CLIENT_CONFIG}\"")
 
 # Internal eventloop thread stack size
 if (NOT DEFINED NS_HAL_PAL_EVENLOOP_STACK_SIZE)
