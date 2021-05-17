@@ -31,7 +31,6 @@
 #define MBED_CLOUD_CLIENT_LIFETIME               3600
 
 #define SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE       1024
-#define SN_COAP_DUPLICATION_MAX_MSGS_COUNT       0
 #define SN_COAP_DISABLE_RESENDINGS               1
 
 /* set download buffer size in bytes (min. 1024 bytes) */
