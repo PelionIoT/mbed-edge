@@ -1,6 +1,6 @@
 /*
  * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright 2018-2021 Pelion.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
