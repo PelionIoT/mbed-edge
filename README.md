@@ -39,46 +39,80 @@ The contents of the repository.
 | `config/mbed_cloud_client_user_config.h` | A configuration file for the Device Management Client settings.
 | `config/mbedtls_mbed_client_config.h`    | A configuration file for Mbed TLS.
 
-## Prerequisites
+## Build and run
 
-### 1. Install these in Ubuntu 18.04:
+1. Directly on Ubuntu 20.04 or 18.04, or
+1. Using Docker.
 
-```bash
-sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
+### Install these in Ubuntu 20.04 or 18.04:
+
+1. Prerequisites
+
+    ```bash
+    sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
+    ```
+
+    For debugging, install also these:
+
+    ```bash
+    sudo apt install lcov gcovr valgrind
+    ```
+
+    For documentation, install also these:
+
+    ```bash
+    sudo apt install doxygen graphviz
+    ```
+
+1. Initialize repositories
+
+    Fetch the Git submodules that are direct dependencies for Edge.
+
+    ```bash
+    git submodule update --init --recursive
+    ```
+
+1. Install Rust
+
+    Note: This is required only when building with Parsec.
+
+    ```bash
+    curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+    # configure the PATH environment variable
+    export PATH=$PATH:~/.cargo/bin
+
+    # To verify, run
+    rustc --version
+    cargo version
+    ```
+
+### Using Docker
+
+First, fetch the dependencies
 ```
-
-For debugging, install also these:
-
-```bash
-sudo apt install lcov gcovr valgrind
-```
-
-For documentation, install also these:
-
-```bash
-sudo apt install doxygen graphviz
-```
-
-### 2. Initialize repositories
-
-Fetch the Git submodules that are direct dependencies for Edge.
-```bash
 git submodule update --init --recursive
 ```
 
-### 3. Install Rust
+The edge-core docker image is a developer build with firmware update enabled. Thus, place the `mbed_cloud_dev_credentials.c` and `update_default_resources.c` in `config` folder before starting the build -
+```
+docker build -t edge-core:latest -f ./Dockerfile .
+```
 
-This is required only when building with Parsec.
+Alternatively, you can specify the location of the certificates as build arguments -
+```
+docker build --build-arg developer_certificate=./config/mbed_cloud_dev_credentials.c --build-arg update_certificate=./config/update_default_resources.c -t edge-core:latest -f ./Dockerfile .
+```
 
-```bash
-curl https://sh.rustup.rs -sSf | bash -s -- -y
+Run the docker image. To restart the container from last known state of edge-core, mount the `mcc_config` folder to the host machine. Also, you can mount the default unix domain socket path `/tmp/edge.sock` to the host machine for other docker containers or service to establish the JSON-RPC websocket connection with this edge-core instance.
 
-# configure the PATH environment variable
-export PATH=$PATH:~/.cargo/bin
+```
+docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:latest
+```
 
-# To verify, run
-rustc --version
-cargo version
+For interactive bash session, run the following command -
+```
+docker run -it --entrypoint bash -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp -v $PWD:/usr/src/app/mbed-edge edge-core:latest
 ```
 
 ## Configuring Edge build
