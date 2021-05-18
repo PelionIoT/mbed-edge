@@ -1,5 +1,14 @@
 # Changelog for Edge
 
+## Release 0.17.0
+
+* Updated to Pelion Device Management Client (PDMC) library version 4.8.0.
+* Updated cryptography version from 2.3 to 3.3.2 in  `/edge-tool`.
+
+## Release 0.16.1
+
+* Added `fota` folder which defines the `fota_install_callback` function for new fota framework library.
+
 ## Release 0.16.0 (2021-3-15)
 
 * Updated to Pelion Device Management Client (PDMC) library version 4.7.1.
