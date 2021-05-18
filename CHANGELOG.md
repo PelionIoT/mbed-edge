@@ -4,6 +4,11 @@
 
 * Updated to Pelion Device Management Client (PDMC) library version 4.8.0.
 * Updated cryptography version from 2.3 to 3.3.2 in  `/edge-tool`.
+* Added Dockerfile to build and run edge-core in Docker containers.
+* Added `Makefile` and `Makefile.test` shortcuts for various build and run configurations.
+* Added unit test cases, developed using CppUTest framework.
+* Described edge-core CLI in `docopt` language in `/edge-core/edge_core.docopt` and `./cli_template.tmpl`. Added `edge-core/gen_docopt.sh` script to generate the respective C file.
+* Added `cpputest` and `docopt.c` dependencies as git submodules.
 
 ## Release 0.16.1
 
