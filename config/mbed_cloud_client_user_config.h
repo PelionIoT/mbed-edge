@@ -1,6 +1,6 @@
 /*
  * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright 2018-2021 Pelion.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -25,14 +25,12 @@
 #ifndef MBED_CLOUD_CLIENT_USER_CONFIG_H
 #define MBED_CLOUD_CLIENT_USER_CONFIG_H
 
-#define MBED_CLOUD_CLIENT_SUPPORT_CLOUD
 #define MBED_CLOUD_CLIENT_ENDPOINT_TYPE          "MBED_GW"
 #define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
 #define MBED_CLOUD_CLIENT_LIFETIME               3600
 
 #define SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE       1024
-#define SN_COAP_DUPLICATION_MAX_MSGS_COUNT       0
-#define SN_COAP_DISABLE_RESENDINGS               1
+#define SN_COAP_DISABLE_RESENDINGS
 
 /* set download buffer size in bytes (min. 1024 bytes) */
 #define MBED_CLOUD_CLIENT_UPDATE_BUFFER          (2 * 1024 * 1024)
