@@ -73,6 +73,7 @@ kcm_status_e kcm_asymmetric_verify(const uint8_t *public_key_name,
         .returnIntValue();
 }
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 kcm_status_e kcm_ecdh_key_agreement(const uint8_t *private_key_name,
                                     size_t private_key_name_len,
                                     const uint8_t *peer_public_key,
@@ -89,6 +90,7 @@ kcm_status_e kcm_ecdh_key_agreement(const uint8_t *private_key_name,
         .withOutputParameter("shared_secret_act_size_out", shared_secret_act_size_out)
         .returnIntValue();
 }
+#endif // PARSEC_TPM_SE_SUPPORT
 
 } // extern "C"
 

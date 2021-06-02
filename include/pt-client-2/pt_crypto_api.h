@@ -162,6 +162,7 @@ pt_status_t pt_crypto_asymmetric_verify(const connection_id_t connection_id,
                                         pt_crypto_failure_handler failure_handler,
                                         void *userdata);
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 /**
  * \brief Perform ECDH key agreement using given peer public key and a private key stored in secure storage on Device Management Edge.
  * \param connection_id ID of the protocol translator connection.
@@ -181,6 +182,7 @@ pt_status_t pt_crypto_ecdh_key_agreement(const connection_id_t connection_id,
                                          pt_crypto_success_handler success_handler,
                                          pt_crypto_failure_handler failure_handler,
                                          void *userdata);
+#endif // PARSEC_TPM_SE_SUPPORT
 
 /**
  * @}

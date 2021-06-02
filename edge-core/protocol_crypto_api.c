@@ -59,12 +59,14 @@ typedef struct crypto_api_asymmetric_event_request_context_ {
     char *request_id;
 } crypto_api_asymmetric_event_request_context_t;
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 typedef struct crypto_api_ecdh_event_request_context_ {
     uint8_t *private_key_name_ptr;  // Private key name
     uint8_t *peer_public_key_ptr;   // Peer public key base64 encoded
     connection_id_t connection_id;
     char *request_id;
 } crypto_api_ecdh_event_request_context_t;
+#endif // PARSEC_TPM_SE_SUPPORT
 
 const char *error_desc_oom_message = "Out of memory, couldn't format description.";
 
@@ -77,9 +79,12 @@ static void crypto_api_get_kcm_data_event(arm_event_t *event,
 static void crypto_api_generate_random_event(arm_event_t *event);
 static void crypto_api_asymmetric_sign_event(arm_event_t *event);
 static void crypto_api_asymmetric_verify_event(arm_event_t *event);
-static void crypto_api_ecdh_key_agreement_event(arm_event_t *event);
 static void crypto_api_free_asymmetric_event_ctx_func(rpc_request_context_t *userdata);
+
+#ifndef PARSEC_TPM_SE_SUPPORT
+static void crypto_api_ecdh_key_agreement_event(arm_event_t *event);
 static void crypto_api_free_ecdh_event_ctx_func(rpc_request_context_t *userdata);
+#endif // PARSEC_TPM_SE_SUPPORT
 
 EDGE_LOCAL void crypto_api_event_handler(arm_event_t *event)
 {
@@ -102,9 +107,11 @@ EDGE_LOCAL void crypto_api_event_handler(arm_event_t *event)
     case CRYPTO_API_EVENT_ASYMMETRIC_VERIFY:
         crypto_api_asymmetric_verify_event(event);
         break;
+#ifndef PARSEC_TPM_SE_SUPPORT
     case CRYPTO_API_EVENT_ECDH_KEY_AGREEMENT:
         crypto_api_ecdh_key_agreement_event(event);
         break;
+#endif // PARSEC_TPM_SE_SUPPORT
     default:
         break;
     }
@@ -298,6 +305,7 @@ static void crypto_api_free_asymmetric_event_ctx_func(rpc_request_context_t *use
     free(ctx);
 }
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 static int crypto_api_prepare_and_send_ecdh_event(json_t *request,
                                                   crypto_api_event_e event_type,
                                                   uint8_t *private_key_name,
@@ -338,6 +346,7 @@ static void crypto_api_free_ecdh_event_ctx_func(rpc_request_context_t *userdata)
     free(ctx->request_id);
     free(ctx);
 }
+#endif // PARSEC_TPM_SE_SUPPORT
 
 int crypto_api_get_certificate(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
@@ -803,6 +812,7 @@ send:
                                                         (rpc_request_context_t *) ctx);
 }
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 int crypto_api_ecdh_key_agreement(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
     struct json_message_t *jt = (struct json_message_t *) userdata;
@@ -917,3 +927,4 @@ send:
                                                         (rpc_request_context_t *) ctx);
     free(peer_public_key);
 }
+#endif // PARSEC_TPM_SE_SUPPORT

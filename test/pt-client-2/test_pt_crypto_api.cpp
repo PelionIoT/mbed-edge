@@ -757,6 +757,7 @@ TEST(pt_crypto_api_2, test_pt_crypto_asymmetric_verify_missing_handlers)
     CHECK_EQUAL(PT_STATUS_ALLOCATION_FAIL, status);
 }
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 TEST(pt_crypto_api_2, test_pt_crypto_ecdh_key_agreement)
 {
     const char *userdata = "dummy_userdata";
@@ -860,3 +861,4 @@ TEST(pt_crypto_api_2, test_pt_crypto_ecdh_key_agreement_missing_handlers)
                                           (void *) userdata);
     CHECK_EQUAL(PT_STATUS_ALLOCATION_FAIL, status);
 }
+#endif // PARSEC_TPM_SE_SUPPORT
