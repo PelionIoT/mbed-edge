@@ -4976,7 +4976,11 @@ typedef struct {
 
 const char *asymmetric_sign_params_error = "Asymmetric sign failed. Missing or invalid private_key_name or hash_digest field.";
 const char *asymmetric_verify_params_error = "Asymmetric verify failed. Missing or invalid public_key_name, hash_digest or signature field.";
+
+#ifndef PARSEC_TPM_SE_SUPPORT
 const char *ecdh_params_error = "ECDH key agreement failed. Missing or invalid private_key_name or peer_public_key field.";
+#endif // PARSEC_TPM_SE_SUPPORT
+
 const crypto_test_params_t invalid_params_data[] = {
     { // Missing parameters
         .method_fn = crypto_api_asymmetric_sign,
@@ -5019,6 +5023,7 @@ const crypto_test_params_t invalid_params_data[] = {
         .method_name = "crypto_asymmetric_verify",
         .error = asymmetric_verify_params_error,
         .params = "{\"public_key_name\":\"test\", \"hash_digest\":\"dGVzdAo=\"}"
+#ifndef PARSEC_TPM_SE_SUPPORT
     },
     { // Missing parameters
         .method_fn = crypto_api_ecdh_key_agreement,
@@ -5043,6 +5048,7 @@ const crypto_test_params_t invalid_params_data[] = {
         .method_name = "crypto_ecdh_key_agreement",
         .error = ecdh_params_error,
         .params = "{\"peer_public_key\":\"test\"}"
+#endif // PARSEC_TPM_SE_SUPPORT
     }
 };
 
@@ -5103,6 +5109,7 @@ const crypto_test_params_t valid_params_data[] = {
         .error = NULL,
         .params = "{\"public_key_name\":\"test\", \"hash_digest\":\"dGVzdAo=\", \"signature\":\"dGVzdAo=\"}",
         .event_id = CRYPTO_API_EVENT_ASYMMETRIC_VERIFY
+#ifdef PARSEC_TPM_SE_SUPPORT
     },
     { // Missing peer public key
         .method_fn = crypto_api_ecdh_key_agreement,
@@ -5110,6 +5117,7 @@ const crypto_test_params_t valid_params_data[] = {
         .error = NULL,
         .params = "{\"private_key_name\":\"test\", \"peer_public_key\":\"dGVzdAo=\"}",
         .event_id = CRYPTO_API_EVENT_ECDH_KEY_AGREEMENT
+#endif // PARSEC_TPM_SE_SUPPORT
     }
 };
 
@@ -5408,6 +5416,7 @@ unsigned char shared_secret[] = {
 size_t shared_secret_len = 32;
 const char *shared_secret_base64 = "cWam8kQoOyTUYRdToqOhdx9kaakK0Qtl6nqtI9+tPH4=";
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 TEST(protocol_api, test_ecdh_key_agreement_success)
 {
     const char *private_key_name = "dlms";
@@ -5531,6 +5540,7 @@ TEST(protocol_api, test_ecdh_key_agreement_failure)
     json_decref(request);
     free(expected_data);
 }
+#endif // PARSEC_TPM_SE_SUPPORT
 
 TEST(protocol_api, test_apis_no_service)
 {

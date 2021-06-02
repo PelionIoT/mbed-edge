@@ -115,11 +115,13 @@ EDGE_LOCAL void pt_handle_pt_crypto_asymmetric_verify_success(json_t *response, 
     pt_crypto_success(response, callback_data);
 }
 
+#ifndef PARSEC_TPM_SE_SUPPORT
 EDGE_LOCAL void pt_handle_pt_crypto_ecdh_success(json_t *response, void *callback_data)
 {
     tr_info("pt_handle_pt_crypto_ecdh_success");
     pt_crypto_success_with_data(response, callback_data, "shared_secret");
 }
+#endif // PARSEC_TPM_SE_SUPPORT
 
 EDGE_LOCAL void pt_handle_pt_crypto_get_item_failure(json_t *response, void *callback_data)
 {
@@ -341,6 +343,8 @@ pt_status_t pt_crypto_asymmetric_verify(const connection_id_t connection_id,
                                                PT_CUSTOMER_CALLBACK_T,
                                                customer_callback);
 }
+
+#ifndef PARSEC_TPM_SE_SUPPORT
 pt_status_t pt_crypto_ecdh_key_agreement(const connection_id_t connection_id,
                                          const char *private_key_name,
                                          const char *peer_public_key,
@@ -386,3 +390,4 @@ pt_status_t pt_crypto_ecdh_key_agreement(const connection_id_t connection_id,
                                                PT_CUSTOMER_CALLBACK_T,
                                                customer_callback);
 }
+#endif // PARSEC_TPM_SE_SUPPORT
