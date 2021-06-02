@@ -31,6 +31,14 @@ ConnectorClient::~ConnectorClient() {
 
 }
 
+void ConnectorClient::paused() {
+
+}
+
+void ConnectorClient::alert_mode() {
+
+}
+
 void ConnectorClient::bootstrap_done(M2MSecurity *server_object) {
 
 }

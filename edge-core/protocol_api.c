@@ -223,7 +223,9 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "crypto_generate_random", crypto_api_generate_random, "o" },
     { "crypto_asymmetric_sign", crypto_api_asymmetric_sign, "o" },
     { "crypto_asymmetric_verify", crypto_api_asymmetric_verify, "o" },
+#ifndef PARSEC_TPM_SE_SUPPORT
     { "crypto_ecdh_key_agreement", crypto_api_ecdh_key_agreement, "o" },
+#endif // PARSEC_TPM_SE_SUPPORT
     { "est_request_enrollment", est_request_enrollment, "o" },
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
     { "download_asset", download_asset, "o" },

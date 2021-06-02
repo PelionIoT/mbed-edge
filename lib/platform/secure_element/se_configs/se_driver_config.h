@@ -33,6 +33,10 @@
 extern "C" {
 #endif
 
+#define PSA_DRIVER_SE_DRIVER_LOCATION_VALUE  0x000001
+/*SE driver lifetime value*/
+#define PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE  PSA_KEY_LIFETIME_FROM_PERSISTENCE_AND_LOCATION(PSA_KEY_PERSISTENCE_DEFAULT, PSA_DRIVER_SE_DRIVER_LOCATION_VALUE)
+
 /*This file defines SE driver lifetime and psa driver methods.*/
 
 #ifdef MBED_CONF_APP_SECURE_ELEMENT_ATCA_SUPPORT
@@ -44,7 +48,6 @@ psa_drv_se_t *g_se_driver_info = &atecc608a_drv_info;
 
 #ifdef MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT
 /*SE driver lifetime value*/
-#define PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE        PARSEC_SE_DRIVER_LIFETIME
 /*SE driver methods*/
 psa_drv_se_t *g_se_driver_info = &PARSEC_SE_DRIVER;
 #endif
