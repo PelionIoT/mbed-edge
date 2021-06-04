@@ -56,9 +56,6 @@ import binascii
 import json
 from collections import namedtuple
 
-from cloud import observe_async, execute, read, write, \
-    filter_edge_devices, filter_edge_hosted_devices
-
 from cbor_converter import CBORConverter, CBORUtils
 
 
@@ -66,20 +63,6 @@ def main():
     args = docopt.docopt(__doc__)
     device_id = args["--device-id"]
     resource_path = args["--resource-path"]
-    if (args["observe"]):
-        observe_async(device_id, resource_path)
-    if (args["execute"]):
-        execute(device_id, resource_path)
-    if (args["read"]):
-        read(device_id, resource_path)
-    if (args["write"]):
-        value = args["--new-resource-value"]
-        write(device_id, resource_path, value)
-    if (args["filter"]):
-        if args["--edge-devices"]:
-            filter_edge_devices(args["--connected"])
-        elif args["--host-edge"]:
-            filter_edge_hosted_devices(args["--host-edge"], args["--connected"])
     if (args["convert-dev-cert"]):
         converter = CBORConverter(args["--development-certificate"],
                                   args["--update-resource"],
