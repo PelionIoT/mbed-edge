@@ -27,11 +27,12 @@ with open(os.path.join(repository_dir, 'requirements.txt')) as fh:
 
 setup(
      name='edge-tool',
-     version='0.17.0',
+     version='0.2.0',
      author='Yash Goyal',
      author_email="support@pelion.com",
      packages=find_packages(),
      url="https://github.com/PelionIoT/mbed-edge/edge-tool",
      install_requires=requirements,
      license='Apache 2.0',
+     description='Tool to convert the development certificate to CBOR formatted object',
 )
