@@ -7,6 +7,8 @@
 * Updated parsec-se-driver version from 0.4.0 to 0.5.0 (in `lib/pal-platform.json`).
 * Updated libcurl version from 7.75 to 7.76 (in `lib/pal-platform.json`).
 * Mbed TLS updated from 2.22.0 to version 2.25.0.
+* Removed the use of mbed-cloud-sdk from `edge-tool` as the sdk has been deprecated.
+* Added setup script to edge-tool.
 
 ## Release 0.17.0
 
