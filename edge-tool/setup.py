@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-
 # ----------------------------------------------------------------------------
-# Copyright 2018 ARM Ltd.
+# Copyright 2021 ARM Ltd.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -18,14 +16,23 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 
-python3 -m venv mbed-cloud-sdk-env
-source ./mbed-cloud-sdk-env/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+import os
 
-tput setaf 2
-echo "You're ready to roll."
-echo "Active the virtualenv with 'source ./mbed-cloud-sdk-env/bin/activate'."
-echo "And then run './edge_tool.py -h' to get started."
-echo "Virtualenv can deactivated by 'deactivate'"
-tput sgr0
+from setuptools import setup, find_packages
+
+repository_dir = os.path.dirname(__file__)
+
+with open(os.path.join(repository_dir, 'requirements.txt')) as fh:
+        requirements = fh.readlines()
+
+setup(
+     name='edge-tool',
+     version='0.2.0',
+     author='Yash Goyal',
+     author_email="support@pelion.com",
+     packages=find_packages(),
+     url="https://github.com/PelionIoT/mbed-edge/edge-tool",
+     install_requires=requirements,
+     license='Apache 2.0',
+     description='Tool to convert the development certificate to CBOR formatted object',
+)
