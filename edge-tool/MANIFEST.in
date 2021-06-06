@@ -1,0 +1,6 @@
+global-exclude *.py[cod] __pycache__ *.so
+include README.md
+include LICENSE
+include requirements.txt
+include *.py
+
