@@ -23,7 +23,6 @@
 
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 #include "mbed-cloud-client/MbedCloudClient.h"
-#include "mbed-cloud-client/SimpleM2MResource.h"
 
 #include "update-client-hub/modules/common/update-client-common/arm_uc_error.h"
 #include "update-client-hub/modules/common/update-client-common/arm_uc_types.h"

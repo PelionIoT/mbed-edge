@@ -119,3 +119,7 @@ lib/pal-platform/Middleware/parsec_se_driver/parsec_se_driver
 lib/pal-platform/Middleware/trusted_storage/trusted_storage/
 lib/pal-platform/Middleware/mbedtls/mbedtls
 lib/pal-platform/x86_x64_NativeLinux_mbedtls.txt
+
+edge-tool/dist
+*.egg-info
+edge-tool/edge-tool

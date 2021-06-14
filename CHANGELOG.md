@@ -1,5 +1,15 @@
 # Changelog for Edge
 
+## Release 0.18.0
+
+* Updated to [Pelion Device Management Client (PDMC) library version 4.9.0](https://github.com/PelionIoT/mbed-cloud-client/blob/master/CHANGELOG.md#release-490-20052021).
+* Deprecated `crypto_ecdh_key_agreement` JSON-RPC API for PSA configuration, due to psa_set_key_enrollment_algorithm() API deprecation in Mbed Crypto.
+* Updated parsec-se-driver version from 0.4.0 to 0.5.0 (in `lib/pal-platform.json`).
+* Updated libcurl version from 7.75 to 7.76 (in `lib/pal-platform.json`).
+* Mbed TLS updated from 2.22.0 to version 2.25.0.
+* Removed the use of mbed-cloud-sdk from `edge-tool` as the sdk has been deprecated.
+* Added setup script to edge-tool.
+
 ## Release 0.17.0
 
 * Updated to Pelion Device Management Client (PDMC) library version 4.8.0.
