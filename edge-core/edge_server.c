@@ -54,11 +54,6 @@
 #include "edge-rpc/rpc_timeout_api.h"
 #include "common/msg_api.h"
 
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-#include "arm_uc_mmDerManifestAccessors.h"
-#include "arm_uc_certificate.h"
-#endif // MBED_EDGE_SUBDEVICE_FOTA
-
 #define TRACE_GROUP "serv"
 
 // current protocol API version
@@ -179,82 +174,6 @@ void transport_connection_t_destroy(transport_connection_t **transport_connectio
         *transport_connection = NULL;
     }
 }
-
-
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer,
-                                  struct manifest_info_t* manifest_info,
-                                  arm_uc_update_result_t *error_manifest) {
-
-    tr_info("parse_manifest_for_subdevice");
-
-    arm_uc_buffer_t  fingerprint={0};
-    arm_uc_error_t error;
-    error = ARM_UC_mmGetCertificateId(manifest_buffer,0,&fingerprint);
-
-    if (error.code != ERR_NONE) {
-        tr_info("No Certificate: %d", error.code);
-        fingerprint.size = 0;
-    }
-    tr_info("Finger print size: %d", fingerprint.size);
-
-    uint8_t temp_buf[496]={0};
-    arm_uc_buffer_t  certList={0};
-    arm_uc_buffer_t  cert = {0};
-    cert.size = manifest_buffer->size;
-    cert.size_max = manifest_buffer->size_max;
-    cert.ptr = temp_buf;
-
-    if(fingerprint.size) {
-        arm_uc_error_t error = ARM_UC_certificateFetch(&cert,
-                                        &fingerprint,
-                                        &certList,
-                                        NULL);
-
-        if (error.code != ERR_NONE) {
-            *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_INVALID_CERTIFICATE;
-            tr_error("ERROR Invalid Certificate: %d", error.code);
-            return false;
-        }
-    }
-
-    error = ARM_UC_mmGetFwSize(manifest_buffer, &(manifest_info->firmware_size));
-    if (error.code != ERR_NONE) {
-        *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_INTEGRITY_CHECK_FAILED;
-        tr_error("ERROR getting firmware size: %d", error.code);
-        return false;
-    }
-
-    // Obtain the version from the manifest
-    // NOTE: the version is actually an Epoch timestamp. Convert it to a string
-    error = ARM_UC_mmGetTimestamp(manifest_buffer, &(manifest_info->fw_version));
-    if (error.code != ERR_NONE) {
-        *error_manifest = ARM_UC_UPDATE_RESULT_MANIFEST_UNSUPPORTED_MANIFEST_VERSION;
-        tr_error("ERROR getting firmware version: %d", error.code);
-        return false;
-    }
-    tr_info("Firmware Version:%ld ", manifest_info->fw_version);
-
-    // Obtain the URI from the manifest
-    error = ARM_UC_mmGetFwUri(manifest_buffer, &(manifest_info->url_buffer));
-    if (error.code != ERR_NONE) {
-        *error_manifest = ARM_UC_UPDATE_RESULT_FETCHER_INVALID_RESOURCE_URI;
-        tr_error("ERROR getting firmware URI: %d", error.code);
-        return false;
-    }
-      // Obtain the hash from the manifest
-    error = ARM_UC_mmGetFwHash(manifest_buffer, &(manifest_info->hash_buffer));
-    if (error.code != ERR_NONE) {
-        *error_manifest = ARM_UC_ERROR_INVALID_HASH;
-        tr_error("ERROR getting firmware hash: %d", error.code);
-        return false;
-    }
-
-    *error_manifest = ARM_UC_UPDATE_STATE_UNINITIALISED;
-
-    return true;
-}
-#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 int callback_edge_core_protocol_translator(struct lws *wsi,
                                            enum lws_callback_reasons reason,
