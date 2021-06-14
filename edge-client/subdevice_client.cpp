@@ -36,8 +36,16 @@ extern "C" {
 
 #include "mbed-trace/mbed_trace.h"
 
+#include "fota/fota_source.h"
+#include "fota/fota_source_defs.h"
+#include "fota/fota_status.h"
+#include "fota/fota_internal.h"
+#include "fota/fota.h"
+#include "fota/fota_event_handler.h"
+#include "fota/fota_component_defs.h"
+#include "fota/fota_component_internal.h"
 #include "mbed-client/m2mresource.h"
-#include "arm_uc_public.h"
+#include "edge-client/subdevice_fota.h"
 
 int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name, char *error_manifest)
 {
@@ -83,50 +91,57 @@ int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name, char *error_m
     return 0;
 }
 
-void manifest_callback(void *_parameters)
-{
-    tr_info("manifest callback");
+void manifest_callback_subdevice(void *_parameters) {
+    tr_info("manifest_callback_subdevice");
     M2MResource::M2MExecuteParameter *exec_params = (M2MResource::M2MExecuteParameter *) _parameters;
+    uint8_t *buffer = (uint8_t *) exec_params->get_argument_value();
+    uint16_t length = exec_params->get_argument_value_length();
     M2MResource *resource = exec_params->get_resource();
+    fota_state_e fota_state;
+    int ret = fota_is_ready(buffer, length, &fota_state);
+    if (ret == FOTA_STATUS_OUT_OF_MEMORY) {
+        memset(buffer, 0, length);
+        //TODO: report COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED
+        resource->send_delayed_post_response();
+        }
+    char device_id[ENDPOINT_SIZE] ={0};
+    get_endpoint(device_id, resource->uri_path());
 
-    arm_uc_update_result_t error_manifest;
-    memset(&error_manifest,0,sizeof(arm_uc_update_result_t));
+     switch (fota_state) {
+        case FOTA_STATE_IDLE: {
+            // check if this is necessary
+            edgeclient_set_resource_value(device_id,
+                                                MANIFEST_OBJECT,
+                                                MANIFEST_INSTANCE,
+                                                MANIFEST_ASSET_HASH,
+                                                "",
+                                                (const uint8_t *) "0",
+                                                1,
+                                                LWM2M_STRING,
+                                                1,
+                                                NULL);
 
-    if (resource->uri_path() == NULL) {
-        return;
+            edgeclient_set_resource_value(device_id,
+                                                MANIFEST_OBJECT,
+                                                MANIFEST_INSTANCE,
+                                                MANIFEST_VERSION,
+                                                "",
+                                                (const uint8_t *) "0",
+                                                1,
+                                                LWM2M_STRING,
+                                                1,
+                                                NULL);
+            subdevice_fota_on_manifest(buffer, length, resource);
+            return;
+        }
+        case FOTA_STATE_INVALID:
+            FOTA_TRACE_ERROR("FOTA cannot handle manifest - rejecting");
+            // send error MCCP code.
+            resource->set_manifest_check_status(false);
+            break;
+        default:
+            break;
     }
-
-    char *uri_path = strdup(resource->uri_path()); // URI : d/device_id/10252/0/1
-    char *left_string = NULL;
-    char *manifest_res = NULL;
-    strtok_r(uri_path, "/", &left_string); // left_string : device_id/10252/0/1
-    char *device_id = strtok_r(left_string, "/", &manifest_res);
-    char err_str[3] = " "; // for storing the error into string
-
-    if (strcmp(manifest_res, xstr(MANIFEST_INFORMATION))) {
-        tr_err("Not the subdevice manifest %s", uri_path);
-        return;
-    }
-
-    tr_debug("manifest for subdevice %s payload len %d", device_id, exec_params->get_argument_value_length());
-
-    uint8_t *manifest = (uint8_t *) exec_params->get_argument_value();
-    arm_uc_buffer_t manifest_buffer;
-    manifest_buffer.ptr = manifest;
-    manifest_buffer.size = exec_params->get_argument_value_length();
-    manifest_buffer.size_max = 1024;
-    manifest_info_t manifest_info = {0};
-    bool manifest_check = parse_manifest_for_subdevice(&manifest_buffer, &manifest_info, &error_manifest);
-    itoa_c(error_manifest, err_str);
-
-    tr_debug("Error Code from Manifest :%d %s", error_manifest, err_str);
-
-    ARM_UC_SUBDEVICE_ReportUpdateResult(device_id, err_str);
-
-    if (uri_path)
-        free(uri_path);
-
-    resource->set_manifest_check_status(manifest_check);
 }
 
 pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name,
@@ -175,7 +190,7 @@ pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name,
 
     if ((object_id == MANIFEST_OBJECT) && (object_instance_id == MANIFEST_INSTANCE) &&
         resource_id == MANIFEST_RESOURCE_PAYLOAD) {
-        res->set_execute_function(manifest_callback);
+        res->set_execute_function(manifest_callback_subdevice);
     }
 
     if ((object_id == DEVICE_META_OBJECT || object_id == MANIFEST_OBJECT) && object_instance_id == MANIFEST_INSTANCE) {
