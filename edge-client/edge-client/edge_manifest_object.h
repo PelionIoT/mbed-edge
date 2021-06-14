@@ -19,7 +19,6 @@
  */
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-
 #ifndef EDGE_MANIFEST_OBJECT_H_
 #define EDGE_MANIFEST_OBJECT_H_
 
@@ -35,6 +34,7 @@ extern "C" {
 #define MANIFEST_RESOURCE_RESULT 3
 #define MANIFEST_ASSET_HASH 5
 #define MANIFEST_VERSION 6
+#define SOFTWARE_COMPONENT 14
 #define xstr(s) str(s)
 #define str(s) #s
 #define MANIFEST_INFORMATION 10252/0/1
