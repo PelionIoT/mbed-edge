@@ -45,12 +45,11 @@ include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-client/mbed-cl
 
 MESSAGE ("Is Subdevice FOTA enable - ${ENABLE_SUBDEVICE_FOTA}")
 # update client
-if (ENABLE_SUBDEVICE_FOTA)
+if (NOT ENABLE_SUBDEVICE_FOTA)
     MESSAGE ("Including UC HUB directories.")
     include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/update-client-hub/)
     include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/update-client-hub/modules/common/)
 endif()
-
 # CoAP lib
 include_directories (${MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES}/mbed-coap/mbed-coap)
 
