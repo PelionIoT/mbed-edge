@@ -144,6 +144,7 @@ if (${FIRMWARE_UPDATE})
   if (NOT FOTA_ENABLE)
      MESSAGE("Update client hub selected.")
      add_definitions ("-DMBED_CLOUD_CLIENT_SUPPORT_UPDATE=1")
+     set(ENABLE_UC_HUB ON)
   endif()
 
   add_definitions ("-DMBED_CLOUD_CLIENT_UPDATE_STORAGE=${MBED_CLOUD_CLIENT_UPDATE_STORAGE}")
