@@ -19,7 +19,6 @@
  */
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-
 #define TRACE_GROUP "edgesd"
 
 extern "C" {
@@ -33,17 +32,7 @@ extern "C" {
 }
 
 #include "edge-client/edge_client_internal.h"
-
 #include "mbed-trace/mbed_trace.h"
-
-#include "fota/fota_source.h"
-#include "fota/fota_source_defs.h"
-#include "fota/fota_status.h"
-#include "fota/fota_internal.h"
-#include "fota/fota.h"
-#include "fota/fota_event_handler.h"
-#include "fota/fota_component_defs.h"
-#include "fota/fota_component_internal.h"
 #include "mbed-client/m2mresource.h"
 #include "edge-client/subdevice_fota.h"
 
@@ -104,7 +93,7 @@ void manifest_callback_subdevice(void *_parameters) {
         //TODO: report COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED
         resource->send_delayed_post_response();
         }
-    char device_id[ENDPOINT_SIZE] ={0};
+    char device_id[ENDPOINT_SIZE] = {0};
     get_endpoint(device_id, resource->uri_path());
 
      switch (fota_state) {
