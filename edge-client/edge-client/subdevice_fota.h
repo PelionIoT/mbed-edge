@@ -57,5 +57,4 @@ extern "C" {
 }
 #endif
 #endif
-#endif
 #endif //__SUBDEVICE_FOTA_H__
