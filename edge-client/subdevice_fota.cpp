@@ -1,3 +1,5 @@
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 #include "edge-client/subdevice_fota.h"
 
 
@@ -265,3 +267,4 @@ void subdevice_abort_update(int err, char* msg) {
     update_state_resource(endpoint, FOTA_SOURCE_STATE_IDLE);
     free_subdev_context_buffers();
 }
+#endif
