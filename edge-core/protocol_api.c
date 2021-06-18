@@ -40,7 +40,9 @@
 
 #include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 #include "fota_status.h"
+#endif
 #define TRACE_GROUP "serv"
 
 
@@ -59,6 +61,8 @@
  * \return 0 - success
  *         1 - failure
  */
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 int download_asset(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
     struct json_message_t *jt = (struct json_message_t*) userdata;
@@ -98,9 +102,16 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
     json_t* id_handle = json_object_get(request, "id");
     const char* id = json_string_value(id_handle);
     json_t *size_handle = json_object_get(json_params, "size");
+    if(size_handle == NULL) {
+        tr_warning("Download request missing fields.");
+        *result = jsonrpc_error_object(
+                JSONRPC_INVALID_PARAMS,
+                "Invalid params. Missing 'size', field from request.",
+                NULL);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
     uint32_t size = json_integer_value(size_handle);
     const char *device_id = json_string_value(device_id_handle);
-
     char path[FILENAME_MAX] = "";
     int err = start_download(path);
     if(err == FOTA_STATUS_SUCCESS) {
@@ -121,51 +132,7 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
 
     return JSONRPC_RETURN_CODE_SUCCESS;
 }
-
-int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **result, void *userdata)
-{
-    tr_cmdline("subdevice_manifest_status");
-
-    struct json_message_t *jt = (struct json_message_t*) userdata;
-    struct connection *connection = jt->connection;
-
-    if (!pt_api_check_service_availability(result)) {
-        return JSONRPC_RETURN_CODE_ERROR;
-    }
-
-    if (!pt_api_check_request_id(jt)) {
-        tr_warn("EST enrollment request failed. No request id was given.");
-        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
-                                                  json_string("EST enrollment request renewal failed. No request id was given."));
-        return JSONRPC_RETURN_CODE_ERROR;
-    }
-
-    protocol_api_async_request_context_t *ctx = protocol_api_prepare_async_ctx(request, connection->id);
-    if (ctx == NULL) {
-        tr_warn("EST enrollment request failed. Memory allocation failed.");
-        *result = jsonrpc_error_object_predefined(
-            JSONRPC_INTERNAL_ERROR,
-            json_string("EST enrollment request failed. Memory allocation failed."));
-        return JSONRPC_RETURN_CODE_ERROR;
-    }
-
-    json_t *error_manifest_handle = json_object_get(json_params, "error_manifest");
-    json_t *device_id_handle = json_object_get(json_params, "device_id");
-    if (error_manifest_handle == NULL || device_id_handle == NULL) {
-        tr_warning("Manifest status missing fields.");
-        *result = jsonrpc_error_object(
-                JSONRPC_INVALID_PARAMS,
-                "Invalid params. Missing error_manifest or device_id from request.",
-                NULL);
-        return JSONRPC_RETURN_CODE_ERROR;
-    }
-
-    const char *manifest_error = json_string_value(error_manifest_handle);
-    const char *device_id = json_string_value(device_id_handle);
-
-    tr_cmdline("Device_Id %s Manifest Error %s",device_id,manifest_error);
-    ARM_UC_SUBDEVICE_ReportUpdateResult(device_id,manifest_error);
-}
+#endif
 
 struct jsonrpc_method_entry_t method_table[] = {
     { "protocol_translator_register", protocol_translator_register, "o" },
@@ -953,6 +920,7 @@ static void handle_write_to_pt_failure(json_t *response, void* userdata)
     pt_api_error_parser_parse_error_response(response, ctx);
     ctx->failure_handler(ctx);
 }
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
 
 static void handle_write_to_pt_fota_success(json_t *response, void *userdata)
 {
@@ -970,7 +938,7 @@ static void handle_write_to_pt_fota_failure(json_t *response, void* userdata)
     pt_api_error_parser_parse_error_response(response, ctx);
     ctx->failure_handler(ctx);
 }
-
+#endif
 /*
  * This is called after either handle_write_to_pt_success or
  * handle_write_to_pt_failure callback is called. See write_to_pt.
