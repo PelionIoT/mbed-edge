@@ -19,11 +19,6 @@
 #include "edge-client/edge_client.h"
 #include "CppUTestExt/MockSupport.h"
 
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-#include "update-client-hub/modules/common/update-client-common/arm_uc_public.h"
-#include "update-client-hub/modules/common/update-client-common/arm_uc_types.h"
-#endif // MBED_EDGE_SUBDEVICE_FOTA
-
 extern "C" {
     void edgeserver_exit_event_loop()
     {
@@ -61,12 +56,4 @@ extern "C" {
                 .returnPointerValue();
     }
 
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-    bool parse_manifest_for_subdevice(arm_uc_buffer_t *manifest_buffer,
-                                  struct manifest_info_t *manifest_info,
-                                  arm_uc_update_result_t *error_manifest)
-    {
-        return mock().actualCall("edgeclient_request_est_enrollment").returnBoolValue();
-    }
-#endif //MBED_EDGE_SUBDEVICE_FOTA
 }
