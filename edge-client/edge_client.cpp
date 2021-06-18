@@ -64,10 +64,6 @@ extern "C" {
 #include "mbed-client/m2mobject.h"
 #include "mbed-client/m2mresource.h"
 
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-#include "arm_uc_public.h"
-#endif // MBED_EDGE_SUBDEVICE_FOTA
-
 EDGE_LOCAL EdgeClientImpl *client = NULL;
 edgeclient_data_t *client_data = NULL;
 EDGE_LOCAL void destroy_resource_list(Vector<ResourceListObject_t *> &list);
@@ -262,13 +258,13 @@ bool edgeclient_endpoint_value_execute_handler(const M2MResourceBase *resource_b
                                                                                     endpoint_context);
 
     if (request_ctx) {
-
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
         if (!res->get_manifest_check_status()) {
             edgeclient_execute_success(request_ctx);
             tr_err("Manifest Rejected");
             return true;
         }
-
+#endif
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
         tr_info("request_ctx->object_id %d request_ctx->object_instance_id %d request_ctx->resource_id %d",request_ctx->object_id,request_ctx->object_instance_id,request_ctx->resource_id );
         if ((request_ctx->object_id == MANIFEST_OBJECT) &&
@@ -609,20 +605,6 @@ uint32_t edgeclient_remove_objects_owned_by_client(void *client_context)
     }
     return total_removed;
 }
-
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-
-void edgeclient_get_asset(char *device_id,
-                          uint8_t *uri_buffer,
-                          char *filename,
-                          size_t size,
-                          asset_download_complete_cb cb,
-                          void *userdata)
-{
-    client->client_obtain_asset(device_id, uri_buffer, filename, size, cb, userdata);
-}
-
-#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 EDGE_LOCAL uint32_t remove_all_endpoints()
 {
