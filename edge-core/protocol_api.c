@@ -152,7 +152,6 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "est_request_enrollment", est_request_enrollment, "o" },
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
     { "download_asset", download_asset, "o" },
-    { "subdevice_manifest_status", subdevice_manifest_status, "o"},
 #endif // MBED_EDGE_SUBDEVICE_FOTA
     { NULL, NULL, "o" }
 };
