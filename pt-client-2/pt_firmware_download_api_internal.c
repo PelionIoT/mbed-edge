@@ -148,7 +148,7 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
 
     // Verify that the manifest_meta_data_handler callback is set
     if (manifest_meta_data_handler == NULL) {
-        tr_warn("Manifest handler not set for device id:%s",device_id);
+        tr_warn("manifest_meta_data_handler not set for device id:%s",device_id);
         status = pt_device_add_resource_with_callback(connection_id,
                                                   device_id,
                                                   MANIFEST_OBJECT,
