@@ -26,53 +26,51 @@
 #include "pt-client-2/pt_common_api_internal.h"
 #include "arm_uc_public.h"
 
+#define COMPONENT 14
+#define COMPONENT_INSTANCE 0
+#define COMPONENT_NAME 0
+#define COMPONENT_VERSION 2
+
+#define COMPONENT_NAME_STR "MAIN"
+#define VERSION_NAME_STR "0.0.0"
 #define MANIFEST_VENDOR_STR "SUBDEVICE-VENDOR"
 #define MANIFEST_VENDOR_STR_SIZE strlen(MANIFEST_VENDOR_STR)
-#define MANIFEST_CLASS_STR "SUBDEVICE-CLASS"
+#define MANIFEST_CLASS_STR "SUBDEVICE--CLASS"
 #define MANIFEST_CLASS_STR_SIZE strlen(MANIFEST_CLASS_STR)
 
 typedef struct pt_manifest_context_s {
-    char url[256];
-    char hash[65];
     char device_id[256];
-    uint64_t version;
-    uint32_t size;
+    char version[12];
+    uint64_t size;
     void *userdata;
 } pt_manifest_context_t;
 
 typedef void (*pt_download_cb)(connection_id_t connection_id, const char *filename, int error_code, void *userdata);
 
-typedef pt_status_t (*manifest_class_and_vendor_handler)(const connection_id_t connection_id,
+typedef pt_status_t (*manifest_metadata_handler)(const connection_id_t connection_id,
                                                  const char *device_id,
                                                  const uint8_t operation,
                                                  const uint8_t *class_id,
                                                  const uint32_t class_size,
                                                  const uint8_t *vendor_id,
                                                  const uint32_t vendor_size,
-                                                 const uint8_t* hash,
-                                                 const uint32_t hash_len,
-                                                 const uint8_t* url,
-                                                 const uint32_t url_len,
-                                                 uint32_t version,
+                                                 const char* version,
                                                  uint32_t size,
                                                  void *userdata);
 
 pt_status_t pt_device_update_firmware_update_resources(connection_id_t connection_id,
                                                        const char *device_id,
-                                                       char *asset_hash,
-                                                       uint64_t asset_version);
+                                                       char* asset_version);
 
 pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_id,
                                                      const char *device_id,
-                                                     manifest_class_and_vendor_handler manifest_class_vendor_handler);
+                                                     manifest_metadata_handler manifest_meta_data_handler);
 
 void pt_manifest_context_free(pt_manifest_context_t *ctx);
 
 pt_status_t pt_download_asset_internal(const connection_id_t connection_id,
                                        const char *device_id,
-                                       const char *url,
-                                       const char *hash,
-                                       uint32_t size,
+                                       uint64_t size,
                                        pt_download_cb success_handler,
                                        pt_download_cb failure_handler,
                                        void *userdata);
