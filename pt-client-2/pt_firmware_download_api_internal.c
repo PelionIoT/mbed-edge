@@ -54,6 +54,7 @@
 #define MANIFEST_RESOURCE_VENDOR            3
 #define MANIFEST_RESOURCE_CLASS             4
 #define MANIFEST_DEFAULT_PROTOCOL           3
+#define MANIFEST_PROTOCOL_V2                4
 #define MANIFEST_DEFAULT_INT                "-1"
 #define MANIFEST_DEFAULT_INT_SIZE strlen(MANIFEST_DEFAULT_INT)
 #define MANIFEST_DEFAULT_STR                "INVALID"
@@ -88,8 +89,7 @@ uint32_t itoa_c (int64_t n, char s[])
 }
 pt_status_t pt_device_update_firmware_update_resources(connection_id_t connection_id,
                                                        const char *device_id,
-                                                       char *asset_hash,
-                                                       uint64_t asset_version)
+                                                       char* fw_version)
 {
     // Check if device exists
     if (device_id == NULL) {
@@ -98,37 +98,20 @@ pt_status_t pt_device_update_firmware_update_resources(connection_id_t connectio
 
     pt_status_t status = PT_STATUS_SUCCESS;
 
-    if (asset_hash == NULL || asset_version == NULL) {
-        tr_err("asset_hash/asset_version is NULL");
-        return PT_STATUS_INVALID_PARAMETERS;
-    }
+    char* version = (char*)calloc(12,sizeof(char));
+    memcpy(version, fw_version, strlen(fw_version));
 
-    char *hash = strdup(asset_hash);
+    tr_info("New firmware Version: %s", version);
     status = pt_device_set_resource_value(connection_id,
                                           device_id,
-                                          MANIFEST_OBJECT,
-                                          MANIFEST_INSTANCE,
-                                          MANIFEST_RESOURCE_HASH,
-                                          hash,
-                                          strlen(hash),
-                                          free);
-    if (status != PT_STATUS_SUCCESS) {
-        tr_err("Could not create firmware update resource %d! Error was %d", MANIFEST_RESOURCE_HASH, status);
-        return status;
-    }
-
-    char* version = (char*)calloc(9,sizeof(char));
-    sprintf(version,"%d",asset_version);
-    status = pt_device_set_resource_value(connection_id,
-                                          device_id,
-                                          MANIFEST_OBJECT,
-                                          MANIFEST_INSTANCE,
-                                          MANIFEST_RESOURCE_VERSION,
+                                          COMPONENT,
+                                          COMPONENT_INSTANCE,
+                                          COMPONENT_VERSION,
                                           version,
                                           strlen(version),
                                           free);
     if (status != PT_STATUS_SUCCESS) {
-        tr_err("Could not create firmware update resource %d! Error was %d", MANIFEST_RESOURCE_VERSION, status);
+        tr_err("Could not create firmware update resource %d! Error was %d", COMPONENT_VERSION, status);
         return status;
     }
 
@@ -137,7 +120,7 @@ pt_status_t pt_device_update_firmware_update_resources(connection_id_t connectio
 
 pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_id,
                                                      const char *device_id,
-                                                     manifest_class_and_vendor_handler manifest_class_vendor_handler)
+                                                     manifest_metadata_handler manifest_meta_data_handler)
 {
     // Check if device exists
     if (device_id == NULL || pt_device_exists(connection_id, device_id) == false) {
@@ -163,12 +146,10 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
         return PT_STATUS_INVALID_PARAMETERS;
     }
 
-    // Verify that the manifest handler callback is set
-    if (manifest_class_vendor_handler == NULL) {
-        tr_warn("Manifest handler not set");
-    }
-
-    status = pt_device_add_resource_with_callback(connection_id,
+    // Verify that the manifest_meta_data_handler callback is set
+    if (manifest_meta_data_handler == NULL) {
+        tr_warn("Manifest handler not set for device id:%s",device_id);
+        status = pt_device_add_resource_with_callback(connection_id,
                                                   device_id,
                                                   MANIFEST_OBJECT,
                                                   MANIFEST_INSTANCE,
@@ -178,29 +159,54 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
                                                   OPERATION_EXECUTE,
                                                   NULL,
                                                   0,
-                                                  free,
-                                                  manifest_class_vendor_handler);
+                                                  NULL,
+                                                  NULL);
+    }
+    else {
+        status = pt_device_add_resource_with_callback(connection_id,
+                                                device_id,
+                                                MANIFEST_OBJECT,
+                                                MANIFEST_INSTANCE,
+                                                MANIFEST_RESOURCE_PAYLOAD,
+                                                /* resource name */ NULL,
+                                                LWM2M_STRING,
+                                                OPERATION_EXECUTE,
+                                                NULL,
+                                                0,
+                                                NULL,
+                                                manifest_meta_data_handler);
+    }
     if (status != PT_STATUS_SUCCESS) {
         tr_err("Could not create firmware update resource %d! Error was %d", MANIFEST_RESOURCE_PAYLOAD, status);
         return status;
     }
 
-    char *hash = strdup("0");
+    char *component_name = calloc(12, sizeof(char));
+    memcpy(component_name, COMPONENT_NAME_STR, strlen(COMPONENT_NAME_STR));
     status = pt_device_add_resource(connection_id,
                                     device_id,
-                                    MANIFEST_OBJECT,
-                                    MANIFEST_INSTANCE,
-                                    MANIFEST_RESOURCE_HASH,
-                                    /* resource name */ NULL,
+                                    COMPONENT,
+                                    COMPONENT_INSTANCE,
+                                    COMPONENT_NAME,
+                                    NULL,
                                     LWM2M_STRING,
-                                    hash,
-                                    strlen(hash),
+                                    component_name,
+                                    strlen(component_name),
                                     free);
-    if (status != PT_STATUS_SUCCESS) {
-        tr_err("Could not create firmware update resource %d! Error was %d", MANIFEST_RESOURCE_HASH, status);
-        return status;
-    }
-
+    component_name = NULL;
+    char* component_version = calloc(12, sizeof(char));
+    memcpy(component_version, VERSION_NAME_STR, strlen(VERSION_NAME_STR));
+    status = pt_device_add_resource(connection_id,
+                                    device_id,
+                                    COMPONENT,
+                                    COMPONENT_INSTANCE,
+                                    COMPONENT_VERSION,
+                                    NULL,
+                                    LWM2M_STRING,
+                                    component_version,
+                                    strlen(component_version),
+                                    free);
+    component_version = NULL;
     uint8_t *status_version = (uint8_t*)malloc(sizeof(uint8_t));
     *status_version = -1;
     status = pt_device_add_resource(connection_id,
@@ -233,24 +239,8 @@ pt_status_t pt_device_init_firmware_update_resources(connection_id_t connection_
         tr_err("Could not create manifest result resource %d! Error was %d", MANIFEST_RESOURCE_RESULT, status);
         return status;
     }
-    char *version = strdup("0");
-    status = pt_device_add_resource(connection_id,
-                                    device_id,
-                                    MANIFEST_OBJECT,
-                                    MANIFEST_INSTANCE,
-                                    MANIFEST_RESOURCE_VERSION,
-                                    /* resource name */ NULL,
-                                    LWM2M_STRING,
-                                    version,
-                                    strlen(version),
-                                    free);
-    if (status != PT_STATUS_SUCCESS) {
-        tr_err("Could not create firmware update resource %d! Error was %d", MANIFEST_RESOURCE_VERSION, status);
-        return status;
-    }
-
     uint8_t *protocol_version = (uint8_t*)malloc(sizeof(uint8_t));
-    *protocol_version = MANIFEST_DEFAULT_PROTOCOL;
+    *protocol_version = MANIFEST_PROTOCOL_V2;
     status = pt_device_add_resource(connection_id,
                                     device_id,
                                     DEVICE_META_OBJECT,
@@ -385,22 +375,18 @@ void pt_handle_manifest_status_failure(json_t *response, void *callback_data)
 
 pt_status_t pt_download_asset_internal(const connection_id_t connection_id,
                                        const char *device_id,
-                                       const char *url,
-                                       const char *hash,
-                                       uint32_t size,
+                                       uint64_t size,
                                        pt_download_cb success_handler,
                                        pt_download_cb failure_handler,
                                        void *userdata)
 {
-    if (url == NULL || hash == NULL || success_handler == NULL || failure_handler == NULL) {
+    if (success_handler == NULL || failure_handler == NULL) {
         return PT_STATUS_INVALID_PARAMETERS;
     }
-
+    tr_info("Sending download request");
     json_t *message = allocate_base_request("download_asset");
     json_t *params = json_object_get(message, "params");
-    json_object_set_new(params, "url", json_string(url));
     json_object_set_new(params, "size", json_integer(size));
-    json_object_set_new(params, "hash", json_string(hash));
     json_object_set_new(params, "deviceId", json_string(device_id));
 
     pt_asset_download_callback_t *customer_callback = (pt_asset_download_callback_t*)allocate_customer_callback(connection_id,
@@ -408,6 +394,7 @@ pt_status_t pt_download_asset_internal(const connection_id_t connection_id,
                                                                                                                 (pt_response_handler)failure_handler,
                                                                                                                 userdata);
     if (message == NULL || params == NULL || customer_callback == NULL ) {
+        tr_error("error in sending download request");
         json_decref(message);
         pt_manifest_context_free(userdata);
         customer_callback_free_func((rpc_request_context_t *) customer_callback);
