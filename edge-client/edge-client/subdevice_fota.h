@@ -26,11 +26,11 @@
 #include <curl/curl.h>
 
 #define TRACE_GROUP "subdev"
-
-// int fota_download_start(void *download_handle, const char *payload_url, size_t payload_offset);
-// int fota_download_init(void **download_handle);
 #define ENDPOINT_SIZE 256
 #define MANIFEST_URI_SIZE 256
+#if !defined(FIRMWARE_DOWNLOAD_LOCATION)
+#define FIRMWARE_DOWNLOAD_LOCATION "/home/prabha04/bin"
+#endif
 int fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state);
 int fota_manifest_parse(const uint8_t *input_data, size_t input_size, manifest_firmware_info_t *fw_info);
 int fota_component_name_to_id(const char *name, unsigned int *comp_id);
