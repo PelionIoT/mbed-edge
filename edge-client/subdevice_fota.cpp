@@ -217,10 +217,11 @@ static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 
 int start_download(char* downloaded_path) {
 // handle errors from curl apis
+    char filename[FILENAME_MAX] = "";
+    sprintf(filename,"%s/%s-%" PRIu64 ".bin",FIRMWARE_DOWNLOAD_LOCATION,fota_ctx->fw_info->component_name, fota_ctx->fw_info->version);
+    tr_info("File location: %s", filename);
     fota_ctx->state = FOTA_STATE_DOWNLOADING;
     CURL *curl_handle;
-    char filename[FILENAME_MAX] = "";
-    sprintf(filename,"%s-%" PRIu64 ".bin",fota_ctx->fw_info->component_name, fota_ctx->fw_info->version);
     FILE *fwfile;
     curl_global_init(CURL_GLOBAL_ALL);
     curl_handle = curl_easy_init();
