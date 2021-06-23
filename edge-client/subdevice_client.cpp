@@ -87,48 +87,36 @@ void manifest_callback_subdevice(void *_parameters) {
     uint16_t length = exec_params->get_argument_value_length();
     M2MResource *resource = exec_params->get_resource();
     fota_state_e fota_state;
+    char device_id[ENDPOINT_SIZE] = {0};
+    get_endpoint(device_id, resource->uri_path());
     int ret = fota_is_ready(buffer, length, &fota_state);
     if (ret == FOTA_STATUS_OUT_OF_MEMORY) {
         memset(buffer, 0, length);
-        //TODO: report COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED
+        uint8_t res = -1*FOTA_STATUS_OUT_OF_MEMORY;
+        update_state_resource(device_id, FOTA_STATE_INVALID);
+        update_result_resource(device_id, res);
         resource->send_delayed_post_response();
+        resource->set_manifest_check_status(false);
+        return;
         }
-    char device_id[ENDPOINT_SIZE] = {0};
-    get_endpoint(device_id, resource->uri_path());
+
 
      switch (fota_state) {
         case FOTA_STATE_IDLE: {
-            // check if this is necessary
-            edgeclient_set_resource_value(device_id,
-                                                MANIFEST_OBJECT,
-                                                MANIFEST_INSTANCE,
-                                                MANIFEST_ASSET_HASH,
-                                                "",
-                                                (const uint8_t *) "0",
-                                                1,
-                                                LWM2M_STRING,
-                                                1,
-                                                NULL);
-
-            edgeclient_set_resource_value(device_id,
-                                                MANIFEST_OBJECT,
-                                                MANIFEST_INSTANCE,
-                                                MANIFEST_VERSION,
-                                                "",
-                                                (const uint8_t *) "0",
-                                                1,
-                                                LWM2M_STRING,
-                                                1,
-                                                NULL);
+            uint8_t reset_val = -1;
+            update_state_resource(device_id, reset_val);
+            update_result_resource(device_id, reset_val);
+            resource->send_delayed_post_response();
             subdevice_fota_on_manifest(buffer, length, resource);
-            return;
+            break;
         }
         case FOTA_STATE_INVALID:
             FOTA_TRACE_ERROR("FOTA cannot handle manifest - rejecting");
-            // send error MCCP code.
+            update_state_resource(device_id, FOTA_STATE_INVALID);
+            uint8_t res = -1*FOTA_STATUS_INSTALL_AUTH_NOT_GRANTED;
+            update_result_resource(device_id, res);
+            resource->send_delayed_post_response();
             resource->set_manifest_check_status(false);
-            break;
-        default:
             break;
     }
 }
