@@ -317,7 +317,7 @@ int update_manifest_vendor_class_values_from_json(struct connection *connection,
     if (classid_encoded == NULL) {
         return 1;
     }
-    const char *vendorid_encoded = json_string_value(class_id_handle);
+    const char *vendorid_encoded = json_string_value(vendor_id_handle);
     if (vendorid_encoded == NULL) {
         return 1;
     }
