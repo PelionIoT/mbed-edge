@@ -117,7 +117,7 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
     if(err == FOTA_STATUS_SUCCESS) {
             json_t *json_result = json_object();
             json_object_set_new(json_result, "filename", json_string(path));
-            *result = jsonrpc_result_response(id_handle, json_result);
+            *result = json_result;
             free_subdev_context_buffers();
     }
     else {
