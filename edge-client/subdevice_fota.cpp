@@ -2,8 +2,6 @@
 
 #include "edge-client/subdevice_fota.h"
 
-
-
 static fota_context_t* fota_ctx = NULL;
 static char *endpoint = NULL;
 
@@ -144,7 +142,6 @@ void subdevice_fota_on_manifest(uint8_t* data, size_t data_size, M2MResource* re
     uint8_t curr_fw_digest[FOTA_CRYPTO_HASH_SIZE] = {0};
 
     int ret = fota_manifest_parse(data, data_size,fota_ctx->fw_info);
-    resource->send_delayed_post_response();
 
     if (ret) {
         FOTA_TRACE_DEBUG("Pelion FOTA manifest rejected %d", ret);
@@ -218,7 +215,7 @@ static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 int start_download(char* downloaded_path) {
 // handle errors from curl apis
     char filename[FILENAME_MAX] = "";
-    sprintf(filename,"%s/%s-%" PRIu64 ".bin",FIRMWARE_DOWNLOAD_LOCATION,fota_ctx->fw_info->component_name, fota_ctx->fw_info->version);
+    sprintf(filename,"%s/%s-%" PRIu64 ".bin",SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION,fota_ctx->fw_info->component_name, fota_ctx->fw_info->version);
     tr_info("File location: %s", filename);
     fota_ctx->state = FOTA_STATE_DOWNLOADING;
     CURL *curl_handle;
