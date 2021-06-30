@@ -8,6 +8,9 @@
 # Enable firmware update capabilities
 option (FIRMWARE_UPDATE "Enable firware update" ON)
 
+# Support network proxies
+option (NETWORK_PROXY_SUPPORT "Enable support for network proxies" OFF)
+
 # Provisioning mode
 # Use -D[DEVELOPER|BYOC|FACTORY]_MODE=ON
 option (DEVELOPER_MODE "Developer mode" OFF)
@@ -145,6 +148,10 @@ if (${FIRMWARE_UPDATE})
 
   add_definitions ("-DMBED_CLOUD_CLIENT_UPDATE_STORAGE=${MBED_CLOUD_CLIENT_UPDATE_STORAGE}")
 
+endif()
+
+if (${NETWORK_PROXY_SUPPORT})
+  add_definitions ("-DMBED_CLOUD_CLIENT_NETWORK_PROXY=1")
 endif()
 
 # mbedtls is supported

@@ -40,6 +40,9 @@ typedef struct {
     char *cbor_conf;
     char *edge_pt_domain_socket;
     char *http_port;
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    char *proxy;
+#endif
     /* special */
     const char *usage_pattern;
     const char *help_message;
@@ -67,6 +70,9 @@ const char help_message[] =
 "                                       This option cannot be used if built with DEVELOPER_MODE or FACTORY_MODE.\n"
 "                                       If this option is given second time (without --reset-storage) the current\n"
 "                                       Device Management Client configuration is used.\n"
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+"  -x --proxy                           Connect to the specified proxy and create a HTTP proxy tunnel using HTTP CONNECT\n"
+#endif
 "";
 
 const char usage_pattern[] =
@@ -309,6 +315,11 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
         } else if (!strcmp(option->olong, "--http-port")) {
             if (option->argument)
                 args->http_port = option->argument;
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        } else if (!strcmp(option->olong, "--proxy")) {
+            if (option->argument)
+                args->proxy = option->argument;
+#endif
         }
     }
     /* commands */
@@ -330,6 +341,9 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
         0, 0, 0, 0, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        NULL,
+#endif
         usage_pattern, help_message
     };
     Tokens ts;
@@ -344,9 +358,12 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-v", "--version", 0, 0, NULL},
         {"-c", "--cbor-conf", 1, 0, NULL},
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+        {"-x", "--proxy", 1, 0, NULL},
+#endif
         {"-o", "--http-port", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 7, commands, arguments, options};
+    Elements elements = {0, 0, sizeof(options)/sizeof(options[0]), commands, arguments, options};
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))

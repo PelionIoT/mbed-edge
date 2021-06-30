@@ -103,6 +103,68 @@ public:
         _on_est_result_cb = est_result_cb;
     }
 
+#if MBED_CLOUD_CLIENT_NETWORK_PROXY == 1
+    void set_proxy(const char *proxy)
+    {
+        int c;
+        uint16_t proxy_port;
+        /* TODO: make these non-static when the mbed-cloud-client lib is fixed. */
+        static String proxy_address;
+        static String proxy_auth_type;
+        static String proxy_creds;
+
+        if (NULL == proxy) {
+            tr_debug("EdgeClientImpl::set_proxy: no address configured");
+            return;
+        }
+
+        String addr = proxy;
+        // split host:port
+        c = addr.find_last_of(':');
+        if (c > 0 && c < (int)addr.length()) {
+            int64_t value;
+            proxy_address = addr.substr(0, c);
+            // convert port string to integer
+            String port = addr.substr(c + 1, addr.length() - c);
+            bool converted = String::convert_ascii_to_int(port.c_str(), port.length(), value);
+            if (converted == true && value > 0 && value < 65535) {
+            proxy_port = (uint16_t)value;
+            } else {
+            // failed to convert port to integer, use default
+            proxy_port = 1080;
+            }
+        } else {
+            // no port found, use default
+            proxy_address = proxy;
+            proxy_port = 1080;
+        }
+
+        // strip http://
+        String HTTP = "http://";
+        String HTTPS = "https://";
+        if (proxy_address.compare(0, HTTP.size(), HTTP) == 0) {
+            proxy_address = proxy_address.substr(HTTP.size(), proxy_address.size() - HTTP.size());
+        } else if (proxy_address.compare(0, HTTPS.size(), HTTPS) == 0) {
+            tr_error("EdgeClientImpl::set_proxy: HTTPS proxy is not supported.  Use HTTP");
+            return;
+        }
+
+        // split user:pass@server
+        c = proxy_address.find_last_of('@');
+        if (c > 0 && c < (int)proxy_address.length()) {
+            proxy_auth_type = "Basic";
+            proxy_creds = proxy_address.substr(0, c);
+            proxy_address = proxy_address.substr(c + 1, proxy_address.length() - c);
+        } else {
+            proxy_auth_type = "";
+            proxy_creds = "";
+        }
+
+        pal_proxy_set_configuration(proxy_address.c_str(), proxy_port, proxy_auth_type.c_str(), proxy_creds.c_str());
+        tr_debug("EdgeClientImpl::set_proxy: address=%s, port=%u", proxy_address.c_str(), proxy_port);
+    }
+#endif
+
     void est_free_cert_chain_context(struct cert_chain_context_s *chain_ctx)
     {
         _cloud_client.est_free_cert_chain_context(chain_ctx);
