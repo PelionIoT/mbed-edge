@@ -18,4 +18,4 @@
 	url = https://github.com/docopt/docopt.c.git
 [submodule "lib/mbed-cloud-client"]
 	path = lib/mbed-cloud-client
-	url = https://github.com/PelionIoT/mbed-cloud-client-internal
+	url = git@github.com:PelionIoT/mbed-cloud-client-internal.git
