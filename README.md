@@ -52,6 +52,12 @@ The contents of the repository.
     sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
     ```
 
+    Dependencies for Device Management Client are fetched with `mbed-cli`
+
+    ```
+    pip3 install mbed-cli
+    ```
+
     For debugging, install also these:
 
     ```bash
@@ -70,6 +76,7 @@ The contents of the repository.
 
     ```bash
     git submodule update --init --recursive
+    mbed deploy [--protocol=ssh]
     ```
 
 1. Install Rust
@@ -92,6 +99,7 @@ The contents of the repository.
 First, fetch the dependencies
 ```
 git submodule update --init --recursive
+mbed deploy [--protocol=ssh]
 ```
 
 The edge-core docker image is a developer build with firmware update enabled. Thus, place the `mbed_cloud_dev_credentials.c` and `update_default_resources.c` in `config` folder before starting the build -
