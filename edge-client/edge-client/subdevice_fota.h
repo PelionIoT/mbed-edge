@@ -71,7 +71,7 @@ extern "C" {
     void get_class_id(uint8_t* c_id);
     void get_uri(char* c_url);
     int start_download(char* path);
-    void subdevice_abort_update(int err, char* msg = NULL);
+    void subdevice_abort_update(int err, const char* msg = NULL);
     size_t get_manifest_fw_size();
 #ifdef __cplusplus
 }
