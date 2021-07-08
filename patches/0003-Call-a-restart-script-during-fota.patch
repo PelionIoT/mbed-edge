@@ -1,0 +1,34 @@
+From fdbd52a07e985ce5824f1d0c10fa23d5dc4b7eee Mon Sep 17 00:00:00 2001
+From: Nic Costa <nic.costa@arm.com>
+Date: Thu, 22 Oct 2020 16:34:58 +0000
+Subject: [PATCH 3/5] Call a restart script during fota
+
+During a FOTA, it may not be necessary or desired to reboot the OS,
+so instead edge-core calls out to a shell script to allow a
+systems integrator to decide what needs to happen during a FOTA
+restart, whether that's rebooting the OS or restarting only the
+edge-core process.
+---
+ update-client-hub/source/update_client_hub_state_machine.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/update-client-hub/source/update_client_hub_state_machine.c b/update-client-hub/source/update_client_hub_state_machine.c
+index 77aaa8a..9588a76 100644
+--- a/update-client-hub/source/update_client_hub_state_machine.c
++++ b/update-client-hub/source/update_client_hub_state_machine.c
+@@ -1321,11 +1321,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
+                 UC_HUB_TRACE("ARM_UC_HUB_STATE_REBOOT");
+ 
+                 // Firmware activated, now reboot the system to apply the new image.
+-#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+-                arm_uc_plat_reboot();
+-#else
+-                pal_osReboot();
+-#endif
++                system("/snap/" SNAPCRAFT_PROJECT_NAME "/current/wigwag/mbed/arm_update_restart.sh");
+ 
+                 /* Reboot not implemented on this platform.
+                    Go to idle state.
+-- 
+2.30.1 (Apple Git-130)
+

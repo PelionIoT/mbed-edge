@@ -1,0 +1,1009 @@
+From 8c037a8c0841d69b2edff02b7bab39d84e9cde74 Mon Sep 17 00:00:00 2001
+From: Marcus Chang <marcus.chang@pelion.com>
+Date: Mon, 28 Jun 2021 18:06:16 -0700
+Subject: [PATCH 1/5] Add PAL Proxy module using HTTP
+
+Module for redirecting PAL sockets through proxy server using HTTP.
+
+Requires socket callbacks to not be from interrupt context.
+---
+ mbed-client-pal/CMakeLists.txt                |  16 +-
+ .../PAL-Impl/Modules/Networking/pal_network.c |  52 ++-
+ .../PAL-Impl/Modules/Proxy/pal_http_proxy.c   | 113 +++++
+ .../PAL-Impl/Modules/Proxy/pal_http_proxy.h   |  30 ++
+ .../Source/PAL-Impl/Modules/Proxy/pal_proxy.c | 423 ++++++++++++++++++
+ .../Source/PAL-Impl/Services-API/pal.h        |   1 +
+ .../Source/PAL-Impl/Services-API/pal_proxy.h  | 163 +++++++
+ mbed-client-pal/Source/PAL-Impl/pal_init.c    |   5 +-
+ 8 files changed, 796 insertions(+), 7 deletions(-)
+ create mode 100644 mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.c
+ create mode 100644 mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.h
+ create mode 100644 mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_proxy.c
+ create mode 100644 mbed-client-pal/Source/PAL-Impl/Services-API/pal_proxy.h
+
+diff --git a/mbed-client-pal/CMakeLists.txt b/mbed-client-pal/CMakeLists.txt
+index 7c6b788..5f99a7b 100644
+--- a/mbed-client-pal/CMakeLists.txt
++++ b/mbed-client-pal/CMakeLists.txt
+@@ -131,6 +131,11 @@ set(PAL_TLS_SRCS
+     ${PAL_PORT_SOURCE_DIR}/../../Lib_Specific/${TLS_LIBRARY}/TLS/pal_plat_TLS.c
+ )
+ 
++set(PAL_PROXY_SRCS
++    ${PAL_MODULES_SOURCE_DIR}/Proxy/pal_proxy.c
++    ${PAL_MODULES_SOURCE_DIR}/Proxy/pal_http_proxy.c
++)
++
+ set(PAL_DRBG_SRCS
+     ${PAL_MODULES_SOURCE_DIR}/DRBG/pal_drbg.c
+     # XXX: following file is in completely wrong place, it is tied to SOTP, not MBEDTLS
+@@ -205,6 +210,9 @@ add_library(palFilesystem STATIC "${PAL_FILESYSTEM_SRCS}")
+ # Create the Networking module library
+ add_library(palNetworking STATIC "${PAL_NETWORKING_SRCS}")
+ 
++# Create the Proxy module library
++add_library(palProxy STATIC "${PAL_PROXY_SRCS}")
++
+ # Create the ROT module library
+ add_library(palROT STATIC "${PAL_ROT_SRCS}")
+ 
+@@ -251,12 +259,12 @@ add_library(pal STATIC "${PAL_SRCS}")
+ # Linux platform does not support KVStore
+ if (NOT (${OS_BRAND} MATCHES "Linux"))
+ # Add dependency to KVStore and FCC so they will be built before and linked with PAL into final executable.
+-add_dependencies(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+-target_link_libraries(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
++add_dependencies(pal palRTOS palNetworking palProxy palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
++target_link_libraries(pal palRTOS palNetworking palProxy palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+ else()
+ # Add dependency to SOTP and FCC so they will be built before and linked with PAL into final executable.
+-add_dependencies(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp nanostacklibservice PLATFORM_LIBS)
+-target_link_libraries(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp nanostacklibservice PLATFORM_LIBS)
++add_dependencies(pal palRTOS palNetworking palProxy palDRBG palROT palEntropy palTLS palTime sotp nanostacklibservice PLATFORM_LIBS)
++target_link_libraries(pal palRTOS palNetworking palProxy palDRBG palROT palEntropy palTLS palTime sotp nanostacklibservice PLATFORM_LIBS)
+ endif()
+ 
+ # Bring in the ROT implementation from platform-common/application side. This can be
+diff --git a/mbed-client-pal/Source/PAL-Impl/Modules/Networking/pal_network.c b/mbed-client-pal/Source/PAL-Impl/Modules/Networking/pal_network.c
+index d1b5b5f..976f07a 100644
+--- a/mbed-client-pal/Source/PAL-Impl/Modules/Networking/pal_network.c
++++ b/mbed-client-pal/Source/PAL-Impl/Modules/Networking/pal_network.c
+@@ -276,7 +276,11 @@ palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void*
+     PAL_VALIDATE_ARGUMENTS (NULL == optionValue);
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_setSocketOptions( socket,  optionName, optionValue,  optionLength);
++#else
+     result = pal_plat_setSocketOptions( socket,  optionName, optionValue,  optionLength);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ palStatus_t pal_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+@@ -285,7 +289,11 @@ palStatus_t pal_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLev
+     PAL_VALIDATE_ARGUMENTS (NULL == optionValue);
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_setSocketOptionsWithLevel(socket, optionLevel, optionName, optionValue, optionLength);
++#else
+     result = pal_plat_setSocketOptionsWithLevel(socket, optionLevel, optionName, optionValue, optionLength);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -293,7 +301,12 @@ palStatus_t pal_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
+ {
+     PAL_VALIDATE_ARGUMENTS (NULL == isNonBlocking);
+ 
+-    palStatus_t result = pal_plat_isNonBlocking(socket, isNonBlocking);;
++    palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_isNonBlocking(socket, isNonBlocking);;
++#else
++    result = pal_plat_isNonBlocking(socket, isNonBlocking);;
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -304,7 +317,11 @@ palStatus_t pal_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocke
+     PAL_VALIDATE_ARGUMENTS(NULL == myAddress);
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_bind(socket, myAddress, addressLength);
++#else
+     result = pal_plat_bind(socket, myAddress, addressLength);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -315,7 +332,11 @@ palStatus_t pal_receiveFrom(palSocket_t socket, void* buffer, size_t length, pal
+     PAL_VALIDATE_ARGUMENTS((NULL == buffer) || (NULL == bytesReceived));
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_receiveFrom(socket,  buffer,  length,  from, fromLength, bytesReceived);
++#else
+     result = pal_plat_receiveFrom(socket,  buffer,  length,  from, fromLength, bytesReceived);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -326,7 +347,11 @@ palStatus_t pal_sendTo(palSocket_t socket, const void* buffer, size_t length, co
+     PAL_VALIDATE_ARGUMENTS((NULL == buffer) || (NULL == bytesSent) || (NULL == to));
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_sendTo(socket, buffer, length, to, toLength, bytesSent);
++#else
+     result = pal_plat_sendTo(socket, buffer, length, to, toLength, bytesSent);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -337,7 +362,11 @@ palStatus_t pal_close(palSocket_t* socket)
+     PAL_VALIDATE_ARGUMENTS(NULL == socket);
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_close(socket);
++#else
+     result = pal_plat_close(socket);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -389,8 +418,11 @@ palStatus_t pal_connect(palSocket_t socket, const palSocketAddress_t* address, p
+     PAL_VALIDATE_ARGUMENTS(NULL == address);
+ 
+     palStatus_t result = PAL_SUCCESS;
+-
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_connect(socket, address, addressLen);
++#else
+     result = pal_plat_connect( socket, address, addressLen);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -411,7 +443,11 @@ palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* se
+     PAL_VALIDATE_ARGUMENTS((NULL == buf) || (NULL == sentDataSize));
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_send(socket, buf, len, sentDataSize);
++#else
+     result = pal_plat_send( socket, buf, len, sentDataSize);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -432,7 +468,11 @@ palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSock
+     PAL_VALIDATE_ARGUMENTS((NULL == socket) || (NULL == callback) || (nonBlockingSocket == false));
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_asynchronousSocket(domain, type, nonBlockingSocket, interfaceNum, callback, callbackArgument, socket);
++#else
+     result = pal_plat_asynchronousSocket(domain, type, nonBlockingSocket, interfaceNum, callback, callbackArgument, socket);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ 
+@@ -443,7 +483,11 @@ palStatus_t pal_getAddressInfo(const char *hostname, palSocketAddress_t *address
+     PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == address) || (NULL == addressLength));
+ 
+     palStatus_t result = PAL_SUCCESS;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++    result = pal_proxy_getAddressInfo(hostname, address, addressLength);
++#else
+     result = pal_plat_getAddressInfo(hostname, address, addressLength);
++#endif
+     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+ }
+ #endif
+@@ -522,7 +566,11 @@ palStatus_t pal_getAddressInfoAsync(const char* hostname,
+         info->callback = callback;
+         info->callbackArgument = callbackArgument;
+         info->queryHandle = queryHandle;
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++        status = pal_proxy_getAddressInfoAsync(info);
++#else
+         status = pal_plat_getAddressInfoAsync(info);
++#endif
+         if (status != PAL_SUCCESS) {
+             free(info);
+         }
+diff --git a/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.c b/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.c
+new file mode 100644
+index 0000000..cb4f140
+--- /dev/null
++++ b/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.c
+@@ -0,0 +1,113 @@
++// ----------------------------------------------------------------------------
++// Copyright 2021 Pelion
++//
++// SPDX-License-Identifier: Apache-2.0
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++// ----------------------------------------------------------------------------
++
++#include "pal_http_proxy.h"
++
++#include "pal_plat_network.h"
++#include "mbedtls/base64.h"
++
++#include <string.h>
++#include <stdio.h>
++
++#define TRACE_GROUP "PAL"
++
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++
++static const char* pal_proxy_auth_type = NULL;
++static const char* pal_proxy_credentials = NULL;
++
++palStatus_t pal_http_proxy_set_configuration(const char* auth_type, const char* credentials)
++{
++    pal_proxy_auth_type = auth_type;
++    pal_proxy_credentials = credentials;
++
++    return PAL_SUCCESS;
++}
++
++palStatus_t pal_http_proxy_establish_tunnel(palSocket_t socket, const char* host, uint16_t port)
++{
++    int n;
++    char buffer[256];
++
++    if ((host == NULL) || (port == 0)) {
++        return PAL_ERR_SOCKET_GENERIC;
++    }
++
++    tr_debug("Sending proxy CONNECT directive...");
++
++    snprintf(buffer, sizeof(buffer), "CONNECT %s:%d HTTP/1.0\r\n", host, port);
++    if (pal_proxy_auth_type && pal_proxy_credentials) {
++        uint8_t proxy_auth[256];
++        size_t olen = 0;
++
++        int result = mbedtls_base64_encode(proxy_auth, 256, &olen, (const uint8_t*) pal_proxy_credentials, strnlen(pal_proxy_credentials, 255));
++
++        if (result != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL) {
++            snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), "Proxy-Authorization: %s %.*s\r\n", pal_proxy_auth_type, (int) olen, proxy_auth);
++        }
++    }
++    strcat(buffer, "\r\n");
++
++    tr_debug("%s", buffer);
++
++    size_t sentDataSize;
++    n = pal_plat_send(socket, buffer, strlen(buffer), &sentDataSize);
++    if (n != PAL_SUCCESS) {
++        tr_error("ERROR writing to socket: %d", n);
++        return n;
++    }
++
++    return PAL_SUCCESS;
++}
++
++palStatus_t pal_http_proxy_receive_handler(palSocket_t socket)
++{
++    size_t n;
++    char buffer[256];
++    palStatus_t rt;
++
++    memset(buffer, 0, sizeof(buffer));
++
++    // receive answer from proxy
++    rt = pal_plat_recv(socket, buffer, sizeof(buffer) - 1, &n);
++    if (rt != PAL_SUCCESS) {
++        tr_error("ERROR reading from socket: %d", rt);
++        return rt;
++    }
++
++    int http_ver, http_code;
++    sscanf(buffer, "HTTP/1.%d %d", &http_ver, &http_code);
++// possible proxy answers:
++//  HTTP/1.0 500 Unable to connect
++//  HTTP/1.0 407 Proxy Authentication Required
++//  HTTP/1.0 401 Unauthorized
++//  HTTP/1.0 200 Connection established
++    if (http_code != 200) {
++        tr_error("Failed to connect to proxy: HTTP %d", http_code);
++        return PAL_ERR_SOCKET_GENERIC;
++    }
++
++    tr_info("Proxy response: HTTP/1.%d %d", http_ver, http_code);
++
++// TODO: read until \n\n
++// tr_debug("%s\n",buffer);
++
++    return PAL_SUCCESS;
++}
++
++#endif
+diff --git a/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.h b/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.h
+new file mode 100644
+index 0000000..42e1620
+--- /dev/null
++++ b/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_http_proxy.h
+@@ -0,0 +1,30 @@
++// ----------------------------------------------------------------------------
++// Copyright 2021 Pelion
++//
++// SPDX-License-Identifier: Apache-2.0
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++// ----------------------------------------------------------------------------
++
++#ifndef PAL_HTTP_PROXY_H
++#define PAL_HTTP_PROXY_H
++
++#include "pal.h"
++
++palStatus_t pal_http_proxy_set_configuration(const char* auth_type, const char* credentials);
++
++palStatus_t pal_http_proxy_establish_tunnel(palSocket_t socket, const char* host, uint16_t port);
++
++palStatus_t pal_http_proxy_receive_handler(palSocket_t socket);
++
++#endif
+diff --git a/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_proxy.c b/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_proxy.c
+new file mode 100644
+index 0000000..9229cb6
+--- /dev/null
++++ b/mbed-client-pal/Source/PAL-Impl/Modules/Proxy/pal_proxy.c
+@@ -0,0 +1,423 @@
++/*******************************************************************************
++ * Copyright 2016, 2017 ARM Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ *******************************************************************************/
++
++#include "pal.h"
++#include "pal_proxy.h"
++#include "pal_http_proxy.h"
++#include "pal_network.h"
++#include "pal_plat_network.h"
++
++#define TRACE_GROUP "PAL"
++
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++
++/* Proxy states, in progression order. */
++typedef enum {
++    ProxyDisconnected,
++    ProxySocket,
++    ProxyTunnel,
++    ProxyConnected
++} ProxyState;
++
++static ProxyState state = ProxyDisconnected;
++
++/* Remote proxy server and port. */
++static const char* proxy_server = NULL;
++static uint16_t proxy_port = 0;
++
++/* Variables for intercepting PAL Network calls. */
++static palSocket_t* proxy_socket;
++static const char* pelion_server = NULL;
++static uint16_t pelion_port = 0;
++static palSocketAddress_t pelion_socket_address;
++static palAsyncSocketCallback_t pal_callback_function = NULL;
++
++/* Mutex protecting callback function from race conditions. */
++static palMutexID_t proxy_mutex;
++
++/**
++ * @brief      Callback function for intercepting PAL socket callbacks during proxy handshake.
++ *
++ * @param      argument PAL socket argument to be passed to upper layer.
++ */
++static void pal_proxy_callback(void* argument)
++{
++    tr_debug("pal_proxy_callback: %d", state);
++
++    /* Function may have been called from another thread, use mutex for protection. */
++    pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++
++    /* Socket connection established, proceed to establish tunnel. */
++    if (state == ProxySocket) {
++
++        palStatus_t result = pal_http_proxy_establish_tunnel(*proxy_socket, pelion_server, pelion_port);
++
++        if (result == PAL_SUCCESS) {
++            /* Request sent, proceed to next state. */
++            state = ProxyTunnel;
++        } else {
++            /* Request failed, abort connection. */
++            state = ProxyDisconnected;
++        }
++
++    /* Tunnel request sent, handle response. */
++    } else if (state == ProxyTunnel) {
++
++        palStatus_t result = pal_http_proxy_receive_handler(*proxy_socket);
++
++        if (result == PAL_SUCCESS) {
++            /* Tunnel established, PAL socket considered connected. */
++            state = ProxyConnected;
++        } else if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
++            /* Response not ready, wait for next callback and try again. */
++        } else {
++            /* Tunnel failed, abort connection. */
++            state = ProxyDisconnected;
++        }
++    }
++
++    /* exit critical region, release mutex. */
++    pal_osMutexRelease(proxy_mutex);
++
++    /* passthrough callback when tunnel handshake is not in progress. */
++    if ((state == ProxyConnected) || (state == ProxyDisconnected)) {
++        pal_callback_function(argument);
++    }
++}
++
++palStatus_t pal_proxy_set_configuration(const char* server, uint16_t port,
++                                        const char* auth_type, const char* credentials)
++{
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    /* configuration may be set from another thread, protect critical region. */
++    pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++
++    /* store pointer to server URL and copy of port. */
++    proxy_server = server;
++    proxy_port = port;
++
++    /* pass credentials to proxy implementation. */
++    result = pal_http_proxy_set_configuration(auth_type, credentials);
++
++    /* exit critical region. */
++    pal_osMutexRelease(proxy_mutex);
++
++    return result;
++}
++
++palStatus_t pal_proxy_socketsInit(void* context)
++{
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    result = pal_osMutexCreate(&proxy_mutex);
++
++    if (result == PAL_SUCCESS) {
++        result = pal_plat_socketsInit(NULL);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
++{
++    tr_debug("pal_proxy_asynchronousSocket");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    /* store socket pointer and intercept callback function if proxy server is configured. */
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        proxy_socket = socket;
++        pal_callback_function = callback;
++
++        result = pal_plat_asynchronousSocket(domain, type, nonBlockingSocket, interfaceNum, pal_proxy_callback, callbackArgument, socket);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_asynchronousSocket(domain, type, nonBlockingSocket, interfaceNum, callback, callbackArgument, socket);
++    }
++
++    return result;
++}
++
++#if PAL_NET_DNS_SUPPORT
++#if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
++palStatus_t pal_proxy_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t* addressLength)
++{
++    tr_debug("pal_proxy_getAddressInfo");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    /* store original hostname and replace DNS lookup with proxy server URL, if one is configured. */
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        pelion_server = hostname;
++
++        result = pal_plat_getAddressInfo(proxy_server, address, addressLength);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_getAddressInfo(hostname, address, addressLength);
++    }
++
++    return result;
++}
++#elif (PAL_DNS_API_VERSION == 3)
++palStatus_t pal_proxy_getAddressInfoAsync(pal_asyncAddressInfo_t* info)
++{
++    tr_debug("pal_proxy_getAddressInfoAsync");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    /* store original hostname and replace DNS lookup with proxy server URL, if one is configured. */
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        pelion_server = info->hostname;
++        info->hostname = (char*) proxy_server;
++
++        result = pal_plat_getAddressInfoAsync(info);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_getAddressInfoAsync(info);
++    }
++
++    return result;
++}
++
++#else
++#error DNS version not supported
++#endif
++#endif
++
++palStatus_t pal_proxy_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
++{
++    tr_debug("pal_proxy_connect: %d", state);
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++
++        /* open connection if not connected */
++        if (state == ProxyDisconnected) {
++
++            pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++
++            /* PAL address contains proxy IP and pelion port.
++             * Leave PAL address untouched and copy content to local PAL address struct.
++             * Store pelion port in local variable and insert proxy port.
++             */
++            memcpy(&pelion_socket_address, address, sizeof(palSocketAddress_t));
++            pal_getSockAddrPort(address, &pelion_port);
++            pal_setSockAddrPort(&pelion_socket_address, proxy_port);
++
++            result = pal_plat_connect(socket, &pelion_socket_address, addressLen);
++
++            /* If PAL socket implementation connects synchronously, without a callback signal,
++             * send tunnel handshake immediately.
++             */
++            if (result == PAL_SUCCESS) {
++
++                result = pal_http_proxy_establish_tunnel(*proxy_socket, pelion_server, pelion_port);
++
++                if (result == PAL_SUCCESS) {
++                    /* handshake successfully sent, progress state and wait for response. */
++                    state = ProxyTunnel;
++                    result = PAL_ERR_SOCKET_IN_PROGRES;
++                } else {
++                    /* handshake failed, abort connect. */
++                    state = ProxyDisconnected;
++                }
++            } else if (result == PAL_ERR_SOCKET_IN_PROGRES) {
++
++                /* socket connection under way, progress state and wait for response. */
++                state = ProxySocket;
++            }
++
++            pal_osMutexRelease(proxy_mutex);
++
++        /* proxy handshake in progress. */
++        } else if ((state == ProxySocket) || (state == ProxyTunnel)) {
++            result = PAL_ERR_SOCKET_IN_PROGRES;
++
++        /* already connected to proxy. */
++        } else {
++            result = PAL_ERR_SOCKET_ALREADY_CONNECTED;
++        }
++    } else {
++        result = pal_plat_connect(socket, address, addressLen);
++    }
++
++    tr_debug("pal_proxy_connect: %d", result);
++
++    return result;
++}
++
++palStatus_t pal_proxy_close(palSocket_t* socket)
++{
++    tr_debug("pal_proxy_close: %d", state);
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        state = ProxyDisconnected;
++        result = pal_plat_close(socket);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_close(socket);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize)
++{
++    tr_debug("pal_proxy_send");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_send(socket, buf, len, sentDataSize);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_send(socket, buf, len, sentDataSize);
++    }
++
++    return result;
++}
++
++
++palStatus_t pal_proxy_recv(palSocket_t socket, void* buf, size_t len, size_t* recievedDataSize)
++{
++    tr_debug("pal_proxy_recv");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_recv(socket, buf, len, recievedDataSize);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_recv(socket, buf, len, recievedDataSize);
++    }
++
++    return result;
++}
++
++
++palStatus_t pal_proxy_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
++{
++    tr_debug("pal_proxy_setSocketOptions");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_setSocketOptions(socket, optionName, optionValue, optionLength);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_setSocketOptions(socket, optionName, optionValue, optionLength);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
++{
++    tr_debug("pal_proxy_setSocketOptionsWithLevel");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_setSocketOptionsWithLevel(socket, optionLevel, optionName, optionValue, optionLength);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_setSocketOptionsWithLevel(socket, optionLevel, optionName, optionValue, optionLength);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
++{
++    tr_debug("pal_proxy_isNonBlocking");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_isNonBlocking(socket, isNonBlocking);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_isNonBlocking(socket, isNonBlocking);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength)
++{
++    tr_debug("pal_proxy_bind");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_bind(socket, myAddress, addressLength);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_bind(socket, myAddress, addressLength);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived)
++{
++    tr_debug("pal_proxy_receiveFrom");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_receiveFrom(socket, buffer, length, from, fromLength, bytesReceived);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_receiveFrom(socket, buffer, length, from, fromLength, bytesReceived);
++    }
++
++    return result;
++}
++
++palStatus_t pal_proxy_sendTo(palSocket_t socket, const void* buffer, size_t length, const palSocketAddress_t* to, palSocketLength_t toLength, size_t* bytesSent)
++{
++    tr_debug("pal_proxy_sendTo");
++
++    palStatus_t result = PAL_ERR_SOCKET_GENERIC;
++
++    if (proxy_server && proxy_port) {
++        pal_osMutexWait(proxy_mutex, PAL_RTOS_WAIT_FOREVER);
++        result = pal_plat_sendTo(socket, buffer, length, to, toLength, bytesSent);
++        pal_osMutexRelease(proxy_mutex);
++    } else {
++        result = pal_plat_sendTo(socket, buffer, length, to, toLength, bytesSent);
++    }
++
++    return result;
++}
++
++#endif
+diff --git a/mbed-client-pal/Source/PAL-Impl/Services-API/pal.h b/mbed-client-pal/Source/PAL-Impl/Services-API/pal.h
+index f670390..dccf523 100644
+--- a/mbed-client-pal/Source/PAL-Impl/Services-API/pal.h
++++ b/mbed-client-pal/Source/PAL-Impl/Services-API/pal.h
+@@ -39,6 +39,7 @@ extern "C" {
+ #include "PAL-Impl/Services-API/pal_entropy.h"
+ #include "PAL-Impl/Services-API/pal_update.h"
+ #include "PAL-Impl/Services-API/pal_internalFlash.h"
++#include "PAL-Impl/Services-API/pal_proxy.h"
+ 
+ /*! \file pal.h
+ *  \brief PAL.
+diff --git a/mbed-client-pal/Source/PAL-Impl/Services-API/pal_proxy.h b/mbed-client-pal/Source/PAL-Impl/Services-API/pal_proxy.h
+new file mode 100644
+index 0000000..128eb96
+--- /dev/null
++++ b/mbed-client-pal/Source/PAL-Impl/Services-API/pal_proxy.h
+@@ -0,0 +1,163 @@
++// ----------------------------------------------------------------------------
++// Copyright 2021 Pelion
++//
++// SPDX-License-Identifier: Apache-2.0
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++// ----------------------------------------------------------------------------
++
++#ifndef PAL_PROXY_H
++#define PAL_PROXY_H
++
++#ifndef _PAL_H
++#error "Please do not include this file directly, use pal.h instead"
++#endif
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++palStatus_t pal_proxy_set_configuration(const char* host, uint16_t port,
++                                        const char* auth_type, const char* credentials);
++
++/*! \brief Initialize sockets.
++ *
++ * Must be called before other socket functions. By default, is called from PAL init.
++ * @param[in] context Optional context. If not available or applicable, use NULL.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_socketsInit(void* context);
++
++/*! \brief Get an asynchronous network socket.
++ * @param[in] domain The domain of the created socket. See enum `palSocketDomain_t` for supported types.
++ * @param[in] type The type of the created socket. See enum `palSocketType_t` for supported types.
++ * @param[in] callback A callback function that is called when any supported event takes place in the given asynchronous socket.
++ * @param[in] callbackArgument the argument with which the specified callback will be called when any supported event takes place in the given asynchronous socket.
++ * @param[out] socket This output parameter returns the socket.
++ * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket);
++
++#if PAL_NET_DNS_SUPPORT
++#if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
++
++/*! \brief This function translates a hostname to a `palSocketAddress_t` that can be used with PAL sockets.
++ * @param[in] hostname The hostname to be translated to a `palSocketAddress_t`.
++ * @param[out] address The address for the output of the translation.
++ * @param[out] addressLength The length of the output address.
++ */
++palStatus_t pal_proxy_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t* addressLength);
++#elif (PAL_DNS_API_VERSION == 3)
++/*! \brief This function translates a hostname to a `palSocketAddress_t` that can be used with PAL sockets.
++ * @param[in] info address of `pal_asyncAddressInfo_t`.
++ */
++palStatus_t pal_proxy_getAddressInfoAsync(pal_asyncAddressInfo_t* info);
++#endif
++#endif
++
++/*! \brief Open a connection from a socket to a specific address.
++ * @param[in] socket The socket to use for the connection to the given address. The socket passed to this function should be of type `PAL_SOCK_STREAM`, unless your specific implementation supports other types as well.
++ * @param[in] address The destination address of the connection.
++ * @param[in] addressLen The length of the address field.
++ * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen);
++
++/*! \brief Close a network socket.
++ * \note The function recieves `palSocket_t*` and not `palSocket_t` so that it can zero the socket to avoid re-use.
++ * @param[in,out] socket Pointer to the socket to release and zero.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_close(palSocket_t* socket);
++
++/*! \brief Send a buffer via a specific connected socket.
++ * @param[in] socket The connected socket on which to send data. The socket passed to this function should be of type `PAL_SOCK_STREAM`, unless your specific implementation supports other types as well.
++ * @param[in] buf The output buffer for the message data.
++ * @param[in] len The length of the output data buffer in bytes.
++ * @param[out] sentDataSize The length of the data sent in bytes.
++ * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize);
++
++/*! \brief Receive data from a connected socket.
++ * @param[in] socket The connected socket on which to receive data. Sockets passed to this function should be of type PAL_SOCK_STREAM, unless your specific implementation supports other types as well.
++ * @param[out] buf The output buffer for the message data.
++ * @param[in] len The length of the input data buffer in bytes.
++ * @param[out] recievedDataSize The length of the data actually received in bytes.
++ * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_recv(palSocket_t socket, void* buf, size_t len, size_t* recievedDataSize);
++
++/*! \brief Set options for a network socket.
++ *
++ * See `palSocketOptionName_t` for supported options.
++ * @param[in] socket The socket to configure.
++ * @param[in] optionName The name of the option to be set. See enum `palSocketOptionName_t` for supported types.
++ * @param[in] optionValue The buffer holding the value to set for the given option.
++ * @param[in] optionLength The size of the buffer provided for `optionValue` in bytes.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength);
++
++/*! \brief Set the value for a socket option on a network socket.
++ * @param[in] socket The socket to configure.
++ * @param[in] optionLevel Specifies the protocol level at which the option resides. See \c palSocketOptionLevelName_t for supported options.
++ * @param[in] optionName The identification of the socket option to set. See \c palSocketOptionName_t for supported options.
++ * @param[in] optionValue The buffer holding the option value to set for the option.
++ * @param[in] optionLength  The size of the buffer provided for `optionValue`.
++ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength);
++
++/*! \brief Check if a socket is non-blocking.
++ * @param[in] socket The socket for which to check non-blocking status.
++ * @param[out] isNonBlocking The non-blocking status for the socket. Is `true` if non-blocking, otherwise `false`.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_isNonBlocking(palSocket_t socket, bool* isNonBlocking);
++
++/*! \brief Bind a socket to a local address.
++ * @param[in] socket The socket to bind.
++ * @param[in] myAddress The address to bind to.
++ * @param[in] addressLength The length of the address passed in `myAddress`.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength);
++
++/*! \brief Receive a payload from a socket.
++ * @param[in] socket The socket to receive from. The socket passed to this function should be of type `PAL_SOCK_DGRAM`, unless your specific implementation supports other types as well.
++ * @param[out] buffer The buffer for the payload data.
++ * @param[in] length The length of the buffer for the payload data in bytes.
++ * @param[out] from The address that sent the payload. This value is optional, pass NULL when not used.
++ * @param[in, out] fromLength The length of the `from` address. When completed, this contains the amount of data actually written to the `from` address. This value is optional, pass NULL when not used.
++ * @param[out] bytesReceived The actual amount of payload data received in the buffer.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived);
++
++/*! \brief Send a payload to an address using a specific socket.
++ * @param[in] socket The socket to use for sending the payload. The socket passed to this function should be of type `PAL_SOCK_DGRAM`, unless your specific implementation supports other types as well.
++ * @param[in] buffer The buffer for the payload data.
++ * @param[in] length The length of the buffer for the payload data.
++ * @param[in] to The address to which the payload should be sent.
++ * @param[in] toLength The length of the `to` address.
++ * @param[out] bytesSent The actual amount of payload data sent.
++ * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
++ */
++palStatus_t pal_proxy_sendTo(palSocket_t socket, const void* buffer, size_t length, const palSocketAddress_t* to, palSocketLength_t toLength, size_t* bytesSent);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff --git a/mbed-client-pal/Source/PAL-Impl/pal_init.c b/mbed-client-pal/Source/PAL-Impl/pal_init.c
+index 8acd995..12d29ec 100644
+--- a/mbed-client-pal/Source/PAL-Impl/pal_init.c
++++ b/mbed-client-pal/Source/PAL-Impl/pal_init.c
+@@ -66,7 +66,11 @@ palStatus_t pal_init(void)
+         if (PAL_SUCCESS == status)
+         {
+             DEBUG_PRINT("Network init\r\n");
++#if MBED_CLOUD_CLIENT_NETWORK_PROXY
++            status = pal_proxy_socketsInit(NULL);
++#else
+             status = pal_plat_socketsInit(NULL);
++#endif
+             if (PAL_SUCCESS != status)
+             {
+                 DEBUG_PRINT("init of network module has failed with status %" PRIx32 "\r\n",status);
+@@ -120,7 +124,6 @@ palStatus_t pal_init(void)
+                                     DEBUG_PRINT("init of DRBG module has failed with status %" PRIx32 "\r\n",status);
+                                 }
+                             }
+-
+                         }
+                     }
+                 }
+-- 
+2.30.1 (Apple Git-130)
+

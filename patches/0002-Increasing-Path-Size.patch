@@ -1,0 +1,26 @@
+From 9b443dc3965400babb6366174d545cea100d66d4 Mon Sep 17 00:00:00 2001
+From: "J. Michael Welsh" <mike.welsh@arm.com>
+Date: Tue, 15 Sep 2020 20:47:16 +0000
+Subject: [PATCH 2/5] Increasing Path Size
+
+Increasing the path size to fix overflow issues.
+---
+ mbed-client-pal/Source/PAL-Impl/Services-API/pal_fileSystem.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mbed-client-pal/Source/PAL-Impl/Services-API/pal_fileSystem.h b/mbed-client-pal/Source/PAL-Impl/Services-API/pal_fileSystem.h
+index ae606eb..11ddb3e 100644
+--- a/mbed-client-pal/Source/PAL-Impl/Services-API/pal_fileSystem.h
++++ b/mbed-client-pal/Source/PAL-Impl/Services-API/pal_fileSystem.h
+@@ -116,7 +116,7 @@
+ 
+ #define PAL_MAX_FILE_NAME_SIZE		8				//!< Max length for file name received by user.
+ #define PAL_MAX_FILE_NAME_SUFFIX	3				//!< Max length for file name suffix.
+-#define PAL_MAX_FOLDER_DEPTH_CHAR	66				//!< Max folder length in chars.
++#define PAL_MAX_FOLDER_DEPTH_CHAR	128				//!< Max folder length in chars.
+ #define PAL_MAX_FILE_AND_FOLDER_LENGTH	(PAL_MAX_FILE_NAME_SIZE + PAL_MAX_FILE_NAME_SUFFIX + PAL_MAX_FOLDER_DEPTH_CHAR + 1) //!< Maximum combined file and folder name length. Plus 1 is for the period that separates file name and file suffix.
+ #define PAL_MAX_FULL_FILE_NAME	(PAL_MAX_FILE_NAME_SUFFIX + PAL_MAX_FOLDER_DEPTH_CHAR + 1) //!< Maximum combined file name. Plus 1 is for the period that separates file name and file suffix.
+ 
+-- 
+2.30.1 (Apple Git-130)
+
