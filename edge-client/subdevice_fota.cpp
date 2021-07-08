@@ -42,20 +42,21 @@ int subdevice_init_buff() {
         FOTA_TRACE_ERROR("Unable to allocate memory for endpoint");
         return FOTA_STATUS_OUT_OF_MEMORY;      
     }
+    return 0;
 }
 
 int get_component_name(char* c_name) {
     if(fota_ctx) {
         memcpy(c_name, fota_ctx->fw_info->component_name, FOTA_COMPONENT_MAX_NAME_SIZE);
+        return 0;
     }
-    else {
-        return NULL;
-    }
+    else
+        return 0;
 }
 
 int update_result_resource(char* device_id, uint8_t val) {
 
-    edgeclient_set_resource_value(device_id,
+    return edgeclient_set_resource_value(device_id,
                                 MANIFEST_OBJECT,
                                 MANIFEST_INSTANCE,
                                 MANIFEST_RESOURCE_RESULT,
@@ -65,10 +66,11 @@ int update_result_resource(char* device_id, uint8_t val) {
                                 LWM2M_INTEGER,
                                 1,
                                 NULL);
+
 }
 
 int update_state_resource(char* device_id, uint8_t val) {
-    edgeclient_set_resource_value(device_id,
+    return edgeclient_set_resource_value(device_id,
                                 MANIFEST_OBJECT,
                                 MANIFEST_INSTANCE,
                                 MANIFEST_RESOURCE_STATE,
@@ -125,7 +127,7 @@ unsigned int get_component_id() {
         return fota_ctx->comp_id;
     }
     else {
-        return NULL;
+        return 0;
     }
 }
 
@@ -149,20 +151,21 @@ size_t get_manifest_fw_size() {
         return fota_ctx->fw_info->payload_size;
     }
     else
-        return NULL;
+        return 0;
 }
 
 void subdevice_fota_on_manifest(uint8_t* data, size_t data_size, M2MResource* resource) {
     tr_info("subdevice_fota_on_manifest");
-    subdevice_init_buff();
-    get_endpoint(endpoint, resource->uri_path());
-
     const fota_component_desc_t *comp_desc;
     fota_component_version_t curr_fw_version;
     uint8_t curr_fw_digest[FOTA_CRYPTO_HASH_SIZE] = {0};
-
-    int ret = fota_manifest_parse(data, data_size,fota_ctx->fw_info);
-
+    int ret = subdevice_init_buff();
+    if (ret) {
+        FOTA_TRACE_DEBUG("Initialising buffer failed");
+        goto fail;
+    }
+    get_endpoint(endpoint, resource->uri_path());
+    ret = fota_manifest_parse(data, data_size,fota_ctx->fw_info);
     if (ret) {
         FOTA_TRACE_DEBUG("Pelion FOTA manifest rejected %d", ret);
         goto fail;
@@ -176,6 +179,7 @@ void subdevice_fota_on_manifest(uint8_t* data, size_t data_size, M2MResource* re
         ret = FOTA_STATUS_UNEXPECTED_COMPONENT;
         goto fail;
     }
+    
     fota_component_get_desc(fota_ctx->comp_id, &comp_desc);
 
     if (comp_desc->desc_info.curr_fw_get_digest) {
@@ -223,7 +227,7 @@ void get_version(fota_component_version_t *version) {
     if(fota_ctx)
         *version = fota_ctx->fw_info->version;
     else
-        *version = NULL;
+        *version = 0;
 }
 
 static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
@@ -277,7 +281,7 @@ int start_download(char* downloaded_path) {
     return FOTA_STATUS_SUCCESS;
 }
 
-void subdevice_abort_update(int err, char* msg) {
+void subdevice_abort_update(int err, const char* msg) {
     tr_error("Reason: %d", err);
     tr_error("%s",msg);
     int upd_res = -1 * err;
