@@ -14,9 +14,7 @@ add_definitions ("-D SERVER_TIMEOUT_CHECK_INTERVAL_MS=${EDGE_SERVER_TIMEOUT_CHEC
 add_definitions ("-D SERVER_REQUEST_TIMEOUT_THRESHOLD_MS=${EDGE_SERVER_REQUEST_TIMEOUT_THRESHOLD_MS}")
 
 if (ENABLE_SUBDEVICE_FOTA)
-target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/fota/)
-target_link_libraries (edge-core jansson websockets event rpc edge-client fccstorage)
-
+  target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/fota/)
 endif()
 target_include_directories (edge-core PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
@@ -36,7 +34,7 @@ if (TARGET_GROUP STREQUAL test)
 
   target_link_libraries (edge-core jansson jsonrpc libevent-mock-lib rpc mbedTrace libservice edge-client-mock-lib pal-mock-lib test-lib pthread mbed-cloud-client-mock mbedtls)
 else ()
-  target_link_libraries (edge-core jansson websockets event rpc edge-client)
+  target_link_libraries (edge-core jansson websockets event rpc edge-client fccstorage)
 endif ()
 
 if(PARSEC_TPM_SE_SUPPORT)
