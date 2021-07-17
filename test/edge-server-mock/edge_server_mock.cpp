@@ -17,7 +17,21 @@
 #include <string.h>
 #include <stdint.h>
 #include "edge-client/edge_client.h"
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+#include "edge-client/subdevice_fota.h"
+#include "test_fota_config.h"
+#endif
 #include "CppUTestExt/MockSupport.h"
+#include <curl/curl.h>
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
+#define VENDOR_ID "SUBDEVICE-VENDOR"
+#define CLASS_ID "SUBDEVICE--CLASS"
+#define FIRMWARE_VERSION 1000
+#define PAYLOAD_SIZE 100000
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 extern "C" {
     void edgeserver_exit_event_loop()
@@ -55,5 +69,32 @@ extern "C" {
         return (struct event_base *) mock().actualCall("edge_server_get_base")
                 .returnPointerValue();
     }
+    #ifdef MBED_EDGE_SUBDEVICE_FOTA
 
+    int fota_manifest_parse( const uint8_t *input_data, size_t input_size, manifest_firmware_info_t *fw_info) {
+        char real_path[FILENAME_MAX] = DUMMY_BINARY_LOCATION;
+        tr_info("real path: %s", real_path);
+        char real_url[FILENAME_MAX] = "";
+        sprintf(real_url, "file://%s", real_path);
+        fw_info->version = FIRMWARE_VERSION;
+        fw_info->payload_size = PAYLOAD_SIZE;
+        memcpy(fw_info->uri, real_url, strlen(real_url));
+        memcpy(fw_info->component_name, "MAIN", strlen("MAIN"));
+        memcpy(fw_info->vendor_id,VENDOR_ID, 16);
+        memcpy(fw_info->class_id, CLASS_ID, 16);
+        return copy_buff(fw_info);
+    }
+    int fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state) {
+        return mock().actualCall("fota_is_ready").withParameter("data", data).withParameter("data_size", size).withOutputParameter("fota_state", fota_state).returnIntValue();
+    }
+    void fota_component_get_curr_version(unsigned int comp_id, fota_component_version_t *version) {
+
+    }
+    void fota_component_get_desc(unsigned int comp_id, const fota_component_desc_t * *comp_desc) {
+
+    }
+    int fota_component_name_to_id(const char *name, unsigned int *comp_id) {
+
+    }
+    #endif // MBED_EDGE_SUBDEVICE_FOTA
 }
