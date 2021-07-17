@@ -42,20 +42,21 @@ int subdevice_init_buff() {
         FOTA_TRACE_ERROR("Unable to allocate memory for endpoint");
         return FOTA_STATUS_OUT_OF_MEMORY;      
     }
+    return 0;
 }
 
 int get_component_name(char* c_name) {
     if(fota_ctx) {
         memcpy(c_name, fota_ctx->fw_info->component_name, FOTA_COMPONENT_MAX_NAME_SIZE);
+        return 0;
     }
     else {
-        return NULL;
+        return -1;
     }
 }
 
 int update_result_resource(char* device_id, uint8_t val) {
-
-    edgeclient_set_resource_value(device_id,
+    return edgeclient_set_resource_value(device_id,
                                 MANIFEST_OBJECT,
                                 MANIFEST_INSTANCE,
                                 MANIFEST_RESOURCE_RESULT,
@@ -68,7 +69,7 @@ int update_result_resource(char* device_id, uint8_t val) {
 }
 
 int update_state_resource(char* device_id, uint8_t val) {
-    edgeclient_set_resource_value(device_id,
+    return edgeclient_set_resource_value(device_id,
                                 MANIFEST_OBJECT,
                                 MANIFEST_INSTANCE,
                                 MANIFEST_RESOURCE_STATE,
@@ -285,4 +286,22 @@ void subdevice_abort_update(int err, char* msg) {
     update_state_resource(endpoint, FOTA_SOURCE_STATE_IDLE);
     free_subdev_context_buffers();
 }
-#endif
+#ifndef MBED_EDGE_UNIT_TEST_BUILD
+int copy_buff(manifest_firmware_info_t* buffer) {
+    subdevice_init_buff();
+    if((buffer == NULL) ||(fota_ctx->fw_info == NULL))
+        return -1;
+    else {
+        memcpy(&(fota_ctx->fw_info->version) ,&(buffer->version), sizeof(int));
+        memcpy(&(fota_ctx->fw_info->payload_size), &(buffer->payload_size),sizeof(long));
+        memcpy(fota_ctx->fw_info->uri, buffer->uri, strlen(buffer->uri));
+        memcpy(fota_ctx->fw_info->component_name, buffer->component_name, strlen(buffer->component_name));
+        memcpy(fota_ctx->fw_info->vendor_id, buffer->vendor_id, 16);
+        memcpy(fota_ctx->fw_info->class_id, buffer->class_id, 16);
+        int comp_id = 2;
+        memcpy(&(fota_ctx->comp_id), &(comp_id), sizeof(comp_id));
+        return 0;
+        }
+}
+#endif // MBED_EDGE_UNIT_TEST_BUILD
+#endif // MBED_EDGE_SUBDEVICE_FOTA
