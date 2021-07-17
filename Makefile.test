@@ -20,6 +20,10 @@ build-test-byoc: lib/mbed-cloud-client/source/update_default_resources.c generat
 	mkdir -p build-test
 	cd build-test && cmake -DBUILD_TARGET=test -DBYOC_MODE=ON -DFOTA_ENABLE=OFF -DFIRMWARE_UPDATE=ON -DTRACE_LEVEL=DEBUG -DCMAKE_BUILD_TYPE=Debug .. && make -j ${JOBS} && cd ..
 
+build-test-fota-byoc: lib/mbed-cloud-client/source/update_default_resources.c generate-cli-parsers build
+	mkdir -p build-test
+	cd build-test && cmake -DBUILD_TARGET=test -DBYOC_MODE=ON -DFOTA_ENABLE=ON -DFIRMWARE_UPDATE=ON -DTRACE_LEVEL=DEBUG -DCMAKE_BUILD_TYPE=Debug .. && make -j ${JOBS} && cd ..
+
 build-test-devmode: lib/mbed-cloud-client/source/update_default_resources.c generate-cli-parsers build
 	mkdir -p build-test-devmode
 	cd build-test-devmode && cmake -DBUILD_TARGET=test -DDEVELOPER_MODE=ON -DTRACE_LEVEL=DEBUG -DCMAKE_BUILD_TYPE=Debug .. && make -j ${JOBS} && cd ..
