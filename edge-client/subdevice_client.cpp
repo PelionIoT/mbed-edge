@@ -36,50 +36,6 @@ extern "C" {
 #include "mbed-client/m2mresource.h"
 #include "edge-client/subdevice_fota.h"
 
-int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name, char *error_manifest)
-{
-    pt_api_result_code_e err = PT_API_UNKNOWN_ERROR;
-
-    if (strcmp(&error_manifest[0], "0")) // reset manifest hash/version in case of error
-    {
-        err = edgeclient_set_resource_value(endpoint_name,
-                                            MANIFEST_OBJECT,
-                                            MANIFEST_INSTANCE,
-                                            MANIFEST_ASSET_HASH,
-                                            "",
-                                            (const uint8_t *) "0",
-                                            1,
-                                            LWM2M_STRING,
-                                            1,
-                                            NULL);
-
-        err = edgeclient_set_resource_value(endpoint_name,
-                                            MANIFEST_OBJECT,
-                                            MANIFEST_INSTANCE,
-                                            MANIFEST_VERSION,
-                                            "",
-                                            (const uint8_t *) "0",
-                                            1,
-                                            LWM2M_STRING,
-                                            1,
-                                            NULL);
-
-        err = edgeclient_set_resource_value(endpoint_name,
-                                            MANIFEST_OBJECT,
-                                            MANIFEST_INSTANCE,
-                                            MANIFEST_RESOURCE_RESULT,
-                                            "",
-                                            (const uint8_t *) error_manifest,
-                                            strlen(error_manifest),
-                                            LWM2M_STRING,
-                                            1,
-                                            NULL);
-    }
-
-    tr_info("ARM_UC_SUBDEVICE_ReportUpdateResult Status update stop == %d", err);
-    return 0;
-}
-
 void manifest_callback_subdevice(void *_parameters) {
     tr_info("manifest_callback_subdevice");
     M2MResource::M2MExecuteParameter *exec_params = (M2MResource::M2MExecuteParameter *) _parameters;
