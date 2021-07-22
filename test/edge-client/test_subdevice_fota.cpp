@@ -25,8 +25,10 @@
 #include "edge-client/subdevice_fota.h"
 #include "mbed-trace/mbed_trace.h"
 #include "../edge-server-mock/test_fota_config.h"
+
 #define ENDPOINT "test-fota"
 #define URI "d/test-fota/10252/0/1"
+#define COMPONENT_ID 2
 
 manifest_firmware_info_t* fw_info_buff = NULL;
 TEST_GROUP(subdevice_fota_test_group) {
@@ -55,11 +57,7 @@ TEST(subdevice_fota_test_group, endpoint) {
 
 TEST(subdevice_fota_test_group, uri) {
     tr_info("url test");
-    char relative_path[FILENAME_MAX] = DUMMY_BINARY_LOCATION;
-    char* real_path = realpath(relative_path, NULL);
-    tr_info("Real path: %s", real_path);
-    char real_url[FILENAME_MAX] = "";
-    sprintf(real_url, "file://%s", real_path);
+    char real_url[FILENAME_MAX] = DUMMY_BINARY_LOCATION;
     char uri[256] = "";
     get_uri(uri);
     STRCMP_EQUAL(real_url,uri);
@@ -86,21 +84,21 @@ TEST(subdevice_fota_test_group, firmware_version) {
     tr_info("firmware version test");
     fota_component_version_t manifest_fw_version = 0;
     get_version(&(manifest_fw_version));
-    CHECK(manifest_fw_version == 1000);
+    CHECK(manifest_fw_version == FIRMWARE_VERSION);
     mock().checkExpectations();
 }
 
 TEST(subdevice_fota_test_group, firmware_size) {
     tr_info("firmware size test");
     int fw_size = get_manifest_fw_size();
-    CHECK(fw_size == 100000);
+    CHECK(fw_size == PAYLOAD_SIZE);
     mock().checkExpectations();
 }
 
 TEST(subdevice_fota_test_group, component_id) {
     tr_info("component id test");
     int id = get_component_id();
-    CHECK(id == 2);
+    CHECK(id == COMPONENT_ID);
     mock().checkExpectations();
 }
 
@@ -117,6 +115,48 @@ TEST(subdevice_fota_test_group, parse_manifest) {
     uint8_t dummy_manifest[] = {1,2,3,4,5,6,7,8,9,0};
     int status = fota_manifest_parse(dummy_manifest, 10, fw_info_buff);
     CHECK_EQUAL(0, status);
+    mock().checkExpectations();
+}
+
+TEST(subdevice_fota_test_group, null_uri) {
+    tr_info("url test");
+    char real_url[FILENAME_MAX] = DUMMY_BINARY_LOCATION;
+    char url[256] = "";
+    get_uri(url);
+    STRCMP_EQUAL("",url);
+    mock().checkExpectations();
+}
+
+TEST(subdevice_fota_test_group, null_firmware_version) {
+    tr_info("firmware version test without buffer");
+    fota_component_version_t manifest_fw_version = 0;
+    get_version(&(manifest_fw_version));
+    CHECK_FALSE(manifest_fw_version == FIRMWARE_VERSION);
+    mock().checkExpectations();
+}
+
+TEST(subdevice_fota_test_group, null_firmware_size) {
+    tr_info("firmware size test without buffer");
+    int fw_size = get_manifest_fw_size();
+    CHECK_FALSE(fw_size == PAYLOAD_SIZE);
+    CHECK(fw_size == 0);
+    mock().checkExpectations();
+}
+
+TEST(subdevice_fota_test_group, null_component_id) {
+    tr_info("component id test without buffer");
+    int id = get_component_id();
+    CHECK_FALSE(id == COMPONENT_ID);
+    CHECK(id == 0);
+    mock().checkExpectations();
+}
+
+TEST(subdevice_fota_test_group, null_component_name) {
+    tr_info("component name test without buffer");
+    char component_name[12] ="";
+    int status = get_component_name(component_name);
+    STRCMP_EQUAL("", component_name);
+    CHECK(status == -1);
     mock().checkExpectations();
 }
 
