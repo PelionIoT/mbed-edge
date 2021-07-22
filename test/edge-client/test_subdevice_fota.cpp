@@ -52,13 +52,6 @@ TEST(subdevice_fota_test_group, endpoint) {
     STRCMP_EQUAL(endpoint, ENDPOINT);
     mock().checkExpectations();
 }
-TEST(subdevice_fota_test_group, download) {
-    tr_info("file downloading test");
-    char path[FILENAME_MAX] = "";
-    int status = start_download(path);
-    CHECK(0 == status);
-    mock().checkExpectations();
-}
 
 TEST(subdevice_fota_test_group, uri) {
     tr_info("url test");
