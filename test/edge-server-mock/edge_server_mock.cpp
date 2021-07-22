@@ -72,10 +72,7 @@ extern "C" {
     #ifdef MBED_EDGE_SUBDEVICE_FOTA
 
     int fota_manifest_parse( const uint8_t *input_data, size_t input_size, manifest_firmware_info_t *fw_info) {
-        char real_path[FILENAME_MAX] = DUMMY_BINARY_LOCATION;
-        tr_info("real path: %s", real_path);
-        char real_url[FILENAME_MAX] = "";
-        sprintf(real_url, "file://%s", real_path);
+        char real_url[FILENAME_MAX] = DUMMY_BINARY_LOCATION;
         fw_info->version = FIRMWARE_VERSION;
         fw_info->payload_size = PAYLOAD_SIZE;
         memcpy(fw_info->uri, real_url, strlen(real_url));
