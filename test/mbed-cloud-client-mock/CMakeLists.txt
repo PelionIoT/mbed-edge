@@ -19,6 +19,6 @@ target_include_directories (mbed-cloud-client-mock PUBLIC ${CPPUTEST_HOME}/inclu
 target_include_directories (mbed-cloud-client-mock PUBLIC ${ROOT_HOME}/test/test-lib/)
 target_include_directories (mbed-cloud-client-mock PUBLIC ${MBED_CLOUD_CLIENT}/mbed-client/source/include)
 
-if (ENABLE_SUBDEVICE_FOTA)
-target_include_directories (mbed-cloud-client-mock PUBLIC ${MBED_CLOUD_CLIENT}/update-client-hub/modules/common/update-client-common)
+if(FOTA_ENABLE)
+    add_definitions(-DMBED_EDGE_SUBDEVICE_FOTA)
 endif()
