@@ -96,12 +96,12 @@ void get_endpoint(char* endpoint, const char* uri) {
 
 void get_vendor_id(uint8_t* v_id) {
     if(fota_ctx) {
-        memcpy(v_id, fota_ctx->fw_info->vendor_id, FOTA_MANIFEST_VENDOR_ID_SIZE);
+        memcpy(v_id, fota_ctx->fw_info->vendor_id, FOTA_VENDOR_ID_LEN);
     }
 }
 void get_class_id(uint8_t* c_id) {
     if(fota_ctx) {
-        memcpy(c_id, fota_ctx->fw_info->class_id, FOTA_MANIFEST_CLASS_ID_SIZE);
+        memcpy(c_id, fota_ctx->fw_info->class_id, FOTA_CLASS_ID_LEN);
     }
 }
 
