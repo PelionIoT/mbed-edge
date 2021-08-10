@@ -961,7 +961,7 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
     m2m::itoa_c(resource_id, res_name);
     M2MResourceBase::ResourceType resolved_resource_type = resolve_resource_type(resource_type);
     M2MResource *res;
-    #ifdef MBED_EDGE_SUBDEVICE_FOTA
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
     if(object_id == SOFTWARE_COMPONENT) {
         tr_info("creating fota software resources");
         if (resource_name == NULL)
@@ -971,15 +971,15 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
         res->publish_value_in_registration_msg(true);
     }
     else {
-    #endif
+#endif
         if(resource_name) {
             res = inst->create_dynamic_resource(String(res_name), resource_name, resolved_resource_type, true, false, false);
         } else {
             res = inst->create_dynamic_resource(String(res_name), "", resolved_resource_type, true, false, false);
         }
-        #ifdef MBED_EDGE_SUBDEVICE_FOTA
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
     }
-    #endif
+#endif
     if (res == NULL) {
         return false;
     }
