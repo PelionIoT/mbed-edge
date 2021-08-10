@@ -375,7 +375,7 @@ then to Edge Core:
 
 ## Configuring the Subdevice Fota
 
-To enable the subdevice fota, you just need to build the edge-core with the FOTA_ENABLE option in cmake. You can also configure the download location of the firmware.
+To enable the subdevice FOTA, you need to build edge-core with the `FOTA_ENABLE` along with `FIRMWARE_UPDATE` cmake flag. You can also configure the download location of the firmware by explicitly defining the `SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION` flag. By default the firmware will be downloaded to the working directory. 
 For example:
 ``` bash
     cmake -D[your build options]  -DSUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION=\"your_download_location\" ..
