@@ -50,8 +50,7 @@ int get_component_name(char* c_name) {
         memcpy(c_name, fota_ctx->fw_info->component_name, FOTA_COMPONENT_MAX_NAME_SIZE);
         return 0;
     }
-    else
-        return -1;
+    return -1;
 }
 
 int update_result_resource(char* device_id, uint8_t val) {
@@ -99,25 +98,16 @@ void get_vendor_id(uint8_t* v_id) {
     if(fota_ctx) {
         memcpy(v_id, fota_ctx->fw_info->vendor_id, FOTA_MANIFEST_VENDOR_ID_SIZE);
     }
-    else {
-        return;
-    }
 }
 void get_class_id(uint8_t* c_id) {
     if(fota_ctx) {
         memcpy(c_id, fota_ctx->fw_info->class_id, FOTA_MANIFEST_CLASS_ID_SIZE);
-    }
-    else {
-        return;
     }
 }
 
 void get_uri(char* c_url) {
     if(fota_ctx) {
         memcpy(c_url, fota_ctx->fw_info->uri, FOTA_MANIFEST_URI_SIZE);
-    }
-    else {
-        return;
     }
 }
 
@@ -126,9 +116,7 @@ unsigned int get_component_id() {
     if(fota_ctx) {
         return fota_ctx->comp_id;
     }
-    else {
-        return 0;
-    }
+    return 0;
 }
 
 void free_subdev_context_buffers(void)
@@ -150,8 +138,7 @@ size_t get_manifest_fw_size() {
     if(fota_ctx) {
         return fota_ctx->fw_info->payload_size;
     }
-    else
-        return 0;
+    return 0;
 }
 
 void subdevice_fota_on_manifest(uint8_t* data, size_t data_size, M2MResource* resource) {
