@@ -51,7 +51,7 @@ int get_component_name(char* c_name) {
         return 0;
     }
     else
-        return 0;
+        return -1;
 }
 
 int update_result_resource(char* device_id, uint8_t val) {
@@ -237,7 +237,6 @@ static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 }
 
 int start_download(char* downloaded_path) {
-// handle errors from curl apis
     char filename[FILENAME_MAX] = "";
     sprintf(filename,"%s/%s-%" PRIu64 ".bin",SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION,fota_ctx->fw_info->component_name, fota_ctx->fw_info->version);
     tr_info("File location: %s", filename);
