@@ -35,4 +35,5 @@ setup(
      install_requires=requirements,
      license='Apache 2.0',
      description='Tool to convert the development certificate to CBOR formatted object',
+     scripts=['edge_tool.py', 'cbor_converter.py'],
 )
