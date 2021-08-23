@@ -963,7 +963,7 @@ bool edgeclient_add_resource(const char *endpoint_name, const uint16_t object_id
     M2MResource *res;
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
     if(object_id == SOFTWARE_COMPONENT) {
-        tr_info("---creating fota software resources-----");
+        tr_info("creating fota software resources");
         if(resource_name)
             res = inst->create_dynamic_resource(String(res_name), resource_name, resolved_resource_type, false, false, false);
         else
