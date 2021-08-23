@@ -24,19 +24,12 @@
 #define PT_FIRMWARE_DOWNLOAD_API_INTERNAL_H
 
 #include "pt-client-2/pt_common_api_internal.h"
-#include "arm_uc_public.h"
+#include "pt-client-2/pt_subdev_config.h"
 
 #define COMPONENT 14
 #define COMPONENT_INSTANCE 0
 #define COMPONENT_NAME 0
 #define COMPONENT_VERSION 2
-
-#define COMPONENT_NAME_STR "MAIN"
-#define VERSION_NAME_STR "0.0.0"
-#define MANIFEST_VENDOR_STR "SUBDEVICE-VENDOR"
-#define MANIFEST_VENDOR_STR_SIZE strlen(MANIFEST_VENDOR_STR)
-#define MANIFEST_CLASS_STR "SUBDEVICE--CLASS"
-#define MANIFEST_CLASS_STR_SIZE strlen(MANIFEST_CLASS_STR)
 
 typedef struct pt_manifest_context_s {
     char device_id[256];
