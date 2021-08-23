@@ -34,9 +34,6 @@
 #include "edge-rpc/rpc.h"
 #include "mbed-trace/mbed_trace.h"
 
-#include "update-client-common/arm_uc_error.h"
-#include "arm_uc_mmDerManifestAccessors.h"
-
 #define TRACE_GROUP "ptfota"
 
 #define MANIFEST_OBJECT 10252
@@ -409,42 +406,5 @@ pt_status_t pt_download_asset_internal(const connection_id_t connection_id,
                                                PT_CUSTOMER_CALLBACK_T,
                                                customer_callback);
 }
-
-pt_status_t pt_subdevice_manifest_status(const connection_id_t connection_id,
-                                       const char *device_id,
-                                       arm_uc_update_result_t *error_manifest,
-                                       pt_download_cb success_handler,
-                                       pt_download_cb failure_handler,
-                                       void *userdata)
-{
-    tr_info("pt_subdevice_manifest_status %d",*error_manifest);
-    char err_str[10];
-    json_t *message = allocate_base_request("subdevice_manifest_status");
-    itoa_c(*error_manifest, err_str);
-    json_t *params = json_object_get(message, "params");
-    json_t *json_name = json_string(err_str);
-    json_t *json_device_id = json_string(device_id);
-    pt_customer_callback_t *customer_callback = allocate_customer_callback(connection_id,
-                                                                           (pt_response_handler) success_handler,
-                                                                           (pt_response_handler) failure_handler,
-                                                                           userdata);
-    if (message == NULL || params == NULL || customer_callback == NULL || json_name == NULL || json_device_id==NULL) {
-        json_decref(message);
-        json_decref(json_name);
-        json_decref(json_device_id);
-        customer_callback_free_func((rpc_request_context_t *) customer_callback);
-        return PT_STATUS_ALLOCATION_FAIL;
-    }
-    json_object_set_new(params, "error_manifest", json_name);
-    json_object_set_new(params, "device_id", json_device_id);
-    return construct_and_send_outgoing_message(connection_id,
-                                               message,
-                                               pt_handle_manifest_status_success,
-                                               pt_handle_manifest_status_failure,
-                                               (rpc_free_func) customer_callback_free_func,
-                                               PT_CUSTOMER_CALLBACK_T,
-                                               customer_callback);
-}
-
 
 #endif // MBED_EDGE_SUBDEVICE_FOTA
