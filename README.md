@@ -373,7 +373,7 @@ If the secondary mount point is different than the primary mount point, it will 
 After starting Edge Core, you can start the protocol translator. It connects
 then to Edge Core:
 
-## Configuring the Subdevice Fota
+### Configuring the subdevice FOTA
 
 To enable the subdevice FOTA, you need to build edge-core with the `FOTA_ENABLE` along with `FIRMWARE_UPDATE` cmake flag. You can also configure the download location of the firmware by explicitly defining the `SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION` flag. By default the firmware will be downloaded to the working directory. 
 For example:
