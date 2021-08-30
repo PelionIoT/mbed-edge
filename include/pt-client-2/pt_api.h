@@ -235,13 +235,11 @@ pt_status_t pt_device_create_with_userdata(const connection_id_t connection_id,
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 
 pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
-                                            manifest_class_and_vendor_handler cb);
+                                            manifest_metadata_handler cb);
 
 pt_status_t pt_download_asset(const connection_id_t connection_id,
                               const char *device_id,
-                              const char *url,
-                              const char *hash,
-                              uint32_t size,
+                              uint64_t size,
                               pt_download_cb success_handler,
                               pt_download_cb failure_handler,
                               void *userdata);

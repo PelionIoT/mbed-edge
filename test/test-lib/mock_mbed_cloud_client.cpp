@@ -31,6 +31,10 @@ ConnectorClient::~ConnectorClient() {
 
 }
 
+void ConnectorClient::sleep() {
+
+}
+
 void ConnectorClient::paused() {
 
 }
