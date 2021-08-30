@@ -95,17 +95,26 @@ void get_endpoint(char* endpoint, const char* uri) {
 }
 
 void get_vendor_id(uint8_t* v_id) {
+    if(v_id == NULL) {
+        return;
+    }
     if(fota_ctx) {
         memcpy(v_id, fota_ctx->fw_info->vendor_id, FOTA_VENDOR_ID_LEN);
     }
 }
 void get_class_id(uint8_t* c_id) {
+    if(c_id == NULL) {
+        return;
+    }
     if(fota_ctx) {
         memcpy(c_id, fota_ctx->fw_info->class_id, FOTA_CLASS_ID_LEN);
     }
 }
 
 void get_uri(char* c_url) {
+    if(c_url == NULL) {
+        return;
+    }
     if(fota_ctx) {
         memcpy(c_url, fota_ctx->fw_info->uri, FOTA_MANIFEST_URI_SIZE);
     }
@@ -181,10 +190,10 @@ void subdevice_fota_on_manifest(uint8_t* data, size_t data_size, M2MResource* re
                      fota_ctx->fw_info->component_name, curr_fw_version, fota_ctx->fw_info->version);
 
     if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA) {
-    #if defined(FOTA_DISABLE_DELTA)
+#if defined(FOTA_DISABLE_DELTA)
         ret = FOTA_STATUS_MANIFEST_PAYLOAD_UNSUPPORTED;
         goto fail;
-    #else  // defined(FOTA_DISABLE_DELTA)
+#else  // defined(FOTA_DISABLE_DELTA)
         if (!comp_desc->desc_info.support_delta) {
             ret = FOTA_STATUS_MANIFEST_PAYLOAD_UNSUPPORTED;
             FOTA_TRACE_ERROR("Delta payload unsupported.");
