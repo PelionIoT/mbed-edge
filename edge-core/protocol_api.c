@@ -1088,8 +1088,14 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     char component[MAX_FOTA_STR] = "";
     get_class_id(manifest_class_id);
     get_vendor_id(manifest_vendor_id);
-    get_uri(uri);
+    get_uri(uri);    
     get_component_name(component);
+    int32_t ret_val = 0;
+    if ((manifest_class_id == NULL)||(manifest_vendor_id == NULL) || (uri == NULL)||(component == NULL)) {
+        tr_error("Either class id, vendor id, url, component name is NULL");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
     tr_info("uri: %s ", uri);
     uint64_t new_ver = 0;
     get_version(&new_ver);
@@ -1099,7 +1105,6 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     fota_component_version_int_to_semver(curr_ver, old_version);
     fota_component_version_int_to_semver(new_ver, new_version);
     tr_info("Updating to version: %s from %s",new_version, old_version);
-
     struct connection *connection = (struct connection*) userdata;
     json_t *request = allocate_base_request("manifest_meta_data");
     json_t *params = json_object_get(request, "params");
@@ -1113,7 +1118,7 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     size_t class_size = 0;
     size_t version_size = 0;
 
-    int32_t ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE);
+    ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;

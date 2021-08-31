@@ -55,11 +55,10 @@ void manifest_callback_subdevice(void *_parameters) {
         resource->set_manifest_check_status(false);
         return;
         }
-
-
+    uint8_t reset_val = -1;
+    uint8_t res= 0;
      switch (fota_state) {
         case FOTA_STATE_IDLE: {
-            uint8_t reset_val = -1;
             update_state_resource(device_id, reset_val);
             update_result_resource(device_id, reset_val);
             resource->send_delayed_post_response();
@@ -69,9 +68,12 @@ void manifest_callback_subdevice(void *_parameters) {
         case FOTA_STATE_INVALID:
             FOTA_TRACE_ERROR("FOTA cannot handle manifest - rejecting");
             update_state_resource(device_id, FOTA_STATE_INVALID);
-            uint8_t res = -1*FOTA_STATUS_INSTALL_AUTH_NOT_GRANTED;
+            res = -1*FOTA_STATUS_INSTALL_AUTH_NOT_GRANTED;
             update_result_resource(device_id, res);
             resource->send_delayed_post_response();
+            resource->set_manifest_check_status(false);
+            break;
+        default:
             resource->set_manifest_check_status(false);
             break;
     }
