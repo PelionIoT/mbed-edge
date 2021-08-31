@@ -17,7 +17,7 @@
  * limitations under the License.
  * ----------------------------------------------------------------------------
  */
-#if 1
+#if MBED_EDGE_SUBDEVICE_FOTA
 
 #include "CppUTest/TestHarness.h"
 #include "CppUTestExt/MockSupport.h"
