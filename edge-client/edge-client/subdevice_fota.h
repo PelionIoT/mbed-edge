@@ -60,6 +60,10 @@ void subdevice_fota_on_manifest(uint8_t* data, size_t data_size, M2MResource* re
 int update_result_resource(char* device_id, uint8_t err_mccp);
 int update_state_resource(char* device_id, uint8_t val);
 void get_endpoint(char* endpoint,const char* uri_path);
+int subdevice_init_buff();
+#ifndef MBED_EDGE_UNIT_TEST_BUILD
+int copy_buff(manifest_firmware_info_t* buff);
+#endif
 #ifdef __cplusplus
 extern "C" {
     #endif
