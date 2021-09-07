@@ -14,7 +14,11 @@ set_target_properties(edge-client PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories (edge-client PUBLIC ${ROOT_HOME}/edge-core)
 
 if (ENABLE_SUBDEVICE_FOTA)
-target_include_directories (edge-client PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/common/update-client-common)
+  target_include_directories (edge-client PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/fota)
+endif()
+
+if(ENABLE_UC_HUB)
+  target_include_directories (edge-client PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/update-client-hub/modules/common/update-client-common)
 endif()
 
 if (TARGET_GROUP STREQUAL test)

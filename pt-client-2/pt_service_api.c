@@ -42,7 +42,7 @@ struct jsonrpc_method_entry_t pt_service_method_table[] = {
   { "certificate_renewal_result", pt_receive_certificate_renewal_result, "o" },
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-  { "manifest_vendor_and_class", pt_receive_manifest_vendor_class, "o" },
+  { "manifest_meta_data", pt_receive_manifest_vendor_class, "o" },
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 
   { NULL, NULL, "o" }
@@ -290,16 +290,6 @@ int update_manifest_vendor_class_values_from_json(struct connection *connection,
         tr_error("vendor_id_handle");
         return 1;
     }
-    json_t *url_handle = get_handle(params, result, "url");
-    if (!url_handle && *result) {
-        tr_error("url_id_handle");
-        return 1;
-    }
-    json_t *hash_handle = get_handle(params, result, "hash");
-    if (!hash_handle && *result) {
-        tr_error("hash_id_handle");
-        return 1;
-    }
     json_t *version_handle = get_handle(params, result, "version");
     if (!version_handle && *result) {
         tr_error("version_id_handle");
@@ -327,22 +317,13 @@ int update_manifest_vendor_class_values_from_json(struct connection *connection,
     if (classid_encoded == NULL) {
         return 1;
     }
-    const char *vendorid_encoded = json_string_value(class_id_handle);
+    const char *vendorid_encoded = json_string_value(vendor_id_handle);
     if (vendorid_encoded == NULL) {
         return 1;
     }
-    const char *url_encoded = json_string_value(url_handle);
-    if (url_encoded == NULL) {
-        return 1;
-    }
-    const char *hash_encoded = json_string_value(hash_handle);
-    if (hash_encoded == NULL) {
-        return 1;
-    }
+
     uint32_t classid_len = apr_base64_decode_len(classid_encoded);
     uint32_t vendorid_len = apr_base64_decode_len(vendorid_encoded);
-    uint32_t url_len = apr_base64_decode_len(url_encoded);
-    uint32_t hash_len = apr_base64_decode_len(hash_encoded);
     uint8_t *class_id = malloc(classid_len);
     if (NULL == class_id) {
         tr_error("classid is null");
@@ -355,30 +336,29 @@ int update_manifest_vendor_class_values_from_json(struct connection *connection,
     if (NULL == vendor_id) {
         tr_error("vendorid is null");
         free(class_id);
+        class_id = NULL;
         return 1;
     }
     uint32_t r_vendor_id = apr_base64_decode_binary(vendor_id, vendorid_encoded);
     assert(vendorid_len >= r_vendor_id);
-    uint8_t *url = malloc(url_len);
-    if (NULL == url) {
-        tr_error("url is null");
-        free(vendor_id);
-        free(class_id);
+
+    const char* version_encoded = json_string_value(version_handle);
+    if (version_encoded == NULL) {
+        tr_error("Version not present");
         return 1;
     }
-    uint32_t r_url = apr_base64_decode_binary(url, url_encoded);
-    assert(url_len >= r_url);
-    uint8_t *hash = malloc(hash_len);
-    if (NULL == hash) {
-        free(vendor_id);
-        free(url);
+    uint32_t ver_len = apr_base64_decode_len(version_encoded);
+    uint8_t* ver = malloc(ver_len+1);
+    if(ver == NULL) {
+        tr_error("Version is NULL");
         free(class_id);
-        tr_error("hash is null");
+        free(vendor_id);
+        class_id = NULL;
+        vendor_id = NULL;
         return 1;
     }
-    uint32_t r_hash_len = apr_base64_decode_binary(hash, hash_encoded);
-    assert(hash_len >= r_hash_len);
-    uint32_t r_version = json_integer_value(version_handle);
+    memset(ver,0,ver_len+1);
+   apr_base64_decode_binary(ver, version_encoded);
     uint8_t operation = json_integer_value(operation_handle);
     uint32_t fw_size = json_integer_value(size_handle);
     /* Ready to call write handler with received write data */
@@ -387,40 +367,33 @@ int update_manifest_vendor_class_values_from_json(struct connection *connection,
         return PT_STATUS_INVALID_PARAMETERS;
     }
     tr_info("Calling manifest callback");
-    tr_info("deviceid:%s",device_id);
-    int success = connection->client->manifest_class_vendor_handler(get_connection_id(connection),
+    tr_info("deviceid:%s, version: %s",device_id, ver);
+
+    int success = connection->client->manifest_meta_data_handler(get_connection_id(connection),
                                                         device_id,
                                                         operation,
                                                         class_id,
                                                         r_class_id,
                                                         vendor_id,
                                                         r_vendor_id,
-                                                        hash,
-                                                        r_hash_len,
-                                                        url,
-                                                        r_url,
-                                                        r_version,
+                                                        ver,
                                                         fw_size,
                                                         NULL);
-    if(success!=0) {
-        if(url)
-            free(url);
-        if(vendor_id)
+        if(vendor_id) {
             free(vendor_id);
-        if(class_id)
-            free(class_id);
-        if(hash)
-            free(hash);
-        return PT_STATUS_NOT_FOUND;
+            vendor_id = NULL;
         }
-    if(url)
-        free(url);
-    if(vendor_id)
-        free(vendor_id);
-    if(class_id)
-        free(class_id);
-    if(hash)
-        free(hash);
+        if(class_id) {
+            free(class_id);
+            class_id = NULL;
+        }
+        if(ver) {
+            free(ver);
+            ver = NULL;
+        }
+        if(success != 0) {
+            return PT_STATUS_NOT_FOUND;
+        }
     return success;
 }
 

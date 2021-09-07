@@ -27,26 +27,6 @@
 #include "libwebsockets.h"
 #include "common/edge_mutex.h"
 
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-#include "update-client-common/arm_uc_error.h"
-#include "update-client-common/arm_uc_types.h"
-#include "arm_uc_public.h"
-
-struct manifest_info_t {
-    uint8_t vid_buff[32];
-    uint8_t vid_max_size;
-    uint8_t vid_size;
-    uint8_t cid_buff[32];
-    uint8_t cid_max_size;
-    uint8_t cid_size;
-    uint32_t firmware_size;
-    uint64_t fw_version;
-    arm_uc_buffer_t url_buffer;
-    arm_uc_buffer_t hash_buffer;
-};
-
-#endif // MBED_EDGE_SUBDEVICE_FOTA
-
 void edgeserver_exit_event_loop();
 void *edgeserver_graceful_shutdown();
 void edgeserver_rfs_customer_code_succeeded();
@@ -57,12 +37,6 @@ void edgeserver_change_number_registered_endpoints_by_delta(int32_t delta);
 struct event_base *edge_server_get_base();
 void edge_server_set_rfs_thread(pthread_t *thread);
 connection_elem_list *edge_server_get_registered_translators();
-
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-bool parse_manifest_for_subdevice(arm_uc_buffer_t* manifest_buffer,
-                                    struct manifest_info_t* manifest_info,
-                                    arm_uc_update_result_t *error_manifest);
-#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 /**
  * \brief May be called from any thread to send the response.
