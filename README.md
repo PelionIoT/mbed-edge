@@ -1,3 +1,5 @@
+
+
 # Edge
 
 This document contains the instructions for using and developing Edge.
@@ -28,7 +30,7 @@ The contents of the repository.
 | `lib`                 | Edge library dependencies
 | `pt-client`           | **Deprecated** Protocol translator client v1 stub.
 | `pt-client-2`         | Protocol translator client v2 stub.
-| `test`                | Unit tests.
+| `test`                | Unit tests. 
 
 ### Files
 
