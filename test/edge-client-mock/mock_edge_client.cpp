@@ -1,22 +1,17 @@
 #include <stdint.h>
+
+#include "edge-client/edge_client.h"
+
 #include "CppUTestExt/MockSupport.h"
 #include "cpputest-custom-types/value_pointer.h"
-#include "mbed-trace/mbed_trace.h"
-#include "mbed-client/m2minterfacefactory.h"
-#include "mbed-client/m2mresource.h"
-#include "edge-client/edge_client_internal.h"
-#include "edge-client/edge_manifest_object.h"
-#include <stdint.h>
-#include <stddef.h>
-#include "edge-client/edge_client.h"
-#include <curl/curl.h>
+
 extern "C" {
 #include "common/integer_length.h"
 #include "edge-client/reset_factory_settings.h"
 #include "edge-client/edge_client_mgmt.h"
+
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-#include "fota/fota_component_defs.h"
-#include "edge-client/subdevice_fota.h"
+#include "edge-client/edge_manifest_object.h"
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 }
 
@@ -345,65 +340,22 @@ pt_api_result_code_e edgeclient_request_est_enrollment(const char *certificate_n
         .withPointerParameter("context", context)
         .returnIntValue();
 }
+
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-int get_component_name(char* c_name) {
-    return mock().actualCall("get_component_name").withOutputParameter("component_name",c_name).returnIntValue();
+void edgeclient_get_asset(char *device_id,
+                          uint8_t *uri_buffer,
+                          char *filename,
+                          size_t size,
+                          asset_download_complete_cb cb,
+                          void *userdata)
+{
+    mock().actualCall("edgeclient_get_asset");
 }
-void free_subdev_context_buffers(void) {
-    mock().actualCall("free_subdev_context_buffers");
+int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name, char *error_manifest)
+{
+    return mock().actualCall("ARM_UC_SUBDEVICE_ReportUpdateResult").returnIntValue();
 }
-unsigned int get_component_id() {
-    return mock().actualCall("get_component_id").returnIntValue();
-}
-void get_version(fota_component_version_t *version) {
-    mock().actualCall("get_version").withOutputParameter("Version", version);
-}
-
-void get_vendor_id(uint8_t* v_id) {
-    mock().actualCall("get_vendor_id").withOutputParameter("vendor_id", v_id);
-}
-void get_class_id(uint8_t* c_id) {
-    mock().actualCall("get_class_id").withOutputParameter("class_id", c_id);
-}
-void get_uri(char* c_url) {
-    mock().actualCall("get_uri").withOutputParameter("url", c_url);
-}
-int start_download(char* path) {
-    return mock().actualCall("start_download").withOutputParameter("path", path).returnIntValue();
-}
-void subdevice_abort_update(int err, char* msg) {
-    mock().actualCall("subdevice_abort_update").withParameter("error", err).withParameter("error_message", msg);
-}
-size_t get_manifest_fw_size() {
-    return mock().actualCall("get_manifest_fw_size").returnLongIntValue();
-}
-
-int subdevice_init_buff() {
-    return mock().actualCall("subdevice_init_buff").returnIntValue();
-}
-
-int update_result_resource(char* device_id, uint8_t val) {
-    return mock().actualCall("update_result_resource").withParameter("device_id", device_id).withParameter("value", val).returnIntValue();
-}
-
-int update_state_resource(char* device_id, uint8_t val) {
-    return mock().actualCall("update_state_resource").withParameter("device_id", device_id).withParameter("value", val).returnIntValue();
-}
-
-void fota_component_get_curr_version(unsigned int comp_id, fota_component_version_t *version) {
-    mock().actualCall("fota_component_get_curr_version").withParameter("component_id", comp_id).withOutputParameter("version", version);
-}
-int fota_component_version_int_to_semver(fota_component_version_t version, char *sem_ver) {
-    return mock().actualCall("fota_component_version_int_to_semver").withParameter("version", version).withOutputParameter("curr_version", sem_ver).returnIntValue();
-}
-void get_endpoint(char* endpoint,const char* uri_path) {
-    mock().actualCall("get_endpoint").withParameter("uri_path", uri_path).withOutputParameter("endpoint", endpoint);
-}
-
-pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id, 
-                                                const uint16_t resource_id, const char* resource_name, const uint8_t *value, uint32_t value_length, 
-                                                Lwm2mResourceType resource_type, int opr, void* ctx) {
-    tr_info("subdevice_set_resource_value mock");
+pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, const uint16_t object_id, const uint16_t object_instance_id, const uint16_t resource_id, const char* resource_name, const uint8_t *value, uint32_t value_length, Lwm2mResourceType resource_type, int opr, void* ctx) {
     ValuePointer *value_pointer = new ValuePointer((uint8_t*) value, value_length);
     pt_api_result_code_e ret = (pt_api_result_code_e) mock().actualCall("set_resource_value")
         .withStringParameter("endpoint_name", endpoint_name)
@@ -419,5 +371,4 @@ pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name, con
     delete value_pointer;
     return ret;
 }
-
-#endif
+#endif // MBED_EDGE_SUBDEVICE_FOTA

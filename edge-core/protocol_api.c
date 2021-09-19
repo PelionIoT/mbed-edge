@@ -38,31 +38,57 @@
 #include "mbedtls/base64.h"
 #include "common/pt_api_error_parser.h"
 
+
 #include "ns_list.h"
 #include "mbed-trace/mbed_trace.h"
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-#include "fota_status.h"
+#include "arm_uc_mmDerManifestAccessors.h"
 #endif
 #define TRACE_GROUP "serv"
 
-
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
+void completed_download_asset(uint8_t *url, char *filename, int error_code, void *ctx)
+{
+    sleep(1);
+    if (ctx == NULL) {
+        tr_warn("EST enrollment result missing context!");
+        return;
+    }
+
+    char* path = realpath(filename, NULL);
+
+    protocol_api_async_request_context_t *pt_ctx = (protocol_api_async_request_context_t *) ctx;
+    json_t *response = pt_api_allocate_response_common(pt_ctx->request_id);
+
+    // Create a JSON object to send back
+    json_t *json_result = json_object();
+    json_object_set_new(json_result, "filename", json_string(path));
+    json_object_set_new(json_result, "url", json_string((char*)url));
+    json_object_set_new(json_result, "error", json_integer(error_code));
+    json_object_set_new(response, "result", json_result);
 
 
-#define VENDOR_ID_SIZE              16
-#define CLASS_ID_SIZE               16
-#define MANIFEST_URI_SIZE           256
-#define FOTA_COMPONENT_MAX_STR_SIZE 13
-#define MAX_FOTA_STR                12
-#endif
+    (void) edge_server_construct_and_send_response_safe(pt_ctx->connection_id,
+                                                        response,
+                                                        protocol_api_free_async_ctx_func,
+                                                        (rpc_request_context_t *) ctx);
+
+    if(path) {
+        free(path);
+    }
+    if(filename) {
+        free(filename);
+    }
+    if(url) {
+        free(url);
+    }
+}
 
 /**
  * \brief Request download asset jsonrpc endpoint
  * \return 0 - success
  *         1 - failure
  */
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
-
 int download_asset(json_t *request, json_t *json_params, json_t **result, void *userdata)
 {
     struct json_message_t *jt = (struct json_message_t*) userdata;
@@ -90,49 +116,100 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
     }
 
     // Parse the URL, hash, and size from the JSON object coming from the protocol translator
-    json_t *device_id_handle = json_object_get(json_params, "deviceId");
-    if (device_id_handle == NULL) {
-        tr_warning("Download request missing fields.");
-        *result = jsonrpc_error_object(
-                JSONRPC_INVALID_PARAMS,
-                "Invalid params. Missing 'deviceId', field from request.",
-                NULL);
-        return JSONRPC_RETURN_CODE_ERROR;
-    }
-    json_t* id_handle = json_object_get(request, "id");
-    const char* id = json_string_value(id_handle);
+    json_t *url_handle = json_object_get(json_params, "url");
+    json_t *hash_handle = json_object_get(json_params, "hash");
     json_t *size_handle = json_object_get(json_params, "size");
-    if(size_handle == NULL) {
+    json_t *device_id_handle = json_object_get(json_params, "deviceId");
+    if (url_handle == NULL || hash_handle == NULL || size_handle == NULL || device_id_handle == NULL) {
         tr_warning("Download request missing fields.");
         *result = jsonrpc_error_object(
                 JSONRPC_INVALID_PARAMS,
-                "Invalid params. Missing 'size', field from request.",
-                NULL);
-        return JSONRPC_RETURN_CODE_ERROR;
-    }
-    uint32_t size = json_integer_value(size_handle);
-    const char *device_id = json_string_value(device_id_handle);
-    char path[FILENAME_MAX] = "";
-    int err = start_download(path);
-    if(err == FOTA_STATUS_SUCCESS) {
-            json_t *json_result = json_object();
-            json_object_set_new(json_result, "filename", json_string(path));
-            *result = json_result;
-            free_subdev_context_buffers();
-    }
-    else {
-        const char error_str[100] = "";
-        sprintf(error_str, "Can not download firmware, reason: %d", err);
-        *result = jsonrpc_error_object(
-                JSONRPC_INVALID_PARAMS,
-                error_str,
+                "Invalid params. Missing 'url', 'hash', 'deviceId', or 'size' field from request.",
                 NULL);
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
-    return JSONRPC_RETURN_CODE_SUCCESS;
+    const char *url = json_string_value(url_handle);
+    const char *hash = json_string_value(hash_handle);
+    uint32_t size = json_integer_value(size_handle);
+    const char *device_id = json_string_value(device_id_handle);
+
+    // Create the filename that we manage instead of the json managed data
+    char* filename = malloc(strlen(hash)+1+4);
+    if(filename == NULL)
+    {
+        tr_err("filename memory allocation fail");
+        return JSONRPC_RETURN_CODE_NO_RESPONSE;
+    }
+    strcpy(filename, hash);
+    strcat(filename, ".bin");
+
+    // Create URL data that we manage instead of the json managed data
+    char* final_url = strdup(url);
+    if(final_url == NULL)
+    {
+        tr_err("final_url memory allocation fail");
+        free(filename);
+        return JSONRPC_RETURN_CODE_NO_RESPONSE;
+    }
+
+    if( access( filename, F_OK ) != -1 ) {
+        tr_info("firmware already exist %s",filename); //File already exist, skip download and send it to PT
+        completed_download_asset(final_url,filename,0,ctx);
+    }
+    else {
+        edgeclient_get_asset(device_id, (uint8_t*)final_url, filename, (size_t)size, completed_download_asset, ctx);
+    }
+
+    return JSONRPC_RETURN_CODE_NO_RESPONSE;
 }
-#endif
+
+int subdevice_manifest_status(json_t *request, json_t *json_params, json_t **result, void *userdata)
+{
+    tr_cmdline("subdevice_manifest_status");
+
+    struct json_message_t *jt = (struct json_message_t*) userdata;
+    struct connection *connection = jt->connection;
+
+    if (!pt_api_check_service_availability(result)) {
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    if (!pt_api_check_request_id(jt)) {
+        tr_warn("EST enrollment request failed. No request id was given.");
+        *result = jsonrpc_error_object_predefined(JSONRPC_INVALID_PARAMS,
+                                                  json_string("EST enrollment request renewal failed. No request id was given."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    protocol_api_async_request_context_t *ctx = protocol_api_prepare_async_ctx(request, connection->id);
+    if (ctx == NULL) {
+        tr_warn("EST enrollment request failed. Memory allocation failed.");
+        *result = jsonrpc_error_object_predefined(
+            JSONRPC_INTERNAL_ERROR,
+            json_string("EST enrollment request failed. Memory allocation failed."));
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    json_t *error_manifest_handle = json_object_get(json_params, "error_manifest");
+    json_t *device_id_handle = json_object_get(json_params, "device_id");
+    if (error_manifest_handle == NULL || device_id_handle == NULL) {
+        tr_warning("Manifest status missing fields.");
+        *result = jsonrpc_error_object(
+                JSONRPC_INVALID_PARAMS,
+                "Invalid params. Missing error_manifest or device_id from request.",
+                NULL);
+        return JSONRPC_RETURN_CODE_ERROR;
+    }
+
+    const char *manifest_error = json_string_value(error_manifest_handle);
+    const char *device_id = json_string_value(device_id_handle);
+
+    tr_cmdline("Device_Id %s Manifest Error %s",device_id,manifest_error);
+    ARM_UC_SUBDEVICE_ReportUpdateResult(device_id,manifest_error);
+}
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
 
 struct jsonrpc_method_entry_t method_table[] = {
     { "protocol_translator_register", protocol_translator_register, "o" },
@@ -152,6 +229,7 @@ struct jsonrpc_method_entry_t method_table[] = {
     { "est_request_enrollment", est_request_enrollment, "o" },
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
     { "download_asset", download_asset, "o" },
+    { "subdevice_manifest_status", subdevice_manifest_status, "o"},
 #endif // MBED_EDGE_SUBDEVICE_FOTA
     { NULL, NULL, "o" }
 };
@@ -182,7 +260,7 @@ static const char *map_ce_status_to_string(ce_status_e status);
 void protocol_api_free_async_ctx_func(rpc_request_context_t *ctx)
 {
     protocol_api_async_request_context_t *pt_api_ctx = (protocol_api_async_request_context_t *) ctx;
-    if (pt_api_ctx) { 
+    if (pt_api_ctx) {
         if(pt_api_ctx->data_ptr) {
             free(pt_api_ctx->data_ptr);
         }
@@ -919,25 +997,7 @@ static void handle_write_to_pt_failure(json_t *response, void* userdata)
     pt_api_error_parser_parse_error_response(response, ctx);
     ctx->failure_handler(ctx);
 }
-#ifdef MBED_EDGE_SUBDEVICE_FOTA
 
-static void handle_write_to_pt_fota_success(json_t *response, void *userdata)
-{
-    tr_info("Handling write  to pt for fota protocol translator success");
-    edgeclient_request_context_t *ctx = (edgeclient_request_context_t*) userdata;
-    ctx->success_handler(ctx);
-
-}
-
-static void handle_write_to_pt_fota_failure(json_t *response, void* userdata)
-{
-    tr_debug("Handling write  to pt for fota protocol translator success");
-    edgeclient_request_context_t *ctx = (edgeclient_request_context_t*) userdata;
-    free_subdev_context_buffers();
-    pt_api_error_parser_parse_error_response(response, ctx);
-    ctx->failure_handler(ctx);
-}
-#endif
 /*
  * This is called after either handle_write_to_pt_success or
  * handle_write_to_pt_failure callback is called. See write_to_pt.
@@ -1080,33 +1140,57 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
              request_ctx->object_instance_id,
              request_ctx->resource_id);
 
-    uint8_t manifest_vendor_id[VENDOR_ID_SIZE] = {0};
-    uint8_t manifest_class_id[CLASS_ID_SIZE] = {0};
-    char uri[MANIFEST_URI_SIZE] = {0};
-    char new_version[FOTA_COMPONENT_MAX_STR_SIZE] = "";
-    char old_version[FOTA_COMPONENT_MAX_STR_SIZE] = "";
-    char component[MAX_FOTA_STR] = "";
-    get_class_id(manifest_class_id);
-    get_vendor_id(manifest_vendor_id);
-    get_uri(uri);    
-    get_component_name(component);
-    int32_t ret_val = 0;
-    if ((manifest_class_id == NULL)||(manifest_vendor_id == NULL) || (uri == NULL)||(component == NULL)) {
-        tr_error("Either class id, vendor id, url, component name is NULL");
-        ret_val = 1;
-        goto write_to_pt_fota_cleanup;
+    arm_uc_buffer_t manifest_buffer, url_buffer, hash_buffer;
+    manifest_buffer.ptr = request_ctx->value;
+    manifest_buffer.size = request_ctx->value_len;
+    manifest_buffer.size_max = SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE;
+
+    uint32_t fw_size = 0;
+    uint64_t fw_version = 0;
+
+    //Check Vendor ID
+    arm_uc_buffer_t manifest_vendor_id, manifest_class_id;
+    arm_uc_error_t error = ARM_UC_mmGetVendorGuid(&manifest_buffer,&manifest_vendor_id);
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting vendor ID from manifest: %d", error.code);
+        return 1;
     }
-    tr_info("uri: %s ", uri);
-    uint64_t new_ver = 0;
-    get_version(&new_ver);
-    uint64_t curr_ver = 0;
-    int comp_id = get_component_id();
-    fota_component_get_curr_version(comp_id, &curr_ver);
-    fota_component_version_int_to_semver(curr_ver, old_version);
-    fota_component_version_int_to_semver(new_ver, new_version);
-    tr_info("Updating to version: %s from %s",new_version, old_version);
+
+    //Class ID Check
+    error = ARM_UC_mmGetClassGuid(&manifest_buffer,&manifest_class_id);
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting class ID from manifest: %d", error.code);
+        return 1;
+    }
+
+    //firmware size check
+    error = ARM_UC_mmGetFwSize(&manifest_buffer, &(fw_size));
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware size: %d", error.code);
+        return 1;
+    }
+
+    // firmware url
+    error = ARM_UC_mmGetFwUri(&manifest_buffer,&url_buffer );
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware URI: %d", error.code);
+        return 1;
+    }
+
+    error = ARM_UC_mmGetFwHash(&manifest_buffer, &(hash_buffer));
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware hash: %d", error.code);
+        return 1;
+    }
+
+    error = ARM_UC_mmGetTimestamp(&manifest_buffer, &fw_version);
+    if (error.code != ERR_NONE) {
+        tr_error("ERROR getting firmware version: %d", error.code);
+        return 1;
+    }
+
     struct connection *connection = (struct connection*) userdata;
-    json_t *request = allocate_base_request("manifest_meta_data");
+    json_t *request = allocate_base_request("manifest_vendor_and_class");
     json_t *params = json_object_get(request, "params");
     json_t *uri_obj = json_object();
     json_object_set_new(uri_obj, "deviceId", json_string(request_ctx->device_id));
@@ -1114,23 +1198,31 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     json_decref(uri_obj);
     json_object_set_new(params, "operation", json_integer(request_ctx->operation));
 
+    tr_debug("write_to_pt - base64 encoding the value to json object");
     size_t vendor_size = 0;
     size_t class_size = 0;
-    size_t version_size = 0;
+    size_t url_size = 0;
+    size_t hash_size = 0;
 
-    ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE);
+    int32_t ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id.ptr, manifest_vendor_id.size);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
 
-    ret_val = mbedtls_base64_encode(NULL, 0, &class_size, manifest_class_id, CLASS_ID_SIZE);
+    ret_val = mbedtls_base64_encode(NULL, 0, &class_size, manifest_class_id.ptr, manifest_class_id.size);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
 
-    ret_val = mbedtls_base64_encode(NULL, 0, &version_size, new_version, strlen(new_version));
+    ret_val = mbedtls_base64_encode(NULL, 0, &url_size, url_buffer.ptr, url_buffer.size);
+    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+        tr_error("cannot estimate the size of encoded value - %d", ret_val);
+        return 1;
+    }
+
+    ret_val = mbedtls_base64_encode(NULL, 0, &hash_size, hash_buffer.ptr, hash_buffer.size);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
@@ -1138,7 +1230,8 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
 
     unsigned char* vendor_id = NULL;
     unsigned char* class_id = NULL;
-    unsigned char* fw_version = NULL;
+    unsigned char* hash = NULL;
+    unsigned char* url = NULL;
 
     vendor_id = (unsigned char *) calloc((vendor_size+1), sizeof(unsigned char));
     if (!vendor_id) {
@@ -1152,13 +1245,20 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
         goto write_to_pt_fota_cleanup;
     }
 
-    fw_version = (unsigned char *) calloc((version_size+1), sizeof(unsigned char));
-    if (!fw_version) {
-        tr_error("allocating classid base64 buffer failed");
+    hash = (unsigned char*) calloc(hash_size+1, sizeof(unsigned char));
+    if (!hash) {
+        tr_error("allocating hash base64 buffer failed");
         goto write_to_pt_fota_cleanup;
     }
+
+    url = (unsigned char*) calloc(url_size+1, sizeof(unsigned char));
+    if (!url) {
+        tr_error("allocating hash base64 buffer failed");
+        goto write_to_pt_fota_cleanup;
+    }
+
     if (vendor_size != 0) {
-        if (0 != mbedtls_base64_encode(vendor_id, vendor_size, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE)) {
+        if (0 != mbedtls_base64_encode(vendor_id, vendor_size, &vendor_size, manifest_vendor_id.ptr, manifest_vendor_id.size)) {
             tr_error("Could not encode vendor_id to base64.");
             ret_val = 1;
             goto write_to_pt_fota_cleanup;
@@ -1166,16 +1266,24 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     }
 
     if (class_size != 0) {
-        if (0 != mbedtls_base64_encode(class_id, class_size, &class_size, manifest_class_id, CLASS_ID_SIZE)) {
+        if (0 != mbedtls_base64_encode(class_id, class_size, &class_size, manifest_class_id.ptr, manifest_class_id.size)) {
             tr_error("Could not encode class_id to base64.");
             ret_val = 1;
             goto write_to_pt_fota_cleanup;
         }
     }
 
-    if (version_size != 0) {
-        if (0 != mbedtls_base64_encode(fw_version, version_size, &version_size, new_version, strlen(new_version))) {
-            tr_error("Could not encode class_id to base64.");
+    if (hash_size != 0) {
+        if (0 != mbedtls_base64_encode(hash, hash_size, &hash_size, hash_buffer.ptr, hash_buffer.size)) {
+            tr_error("Could not encode hash to base64.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+
+    if (url_size != 0) {
+        if (0 != mbedtls_base64_encode(url, url_size, &url_size, url_buffer.ptr, url_buffer.size)) {
+            tr_error("Can not encode url to base64.");
             ret_val = 1;
             goto write_to_pt_fota_cleanup;
         }
@@ -1193,19 +1301,24 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
         goto write_to_pt_fota_cleanup;
     }
 
-    if (json_object_set_new(params, "component_name", json_string((const char *)component))) {
-        tr_error("Can not write component_name to json object");
+    if (json_object_set_new(params, "hash", json_string((const char *) hash))) {
+        tr_error("Can not write hash to json object");
         ret_val = 1;
         goto write_to_pt_fota_cleanup;
     }
 
-    if (json_object_set_new(params, "version", json_string((const char *) fw_version))) {
-        tr_error("Can not write fw_version to json object");
+    if (json_object_set_new(params, "url", json_string((const char *) url))) {
+        tr_error("Can not write url to json object");
         ret_val = 1;
         goto write_to_pt_fota_cleanup;
     }
 
-    size_t fw_size = get_manifest_fw_size();
+    if (json_object_set_new(params, "version", json_integer( fw_version))) {
+        tr_error("Can not write version to json object");
+        ret_val = 1;
+        goto write_to_pt_fota_cleanup;
+    }
+
     if (json_object_set_new(params, "size", json_integer(fw_size))) {
         tr_error("Can not write fw_size to json object");
         ret_val = 1;
@@ -1214,29 +1327,22 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
 
     ret_val = rpc_construct_and_send_message(connection,
                                              request,
-                                             handle_write_to_pt_fota_success,
-                                             handle_write_to_pt_fota_failure,
+                                             handle_write_to_pt_success,
+                                             handle_write_to_pt_failure,
                                              pt_write_free_func,
                                              (rpc_request_context_t *) request_ctx,
                                              connection->transport_connection->write_function);
 
 write_to_pt_fota_cleanup:
     // json_string makes a copy of json_value above.
-    if(class_id) {
+    if(class_id)
         free(class_id);
-        class_id = NULL;
-    }
-    if(vendor_id) {
+    if(vendor_id)
         free(vendor_id);
-        vendor_id = NULL;
-    }
-    if(fw_version) {
-        free(fw_version);
-        fw_version = NULL;
-    }
-    if(ret_val == 1) {
-        free_subdev_context_buffers();
-    }
+    if(url)
+        free(url);
+    if(hash)
+        free(hash);
     return ret_val;
 }
 #endif // MBED_EDGE_SUBDEVICE_FOTA

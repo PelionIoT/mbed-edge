@@ -1,4 +1,4 @@
-if (ENABLE_UC_HUB)
+if (ENABLE_SUBDEVICE_FOTA)
 file (GLOB SOURCES ./*.c ../edge-rpc/rpc_timeout_api.c ../lib/mbed-cloud-client/update-client-hub/modules/manifest-manager/source/*.c)
 else()
 file (GLOB SOURCES ./*.c ../edge-rpc/rpc_timeout_api.c)
@@ -20,7 +20,7 @@ target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/jsonrpc)
 target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../edge-rpc)
 
-if (ENABLE_UC_HUB)
+if (ENABLE_SUBDEVICE_FOTA)
 
   add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)
   add_definitions(-D__LINUX__=1)

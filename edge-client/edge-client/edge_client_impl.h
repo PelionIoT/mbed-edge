@@ -32,6 +32,7 @@
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 #include <unistd.h>
+#include "update-client-common/arm_uc_types_internal.h"
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 
 class EdgeClientImpl : MbedCloudClientCallback {
@@ -186,6 +187,256 @@ public:
         tr_debug("Start update registration");
         _cloud_client.register_update();
     }
+
+#ifdef MBED_EDGE_SUBDEVICE_FOTA
+
+    typedef struct {
+        char *device_id;                        // Endpoint Id
+        uint32_t size_max;                      // Maximum size of the fragment buffer
+        uint32_t size;                          // Actual size of the fragment buffer
+        uint8_t ptr[2048];                      // Pointer to the fragment buffer
+        int offset;                             // Offset in the entire asset that the fragment is at
+        char *filename;                         // Filename the asset is getting saved to
+        uint8_t *url;                           // URL the asset is getting downloaded from
+        int file_size;                          // Total size of the asset
+        M2MInterface* interface;                // Interface used for obtaining the asset
+        asset_download_complete_cb success_cb;  // Callback to run after the asset has been downloaded
+        void *ctx;                              // Original context used for sending the json struct later
+        int error_code;                         // Error code for the transaction
+        bool last_block;
+    } arm_uc_asset_state_t;
+
+    static int checkHTTPstatus(int sock)
+    {
+        char buff[1024] = "", *ptr = buff + 1;
+        int bytes_received, status;
+        while (bytes_received = recv(sock, ptr, 1, 0)) {
+            if (bytes_received == -1) {
+                tr_err("checkHTTPstatus");
+                return -1;
+            }
+
+            if ((ptr[-1] == '\r') && (*ptr == '\n'))
+                break;
+            ptr++;
+        }
+        *ptr = 0;
+        ptr = buff + 1;
+
+        sscanf(ptr, "%*s %d ", &status);
+
+        tr_debug("%s\n", ptr);
+        tr_debug("status=%d\n", status);
+        tr_debug("End Response ..\n");
+        return (bytes_received > 0) ? status : 0;
+    }
+
+    static int get_total_length_http_header(int sock)
+    {
+        char buff[1024] = "", *ptr = buff + 4;
+        int bytes_received, status;
+        tr_info("Begin HEADER ..\n");
+        while (bytes_received = recv(sock, ptr, 1, 0)) {
+            if (bytes_received == -1) {
+                tr_err("Parse Header");
+                return -1;
+            }
+
+            if ((ptr[-3] == '\r') && (ptr[-2] == '\n') && (ptr[-1] == '\r') && (*ptr == '\n'))
+                break;
+            ptr++;
+        }
+
+        *ptr = 0;
+        ptr = buff + 4;
+
+        if (bytes_received) {
+            ptr = strstr(ptr, "Content-Length:");
+            if (ptr) {
+                sscanf(ptr, "%*s %d", &bytes_received);
+
+            } else
+                bytes_received = -1;
+
+            tr_debug("Content-Length: %d\n", bytes_received);
+        }
+        tr_info("End HEADER ..\n");
+        return bytes_received;
+    }
+
+    static arm_uc_update_result_t fw_file_download(arm_uc_asset_state_t *state)
+    {
+        char *url_without_http = NULL;
+        tr_debug("URL WITH HTTP:%s",state->url);
+        if (strstr((char *) state->url, "http://")) {
+            url_without_http = strdup((char *) state->url + 7);
+        } else if (strstr((char *) state->url, "https://")) {
+            url_without_http = strdup((char *) state->url + 8);
+        }
+        tr_debug("URL WITHOUT HTTP:%s",url_without_http);
+
+        char *fw_file = NULL;
+        char *server_uri = strtok_r(url_without_http, "/", &fw_file);
+        if(server_uri == NULL) {
+            tr_error("server url is null");
+        }
+        uint sock, bytes_received;
+        char send_data[1024], *p;
+        char *recv_data = NULL;
+        if((state) && (state->file_size > 0))
+        {
+
+            printf("File size: %d ",state->file_size);
+            recv_data = (char *) malloc(state->file_size+1);
+	        if(recv_data == NULL)
+	        {
+	            tr_err("File size memory allocation fail");
+                return ARM_UC_UPDATE_RESULT_FETCHER_NONSPECIFIC_ERROR;
+            }
+        }
+        struct sockaddr_in server_addr;
+        struct hostent *host;
+
+        host = gethostbyname(server_uri);
+        if (host == NULL) {
+            tr_err("Host name does not resolved");
+            free(recv_data);
+            return ARM_UC_UPDATE_RESULT_FETCHER_INVALID_REQUEST_TYPE;
+        }
+
+        if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+            tr_err("Socket not opened");
+            free(recv_data);
+            return ARM_UC_UPDATE_RESULT_FETCHER_INVALID_REQUEST_TYPE;
+        }
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(80);
+        server_addr.sin_addr = *((struct in_addr *) host->h_addr);
+        bzero(&(server_addr.sin_zero), 8);
+
+        if (connect(sock, (struct sockaddr *) &server_addr, sizeof(struct sockaddr)) == -1) {
+            tr_err("HTTP Socket Connect Error");
+            free(recv_data);
+            return ARM_UC_UPDATE_RESULT_FETCHER_NETWORK_CONNECTION_FAILURE;
+        }
+
+        snprintf(send_data, sizeof(send_data), "GET /%s HTTP/1.1\r\nHost: %s\r\n\r\n", fw_file, server_uri);
+
+        if (send(sock, send_data, strlen(send_data), 0) == -1) {
+            tr_err("HTTP Socket Connect Error");
+            free(recv_data);
+            return ARM_UC_UPDATE_RESULT_FETCHER_NETWORK_CONNECTION_FAILURE;
+        }
+        tr_info("Data sent.\n");
+
+        uint totallength;
+
+        if (checkHTTPstatus(sock) && (totallength = get_total_length_http_header(sock))) {
+
+            uint64_t bytes = 0;
+            FILE *fd = fopen(state->filename, "w+");
+
+            tr_info("Saving data...\n\n");
+
+            while (bytes_received = recv(sock, recv_data, 1024, 0)) {
+                if (bytes_received == -1) {
+                    tr_err("recieve failure");
+                    fclose(fd);
+                    return ARM_UC_UPDATE_RESULT_FETCHER_NETWORK_CONNECTION_FAILURE;
+                }
+
+                if (fwrite(recv_data, 1, bytes_received, fd) != bytes_received) {
+                    tr_err("Firmware binary Write Fail");
+                    fclose(fd);
+                    if (url_without_http != NULL)
+                        free(url_without_http);
+                    if (recv_data)
+                        free(recv_data);
+                    close(sock);
+                    return ARM_UC_UPDATE_RESULT_WRITER_INSUFFICIENT_STORAGE_SPACE;
+                }
+                bytes += bytes_received;
+                uint percent = (bytes * 100) / totallength;
+                printf("%d%%\r", percent);
+                fflush(stdout);
+
+                if (bytes == totallength)
+                    break;
+            }
+            fclose(fd);
+        }
+
+        if(url_without_http!=NULL)
+            free(url_without_http);
+
+        if (recv_data)
+            free(recv_data);
+
+        close(sock);
+        return ARM_UC_UPDATE_RESULT_UPDATE_FIRST;
+    }
+
+    static void *subdevice_download_fw(void *ctx)
+    {
+        // Begin asset download
+        tr_cmdline("Firmware Downloading");
+        arm_uc_asset_state_t *state = (arm_uc_asset_state_t *)ctx;
+
+        tr_cmdline("state->filename %s",state->filename);
+        tr_cmdline("state->uri %s",state->url);
+        //HTTP get request download
+        arm_uc_update_result_t fw_download_status = fw_file_download(state);
+        tr_info("\nFirmware completed %s %d %s", state->url, state->file_size, state->filename);
+        if (fw_download_status != ARM_UC_UPDATE_RESULT_UPDATE_FIRST) {
+            tr_err("Firmware Download fail");
+            char err_str[3] = " "; // for storing the error into string
+            itoa_c(fw_download_status, err_str);
+            tr_debug("Error Code from Manifest :%d %s", fw_download_status, err_str);
+            ARM_UC_SUBDEVICE_ReportUpdateResult(state->device_id, err_str);
+            state->filename = NULL;
+            state->error_code = fw_download_status;
+        }
+        state->success_cb(state->url, state->filename, state->error_code, state->ctx);
+        if(state != NULL) {
+            free(state);
+        }
+    }
+
+    void client_obtain_asset(char *device_id,
+                             uint8_t *uri_buffer,
+                             char *filename,
+                             size_t size,
+                             asset_download_complete_cb cb,
+                             void *ctx)
+    {
+        if (!_registered) {
+            tr_error("Client not registered and cannot obtain LWM2M client yet!");
+            return;
+        }
+        // Create a new state and fill with appropriate information
+        arm_uc_asset_state_t* state = (arm_uc_asset_state_t*) malloc(sizeof(arm_uc_asset_state_t));
+        state->size_max = 1024;
+        state->size = 1024;
+        state->offset = 0;
+        state->filename = filename;
+        state->url = uri_buffer;
+        state->file_size = size;
+        state->interface = _cloud_client.get_m2m_interface();
+        state->success_cb = cb;
+        state->ctx = ctx;
+        state->error_code = 0;
+        state->device_id = device_id;
+
+        pthread_t subdevice_fw_download_thread;
+
+        /* Create independent threads to download fw each of which will execute function */
+
+        pthread_create(&subdevice_fw_download_thread, NULL, &subdevice_download_fw, (void*)state);
+        pthread_detach(subdevice_fw_download_thread);
+    }
+
+#endif // MBED_EDGE_SUBDEVICE_FOTA
+
     void client_registered()
     {
         _registered = true;

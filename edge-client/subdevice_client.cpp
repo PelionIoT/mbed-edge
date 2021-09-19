@@ -19,6 +19,7 @@
  */
 
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
+
 #define TRACE_GROUP "edgesd"
 
 extern "C" {
@@ -32,51 +33,100 @@ extern "C" {
 }
 
 #include "edge-client/edge_client_internal.h"
-#include "mbed-trace/mbed_trace.h"
-#include "mbed-client/m2mresource.h"
-#include "edge-client/subdevice_fota.h"
 
-void manifest_callback_subdevice(void *_parameters) {
-    tr_info("manifest_callback_subdevice");
-    M2MResource::M2MExecuteParameter *exec_params = (M2MResource::M2MExecuteParameter *) _parameters;
-    uint8_t *buffer = (uint8_t *) exec_params->get_argument_value();
-    uint16_t length = exec_params->get_argument_value_length();
-    M2MResource *resource = exec_params->get_resource();
-    fota_state_e fota_state;
-    char device_id[ENDPOINT_SIZE] = {0};
-    get_endpoint(device_id, resource->uri_path());
-    int ret = fota_is_ready(buffer, length, &fota_state);
-    if (ret == FOTA_STATUS_OUT_OF_MEMORY) {
-        memset(buffer, 0, length);
-        uint8_t res = -1*FOTA_STATUS_OUT_OF_MEMORY;
-        update_state_resource(device_id, FOTA_STATE_INVALID);
-        update_result_resource(device_id, res);
-        resource->send_delayed_post_response();
-        resource->set_manifest_check_status(false);
-        return;
-        }
-    uint8_t reset_val = -1;
-    uint8_t res= 0;
-     switch (fota_state) {
-        case FOTA_STATE_IDLE: {
-            update_state_resource(device_id, reset_val);
-            update_result_resource(device_id, reset_val);
-            resource->send_delayed_post_response();
-            subdevice_fota_on_manifest(buffer, length, resource);
-            break;
-        }
-        case FOTA_STATE_INVALID:
-            FOTA_TRACE_ERROR("FOTA cannot handle manifest - rejecting");
-            update_state_resource(device_id, FOTA_STATE_INVALID);
-            res = -1*FOTA_STATUS_INSTALL_AUTH_NOT_GRANTED;
-            update_result_resource(device_id, res);
-            resource->send_delayed_post_response();
-            resource->set_manifest_check_status(false);
-            break;
-        default:
-            resource->set_manifest_check_status(false);
-            break;
+#include "mbed-trace/mbed_trace.h"
+
+#include "mbed-client/m2mresource.h"
+#include "arm_uc_public.h"
+
+int ARM_UC_SUBDEVICE_ReportUpdateResult(const char *endpoint_name, char *error_manifest)
+{
+    pt_api_result_code_e err = PT_API_UNKNOWN_ERROR;
+
+    if (strcmp(&error_manifest[0], "0")) // reset manifest hash/version in case of error
+    {
+        err = edgeclient_set_resource_value(endpoint_name,
+                                            MANIFEST_OBJECT,
+                                            MANIFEST_INSTANCE,
+                                            MANIFEST_ASSET_HASH,
+                                            "",
+                                            (const uint8_t *) "0",
+                                            1,
+                                            LWM2M_STRING,
+                                            1,
+                                            NULL);
+
+        err = edgeclient_set_resource_value(endpoint_name,
+                                            MANIFEST_OBJECT,
+                                            MANIFEST_INSTANCE,
+                                            MANIFEST_VERSION,
+                                            "",
+                                            (const uint8_t *) "0",
+                                            1,
+                                            LWM2M_STRING,
+                                            1,
+                                            NULL);
+
+        err = edgeclient_set_resource_value(endpoint_name,
+                                            MANIFEST_OBJECT,
+                                            MANIFEST_INSTANCE,
+                                            MANIFEST_RESOURCE_RESULT,
+                                            "",
+                                            (const uint8_t *) error_manifest,
+                                            strlen(error_manifest),
+                                            LWM2M_STRING,
+                                            1,
+                                            NULL);
     }
+
+    tr_info("ARM_UC_SUBDEVICE_ReportUpdateResult Status update stop == %d", err);
+    return 0;
+}
+
+void manifest_callback(void *_parameters)
+{
+    tr_info("manifest callback");
+    M2MResource::M2MExecuteParameter *exec_params = (M2MResource::M2MExecuteParameter *) _parameters;
+    M2MResource *resource = exec_params->get_resource();
+
+    arm_uc_update_result_t error_manifest;
+    memset(&error_manifest,0,sizeof(arm_uc_update_result_t));
+
+    if (resource->uri_path() == NULL) {
+        return;
+    }
+
+    char *uri_path = strdup(resource->uri_path()); // URI : d/device_id/10252/0/1
+    char *left_string = NULL;
+    char *manifest_res = NULL;
+    strtok_r(uri_path, "/", &left_string); // left_string : device_id/10252/0/1
+    char *device_id = strtok_r(left_string, "/", &manifest_res);
+    char err_str[3] = " "; // for storing the error into string
+
+    if (strcmp(manifest_res, xstr(MANIFEST_INFORMATION))) {
+        tr_err("Not the subdevice manifest %s", uri_path);
+        return;
+    }
+
+    tr_debug("manifest for subdevice %s payload len %d", device_id, exec_params->get_argument_value_length());
+
+    uint8_t *manifest = (uint8_t *) exec_params->get_argument_value();
+    arm_uc_buffer_t manifest_buffer;
+    manifest_buffer.ptr = manifest;
+    manifest_buffer.size = exec_params->get_argument_value_length();
+    manifest_buffer.size_max = 1024;
+    manifest_info_t manifest_info = {0};
+    bool manifest_check = parse_manifest_for_subdevice(&manifest_buffer, &manifest_info, &error_manifest);
+    itoa_c(error_manifest, err_str);
+
+    tr_debug("Error Code from Manifest :%d %s", error_manifest, err_str);
+
+    ARM_UC_SUBDEVICE_ReportUpdateResult(device_id, err_str);
+
+    if (uri_path)
+        free(uri_path);
+
+    resource->set_manifest_check_status(manifest_check);
 }
 
 pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name,
@@ -125,7 +175,7 @@ pt_api_result_code_e subdevice_set_resource_value(const char *endpoint_name,
 
     if ((object_id == MANIFEST_OBJECT) && (object_instance_id == MANIFEST_INSTANCE) &&
         resource_id == MANIFEST_RESOURCE_PAYLOAD) {
-        res->set_execute_function(manifest_callback_subdevice);
+        res->set_execute_function(manifest_callback);
     }
 
     if ((object_id == DEVICE_META_OBJECT || object_id == MANIFEST_OBJECT) && object_instance_id == MANIFEST_INSTANCE) {

@@ -866,7 +866,7 @@ static void call_free_userdata_conditional(pt_userdata_t *userdata)
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 
 pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
-                                            manifest_metadata_handler cb)
+                                            manifest_class_and_vendor_handler cb)
 {
     api_lock();
     connection_t *connection = find_connection(connection_id);
@@ -874,7 +874,7 @@ pt_status_t pt_device_add_manifest_callback(const connection_id_t connection_id,
         api_unlock();
         return PT_STATUS_NOT_CONNECTED;
     }
-    connection->client->manifest_meta_data_handler = cb;
+    connection->client->manifest_class_vendor_handler = cb;
     api_unlock();
 
     return PT_STATUS_SUCCESS;
@@ -937,7 +937,7 @@ pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
 #ifndef BUILD_TYPE_TEST
     if (device->features & PT_DEVICE_FEATURE_FIRMWARE_UPDATE) {
-        status = pt_device_init_firmware_update_resources(connection_id, device_id, connection->client->manifest_meta_data_handler);
+        status = pt_device_init_firmware_update_resources(connection_id, device_id, connection->client->manifest_class_vendor_handler);
         if (status != PT_STATUS_SUCCESS) {
             tr_error("Initializing firmware update resource failed, status %d", status);
             pt_devices_remove_and_free_device(connection->client->devices, device);
@@ -2180,13 +2180,17 @@ pt_status_t pt_resource_set_userdata(connection_id_t connection_id,
 
 pt_status_t pt_download_asset(const connection_id_t connection_id,
                               const char *device_id,
-                              uint64_t size,
+                              const char *url,
+                              const char *hash,
+                              uint32_t size,
                               pt_download_cb success_handler,
                               pt_download_cb failure_handler,
                               void *userdata)
 {
     return pt_download_asset_internal(connection_id,
                                       device_id,
+                                      url,
+                                      hash,
                                       size,
                                       success_handler,
                                       failure_handler,
