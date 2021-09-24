@@ -9,5 +9,5 @@ add_definitions(-DMBED_CONF_MBED_TRACE_ENABLE=1)
 
 target_include_directories (edge-io-lib-test PUBLIC ${CPPUTEST_HOME}/include)
 
-target_link_libraries (edge-io-lib-test mbedTraceEdge CppUTest CppUTestExt)
+target_link_libraries (edge-io-lib-test nanostacklibservice mbedTrace CppUTest CppUTestExt)
 

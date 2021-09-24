@@ -12,4 +12,4 @@ include_directories (../cpputest-custom-types ../libwebsocket-mock)
 target_include_directories (pt-client-test PUBLIC ${CPPUTEST_HOME}/include)
 target_include_directories (pt-client-test PUBLIC ${ROOT_HOME}/test/test-lib)
 
-target_link_libraries (pt-client-test nanostack pt-client libwebsocket-mock-lib libevent-mock-lib test-lib CppUTest CppUTestExt pthread)
+target_link_libraries (pt-client-test nanostacklibservice mbedTrace pt-client libwebsocket-mock-lib libevent-mock-lib test-lib CppUTest CppUTestExt pthread)
