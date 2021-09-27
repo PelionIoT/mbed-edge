@@ -28,4 +28,7 @@ to reproduce the defect.`
 
  - [ ] Not applicable.
  
+ ### Changelog
+ 
+ - [ ] `CHANGELOG.md` updated.
 
