@@ -72,6 +72,12 @@ The contents of the repository.
     git submodule update --init --recursive
     ```
 
+1. If there are any patches, then apply them now -
+
+    ```
+    [ -d "patches" ] && git apply patches/*
+    ```
+
 1. Install Rust
 
     Note: This is required only when building with Parsec.
@@ -92,6 +98,11 @@ The contents of the repository.
 First, fetch the dependencies
 ```
 git submodule update --init --recursive
+```
+
+If there are any patches, then apply them now -
+```
+[ -d "patches" ] && git apply patches/*
 ```
 
 The edge-core docker image is a developer build with firmware update enabled. Thus, place the `mbed_cloud_dev_credentials.c` and `update_default_resources.c` in `config` folder before starting the build -

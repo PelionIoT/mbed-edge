@@ -1,0 +1,26 @@
+From 83e1175e29976f667755f9d8104680999dd439ec Mon Sep 17 00:00:00 2001
+From: Yash Goyal <yash.goyal@pelion.com>
+Date: Sun, 26 Sep 2021 18:45:30 -0700
+Subject: [PATCH] Link libm when compiling parsec_se_driver with cargo and
+ rustc v1.55.0
+
+---
+ factory-configurator-client/CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/mbed-cloud-client/factory-configurator-client/CMakeLists.txt b/lib/mbed-cloud-client/factory-configurator-client/CMakeLists.txt
+index 74647511f..1272dd74f 100644
+--- a/lib/mbed-cloud-client/factory-configurator-client/CMakeLists.txt
++++ b/lib/mbed-cloud-client/factory-configurator-client/CMakeLists.txt
+@@ -126,7 +126,7 @@ if(PARSEC_TPM_SE_SUPPORT)
+     set_property(TARGET parsec_driver PROPERTY IMPORTED_LOCATION_RELEASE
+         "${CMAKE_CURRENT_SOURCE_DIR}/../../pal-platform/Middleware/parsec_se_driver/parsec_se_driver/target/release/libparsec_se_driver.a")
+ 
+-    target_link_libraries(fccstorage parsec_driver -ldl)
++    target_link_libraries(fccstorage parsec_driver -ldl -lm)
+ endif()
+ 
+ # key-config-manager library
+-- 
+2.17.1
+
