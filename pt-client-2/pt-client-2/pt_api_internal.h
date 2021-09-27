@@ -66,7 +66,7 @@ struct pt_client_data_s {
     bool close_connection;
     bool reconnection_triggered;
 #ifdef MBED_EDGE_SUBDEVICE_FOTA
-    manifest_class_and_vendor_handler manifest_class_vendor_handler;
+    manifest_metadata_handler manifest_meta_data_handler;
 #endif // MBED_EDGE_SUBDEVICE_FOTA
 };
 /*
