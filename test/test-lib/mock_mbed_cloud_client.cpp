@@ -77,6 +77,10 @@ void ConnectorClient::timer_expired(M2MTimerObserver::Type type) {
 void ConnectorClient::network_status_changed(bool connected) {
 
 }
+void ConnectorClient::init_security_object(uint16_t instance_id) {
+
+}
+
 ServiceClient::ServiceClient(ServiceClientCallback &callback) :
         _service_callback(callback),
         _service_uri(NULL),
@@ -146,7 +150,7 @@ void MbedCloudClient::add_objects(m2m::Vector<M2MBase *> const &base_list)
     }
 }
 
-bool MbedCloudClient::setup(void *)
+bool MbedCloudClient::setup(void *, bool)
 {
     return false;
 }

@@ -35,7 +35,7 @@ run-tests-fota: build-test-fota-byoc
 	find ./build-test/bin -name "*-test" | xargs -n1 -I{} sh -c '{} || exit 255'
 
 run-tests-with-valgrind: build-test-byoc
-	find ./build-test/bin -name "*-test" | xargs -n1 -I{} sh -c 'valgrind --track-origins=yes --num-callers=100 --leak-check=full --show-reachable=yes --suppressions=./valgrind-unit-tests.supp --error-exitcode=255 {} || exit 255'
+	find ./build-test/bin -name "*-test" | xargs -n1 -I{} sh -c 'valgrind --track-origins=yes --num-callers=100 --leak-check=full {}'
 
 run-coverage: run-tests
 	cd ./build-test && ../test/generate_coverage.sh .. && cd ..
