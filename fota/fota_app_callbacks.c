@@ -29,6 +29,7 @@
 #include <assert.h>
 
 #define ACTIVATE_SCRIPT_LENGTH 512
+#define CURR_SHA_FILE_NAME MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR "/fota_curr_sha"
 
 int deploy_ostree_delta_update(const char *candidate_fs_name)
 {
@@ -64,10 +65,8 @@ int verify_ostree_delta_update(const char *commit)
 
     int length = snprintf(command,
                           ACTIVATE_SCRIPT_LENGTH,
-                          "ostree log %s", commit);
+                          "ostree admin status | head -1 | grep %s", commit);
     FOTA_ASSERT(length < ACTIVATE_SCRIPT_LENGTH);
-
-    FOTA_TRACE_DEBUG("system cmd %s, rc %d", command, rc);
 
     /* execute script command */
     rc = system(command);
@@ -94,6 +93,11 @@ int fota_app_on_install_candidate(const char *candidate_fs_name, const manifest_
 
 int main_sub_component_install_handler(const char *comp_name, const char *sub_comp_name, const char *file_name, const uint8_t *vendor_data, size_t vendor_data_size)
 {
+    int rc = system("ostree admin status | head -1 | sed 's/\\\..*//' | sed 's/.* //g' > " CURR_SHA_FILE_NAME);
+    if (rc) {
+        FOTA_TRACE_ERROR("Unable to save current ostree sha");
+        return FOTA_STATUS_FW_INSTALLATION_FAILED;
+    }
     return deploy_ostree_delta_update(file_name);
 }
 
@@ -104,13 +108,17 @@ int main_sub_component_verify_handler(const char *comp_name, const char *sub_com
 
 int main_sub_component_rollback_handler(const char *comp_name, const char *sub_comp_name, const uint8_t *vendor_data, size_t vendor_data_size)
 {
-    FOTA_TRACE_DEBUG("main_sub_component_rollback_handler comp %s, subcomp %s", comp_name, sub_comp_name);
+    int rc = system("ostree admin deploy `cat " CURR_SHA_FILE_NAME "`");
+    if (rc) {
+        FOTA_TRACE_ERROR("Unable to rollback main sub component, result %d", WEXITSTATUS(rc));
+        return FOTA_STATUS_FW_INSTALLATION_FAILED;
+    }
     return FOTA_STATUS_SUCCESS;
 }
 
 int main_sub_component_finalize_handler(const char *comp_name, const char *sub_comp_name, const uint8_t *vendor_data, size_t vendor_data_size, fota_status_e fota_status)
 {
-    FOTA_TRACE_DEBUG("main_sub_component_finalize_handler comp %s, subcomp %s", comp_name, sub_comp_name);
+    remove(CURR_SHA_FILE_NAME);
     return FOTA_STATUS_SUCCESS;
 }
 
