@@ -1,5 +1,14 @@
 # Changelog for Edge
 
+## Release 0.19.0
+
+* Updated to [Pelion Device Management Client (PDMC) library version 4.11.0](https://github.com/PelionIoT/mbed-cloud-client/blob/master/CHANGELOG.md#release-490-20052021)
+* Updated to [Mbed TLS version 2.27](https://github.com/ARMmbed/mbedtls/releases/tag/v2.27.0)
+* Updated parsec-se-driver version from 0.5.0 to 0.6.0 (in `lib/pal-platform.json`).
+* Added subdevice FOTA support for the new MCC FOTA library.
+* Added support for FOTA combined image.
+* Added edge_tool.py and cbor_convertor.py scripts in edge-tool
+
 ## Release 0.18.0
 
 * Updated to [Pelion Device Management Client (PDMC) library version 4.9.0](https://github.com/PelionIoT/mbed-cloud-client/blob/master/CHANGELOG.md#release-490-20052021).
