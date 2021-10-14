@@ -179,6 +179,12 @@ machine used to run Edge.
 For standard desktop Linux the value is set in `cmake/edge_configure.cmake` to
 a value `ARM_UCP_LINUX_GENERIC`.
 
+#### Combined image update
+
+Lets you group together multiple images on the device as requiring a simultaneous update. This is useful when the images have a strong dependency on each other during device boot in runtime. For instance, use this feature to update the boot and rootfs image of the gateway in a single update process. To enable it, add the flag `-DFOTA_COMBINED_IMAGE_SUPPORT=ON` during build time. 
+
+`fota/fota_app_callbacks.c` implements the callbacks to support the combined image update feature. For detailed information, follow [this link](https://developer.pelion.com/docs/device-management/current/connecting/implementing-combined-update.html).
+
 
 ### Enabling Parsec
 
