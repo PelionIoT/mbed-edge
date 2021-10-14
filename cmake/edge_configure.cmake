@@ -167,7 +167,7 @@ if (${FIRMWARE_UPDATE})
      MESSAGE("Update client hub selected.")
      add_definitions ("-DMBED_CLOUD_CLIENT_SUPPORT_UPDATE=1")
      add_definitions("-DPAL_DNS_API_VERSION=1")
-     message("WARNING: Update Client Hub is Depreceated, Use new Fota framework (FOTA_ENABLE=ON) instead")
+     message("WARNING: The next release, 0.20, will deprecate the Update Client (UC) hub library. Please use the new FOTA framework library, which can be enabled by adding -DFOTA_ENABLE=ON flag.")
      set(ENABLE_UC_HUB ON)
   endif()
 
