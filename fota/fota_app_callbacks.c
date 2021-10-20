@@ -124,25 +124,48 @@ int main_sub_component_finalize_handler(const char *comp_name, const char *sub_c
 
 int boot_sub_component_install_handler(const char *comp_name, const char *sub_comp_name, const char *file_name, const uint8_t *vendor_data, size_t vendor_data_size)
 {
-    FOTA_TRACE_DEBUG("boot_sub_component_install_handler comp %s, subcomp %s", comp_name, sub_comp_name);
+    int rc;
+    char command[ACTIVATE_SCRIPT_LENGTH] = {0};
+    rc = system("mkdir -p " BOOT_CAPSULE_UPDATE_DIR);
+    if (rc) {
+        FOTA_TRACE_ERROR("Unable to create capsule update directory");
+        return FOTA_STATUS_FW_INSTALLATION_FAILED;
+    }
+
+    int length = snprintf(command,
+                          ACTIVATE_SCRIPT_LENGTH,
+                          "cp -f %s " BOOT_CAPSULE_UPDATE_DIR "/" BOOT_CAPSULE_UPDATE_FILENAME, file_name);
+    FOTA_ASSERT(length < ACTIVATE_SCRIPT_LENGTH);
+
+    rc = system(command);
+    if (rc) {
+        FOTA_TRACE_ERROR("Unable to copy capsule file to capsule directory");
+        return FOTA_STATUS_FW_INSTALLATION_FAILED;
+    }
     return FOTA_STATUS_SUCCESS;
 }
 
 int boot_sub_component_verify_handler(const char *comp_name, const char *sub_comp_name, const uint8_t *vendor_data, size_t vendor_data_size)
 {
-    FOTA_TRACE_DEBUG("boot_sub_component_verify_handler comp %s, subcomp %s", comp_name, sub_comp_name);
+    // Currently only way to verify success of capsule update is to make sure that capsule update process removed the capsule file
+    FILE *fp = fopen(BOOT_CAPSULE_UPDATE_DIR "/" BOOT_CAPSULE_UPDATE_FILENAME, "r");
+    if (fp) {
+        FOTA_TRACE_ERROR("Capsule update process failed");
+        fclose(fp);
+        return FOTA_STATUS_FW_INSTALLATION_FAILED;
+    }
     return FOTA_STATUS_SUCCESS;
 }
 
 int boot_sub_component_rollback_handler(const char *comp_name, const char *sub_comp_name, const uint8_t *vendor_data, size_t vendor_data_size)
 {
-    FOTA_TRACE_DEBUG("boot_sub_component_rollback_handler comp %s, subcomp %s", comp_name, sub_comp_name);
+    // Nothing to do here
     return FOTA_STATUS_SUCCESS;
 }
 
 int boot_sub_component_finalize_handler(const char *comp_name, const char *sub_comp_name, const uint8_t *vendor_data, size_t vendor_data_size, fota_status_e fota_status)
 {
-    FOTA_TRACE_DEBUG("boot_sub_component_finalize_handler comp %s, subcomp %s", comp_name, sub_comp_name);
+    remove(BOOT_CAPSULE_UPDATE_DIR "/" BOOT_CAPSULE_UPDATE_FILENAME);
     return FOTA_STATUS_SUCCESS;
 }
 
