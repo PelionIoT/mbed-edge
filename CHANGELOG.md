@@ -1,5 +1,9 @@
 # Changelog for Edge
 
+## Release 0.19.1
+
+* Implemented combined update callbacks for bootloader. This assumes that boot capsule update is implemented on the device.
+
 ## Release 0.19.0
 
 * Updated to [Pelion Device Management Client (PDMC) library version 4.11.1](https://github.com/PelionIoT/mbed-cloud-client/blob/master/CHANGELOG.md#release-4111-11102021)
