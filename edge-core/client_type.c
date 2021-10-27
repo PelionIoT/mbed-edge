@@ -23,7 +23,7 @@
 #include "edge-core/protocol_api_internal.h"
 #include "edge-core/mgmt_api_internal.h"
 #include "edge-core/grm_api_internal.h"
-
+#include "edge-core/sda_api_internal.h"
 #include "mbed-trace/mbed_trace.h"
 #define TRACE_GROUP "clienttype"
 
@@ -49,7 +49,15 @@ client_data_t *edge_core_create_client(enum client_type client_type)
     } else if (client_type == GRM) {
         client_data->_pre_destroy_client_data = NULL;
         client_data->method_table = grm_method_table;
-    } else {
+    }
+#if defined(EDGE_ENABLE_SDA)
+    else if(client_type == SDA) {
+        tr_info("Creating SDA");
+        client_data->_pre_destroy_client_data = NULL;
+        client_data->method_table = sda_method_table;
+    }
+#endif // EDGE_ENABLE_SDA
+    else {
         tr_warn("No destroy function for client type.");
     }
 
