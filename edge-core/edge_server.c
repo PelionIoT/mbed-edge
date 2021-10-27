@@ -53,6 +53,9 @@
 #include "edge_version_info.h"
 #include "edge-rpc/rpc_timeout_api.h"
 #include "common/msg_api.h"
+#if defined(EDGE_ENABLE_SDA)
+#include "sda_status.h"
+#endif
 
 #define TRACE_GROUP "serv"
 
@@ -60,7 +63,9 @@
 #define SERVER_PT_WEBSOCKET_VERSION_PATH "/1/pt"
 #define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
 #define SERVER_GRM_WEBSOCKET_VERSION_PATH "/1/grm"
-
+#if defined(EDGE_ENABLE_SDA)
+#define SERVER_SDA_WEBSOCKET_VERSION_PATH "/1/sda"
+#endif // EDGE_ENABLE_SDA
 
 EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
 EDGE_LOCAL struct context *g_program_context = NULL;
@@ -198,7 +203,18 @@ int callback_edge_core_protocol_translator(struct lws *wsi,
                 client_data = edge_core_create_client(MGMT);
             } else if (header_ok && strcmp(get_uri, SERVER_GRM_WEBSOCKET_VERSION_PATH) == 0) {
                 client_data = edge_core_create_client(GRM);
-            } else {
+            }
+#if defined(EDGE_ENABLE_SDA)
+            else if(header_ok && strcmp(get_uri, SERVER_SDA_WEBSOCKET_VERSION_PATH) == 0) {
+                sda_status_e sda_status = sda_init();
+                if (sda_status != SDA_STATUS_SUCCESS) {
+                    tr_error("Failed initializing Secure-Device-Access");
+                    return 1;
+                }
+                client_data = edge_core_create_client(SDA);
+            }
+#endif
+            else {
                 tr_err("Could not select client type from \"%s\".", get_uri);
                 free(get_uri);
                 return 1;
