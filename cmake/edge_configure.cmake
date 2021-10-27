@@ -171,9 +171,14 @@ if (${FIRMWARE_UPDATE})
   endif()
 
   add_definitions ("-DMBED_CLOUD_CLIENT_UPDATE_STORAGE=${MBED_CLOUD_CLIENT_UPDATE_STORAGE}")
-
 endif()
 
+if(SDA_WITH_EDGE)
+  add_definitions("-DMBED_CLOUD_CLIENT_ENABLE_SDA=1")
+  add_definitions("-DEDGE_ENABLE_SDA=1")
+  SET (TRUST_ANCHOR "${CMAKE_CURRENT_SOURCE_DIR}/config/mbed_cloud_trust_anchor_credentials.c")
+  add_library(sda-trust-anchor ${TRUST_ANCHOR})
+endif()
 # mbedtls is supported
 # Custom mbedtls configuration header file can be given with argument -DMBEDTLS_CONFIG
 SET (TLS_LIBRARY "mbedTLS")
