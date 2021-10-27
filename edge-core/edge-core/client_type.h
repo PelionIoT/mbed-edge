@@ -27,7 +27,10 @@
 enum client_type {
     PT,
     MGMT,
-    GRM
+    GRM,
+#if defined(EDGE_ENABLE_SDA)
+    SDA
+#endif
 };
 
 typedef struct string_list_entry {
