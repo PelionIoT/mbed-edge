@@ -25,10 +25,14 @@
 
 bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_ctx)
 {
-    tr_info("edgeserver_execute_rfs_customer_code %d/%d/%d",
-            request_ctx->object_id,
-            request_ctx->object_instance_id,
-            request_ctx->resource_id);
+    if (request_ctx) {
+        tr_info("edgeserver_execute_rfs_customer_code %d/%d/%d",
+                request_ctx->object_id,
+                request_ctx->object_instance_id,
+                request_ctx->resource_id);
+    } else {
+        tr_info("edgeserver_execute_rfs_customer_code (local)");
+    }
     return true;
 }
 
