@@ -288,7 +288,7 @@ This GPIO would typically be a physical button, which would need to be held
 for a period.
 
 Specifically, if the specified GPIO transitions from inactive to active and
-back, with the active state held for more than two seconds, an RFS is triggered
+back, with the active state held for more than ten seconds, an RFS is triggered
 as if initiated via a network command.
 
 Support is enabled by adding `-DRFS_GPIO=ON` to the CMake command line,
@@ -302,6 +302,9 @@ The GPIO line can be specified in a few different ways:
 
 Flags for the GPIO line request can be specified, for example by adding
 `-DRFS_GPIO_FLAGS=GPIOD_LINE_REQUEST_FLAG_ACTIVE_LOW`.
+
+The required hold time for the GPIO can be modified from the default ten
+seconds using for example `-DRFS_GPIO_HOLD_TIME=2`.
 
 ### Configuring the log messages
 

@@ -112,6 +112,10 @@ if (RFS_GPIO)
     add_definitions ("-DRFS_GPIO_OFFSET=${RFS_GPIO_OFFSET}")
   endif()
 
+  if (NOT("${RFS_GPIO_HOLD_TIME}" STREQUAL ""))
+    add_definitions ("-DRFS_GPIO_HOLD_TIME=${RFS_GPIO_HOLD_TIME}")
+  endif()
+
   # Flags can be specified using GPIOD_LINE_REQUEST_FLAG_*
   # to specify polarity, open-drain, open-source and (with libgpiod 1.5 and
   # kernel 5.5) pull-up/down.

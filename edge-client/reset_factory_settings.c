@@ -145,6 +145,10 @@ EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg)
 #define RFS_GPIO_FLAGS 0
 #endif
 
+#ifndef RFS_GPIO_HOLD_TIME
+#define RFS_GPIO_HOLD_TIME 10
+#endif
+
 static void *rfs_gpio_thread(void *arg)
 {
     struct gpiod_line *line = arg;
@@ -165,13 +169,13 @@ static void *rfs_gpio_thread(void *arg)
         tr_info("rfs button %s", event.event_type == GPIOD_LINE_EVENT_RISING_EDGE ? "pressed" : "released");
         // Look for release after press
         if (last_event.event_type == GPIOD_LINE_EVENT_RISING_EDGE && event.event_type == GPIOD_LINE_EVENT_FALLING_EDGE) {
-            // Check if it was pressed for at least 2 seconds
+            // Check if it was pressed for at least RFS_GPIO_HOLD_TIME seconds
             long long secs = event.ts.tv_sec - last_event.ts.tv_sec;
             if (event.ts.tv_nsec < last_event.ts.tv_nsec) {
                 secs--;
             }
             // If so, request the reset, and exit the GPIO handler
-            if (secs >= 2) {
+            if (secs >= RFS_GPIO_HOLD_TIME) {
                 rfs_reset_factory_settings_requested(NULL);
                 break;
             }
