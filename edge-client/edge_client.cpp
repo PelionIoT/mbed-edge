@@ -365,6 +365,7 @@ EDGE_LOCAL void list_objects()
 
 EDGE_LOCAL void edgeclient_update_register_msg_cb(void *arg)
 {
+    printf("enter edgeclient_update_register_msg_cb\n");
     (void) arg;
     tr_debug("edgeclient_update_register_msg_cb");
     edgeclient_update_register_conditional();
@@ -381,6 +382,7 @@ EDGE_LOCAL void edgeclient_send_update_register_conditional_message()
 // This method is "safe", because it's called from libevent event loop, preventing e.g. race-conditions.
 EDGE_LOCAL void edgeclient_on_registered_callback_safe(void *arg)
 {
+    printf("enter edgeclient_on_registered_callback_safe\n");
     (void) arg;
     tr_debug("edgeclient_on_registered_callback client_data = %p", client_data);
     bool start_registration = edgeclient_is_registration_needed();
@@ -745,6 +747,7 @@ void edgeclient_update_register()
 #ifdef CLOUD_CLIENT_LIST_OBJECT_DEBUG
     list_objects();
 #endif
+    printf("edgeclient_update_register: edge client status - %d\n", client_data->edgeclient_status);
     if (client_data->edgeclient_status == REGISTERED) {
         tr_debug("update_register_client() status = %d", client_data->edgeclient_status);
         edgeclient_add_client_objects_for_registering();
@@ -1672,6 +1675,7 @@ EDGE_LOCAL bool edgeclient_is_registration_needed()
 {
     bool ret;
     ret = client_data->m2m_resources_added_or_removed;
+    printf("< is_registration_needed %d\n", ret);
     tr_debug("< is_registration_needed %d", ret);
     return ret;
 }

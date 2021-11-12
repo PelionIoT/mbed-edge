@@ -183,6 +183,7 @@ public:
 
     void start_update_registration()
     {
+        printf("Start update registration\n");
         tr_debug("Start update registration");
         _cloud_client.register_update();
     }
