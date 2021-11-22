@@ -17,6 +17,9 @@ option (FACTORY_MODE "Factory provisioning" OFF)
 # Trace CoAP payload
 option (TRACE_COAP_PAYLOAD "Debug trace CoAP payload" OFF)
 
+# Reset Factory Settings GPIO trigger
+option (RFS_GPIO "Reset Factory Settings via GPIO" OFF)
+
 # Options end
 
 # Set developer mode on as default if nothing is set from command line.
@@ -90,6 +93,35 @@ endif()
 if (TRACE_COAP_PAYLOAD)
   MESSAGE ("Enabling CoAP payload debug printing.")
   add_definitions ("-DMBED_CLIENT_PRINT_COAP_PAYLOAD=1")
+endif()
+
+if (RFS_GPIO)
+  MESSAGE("Enabling RFS GPIO")
+  add_definitions ("-DRFS_GPIO")
+
+  # Code can currently use: (chip name + offset), (chip name + line name) or (only line name)
+  if (NOT("${RFS_GPIO_CHIP}" STREQUAL ""))
+    add_definitions ("-DRFS_GPIO_CHIP=\"${RFS_GPIO_CHIP}\"")
+  endif()
+
+  if (NOT("${RFS_GPIO_NAME}" STREQUAL ""))
+    add_definitions ("-DRFS_GPIO_NAME=\"${RFS_GPIO_NAME}\"")
+  endif()
+
+  if (NOT("${RFS_GPIO_OFFSET}" STREQUAL ""))
+    add_definitions ("-DRFS_GPIO_OFFSET=${RFS_GPIO_OFFSET}")
+  endif()
+
+  if (NOT("${RFS_GPIO_HOLD_TIME}" STREQUAL ""))
+    add_definitions ("-DRFS_GPIO_HOLD_TIME=${RFS_GPIO_HOLD_TIME}")
+  endif()
+
+  # Flags can be specified using GPIOD_LINE_REQUEST_FLAG_*
+  # to specify polarity, open-drain, open-source and (with libgpiod 1.5 and
+  # kernel 5.5) pull-up/down.
+  if (NOT("${RFS_GPIO_FLAGS}" STREQUAL ""))
+    add_definitions ("-DRFS_GPIO_FLAGS=${RFS_GPIO_FLAGS}")
+  endif()
 endif()
 
 add_definitions ("-D__LINUX__")

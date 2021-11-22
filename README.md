@@ -49,7 +49,7 @@ The contents of the repository.
 1. Prerequisites
 
     ```bash
-    sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
+    sudo apt install build-essential clang cmake curl doxygen gcc git graphviz libc6-dev libclang-dev libcurl4-openssl-dev libgpiod-dev libmosquitto-dev mosquitto-clients pkg-config python3 python3-pip python3-venv
     ```
 
     For debugging, install also these:
@@ -278,6 +278,33 @@ Networking should mostly work with a fake interface ID. However, you need the
 correct interface ID for example for the UDP/server like functionality to get the
 correct IP address of the interface. Setting this value helps to select the best
 network interface if there are several available.
+
+### Configuring a reset factory settings GPIO
+
+Edge Client has support for a local GPIO input to trigger a reset to factory
+settings (RFS).
+
+This GPIO would typically be a physical button, which would need to be held
+for a period.
+
+Specifically, if the specified GPIO transitions from inactive to active and
+back, with the active state held for more than ten seconds, an RFS is triggered
+as if initiated via a network command.
+
+Support is enabled by adding `-DRFS_GPIO=ON` to the CMake command line,
+together with option(s) to specify which line.
+
+The GPIO line can be specified in a few different ways:
+
+- By line name only, searching all GPIO chips: `-DRFS_GPIO_NAME=RFS_BUTTON`
+- By chip name, label or number, and line name: `-DRFS_GPIO_CHIP=gpiochip3 -DRFS_GPIO_NAME=RFS_BUTTON`
+- By chip name, label or number, and line offset: `-DRFS_GPIO_CHIP=80000000.gpio -DRFS_GPIO_OFFSET=0`
+
+Flags for the GPIO line request can be specified, for example by adding
+`-DRFS_GPIO_FLAGS=GPIOD_LINE_REQUEST_FLAG_ACTIVE_LOW`.
+
+The required hold time for the GPIO can be modified from the default ten
+seconds using for example `-DRFS_GPIO_HOLD_TIME=2`.
 
 ### Configuring the log messages
 

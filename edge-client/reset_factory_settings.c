@@ -31,6 +31,9 @@
 #include "edge-client/reset_factory_settings.h"
 #include "edge-core/edge_server_customer_code.h"
 #include "edge-client/reset_factory_settings_internal.h"
+#ifdef RFS_GPIO
+#include "gpiod.h"
+#endif
 #include <string.h>
 
 void rfs_finalize_reset_factory_settings()
@@ -60,6 +63,7 @@ void rfs_reset_factory_settings_requested(edgeclient_request_context_t *request_
 static void *rfs_thread(void *arg)
 {
     rfs_thread_param_t *param = arg;
+    // Note request_ctx can be NULL if initiated via local GPIO
     edgeclient_request_context_t *request_ctx = param->ctx;
     bool success = edgeserver_execute_rfs_customer_code(request_ctx);
 
@@ -83,12 +87,15 @@ static void *rfs_thread(void *arg)
 EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg)
 {
     rfs_thread_result_t *rfs_thread_result = (rfs_thread_result_t *) arg;
-    tr_debug("Sending response to Cloud");
     edgeclient_request_context_t *request_ctx = rfs_thread_result->request_ctx;
-    if (rfs_thread_result->customer_rfs_succeeded) {
-        edgecore_async_cb_success(request_ctx);
-    } else {
-        edgecore_async_cb_failure(request_ctx);
+    // Note request_ctx can be NULL if initiated via local GPIO
+    if (request_ctx) {
+        tr_debug("Sending response to Cloud");
+        if (rfs_thread_result->customer_rfs_succeeded) {
+            edgecore_async_cb_success(request_ctx);
+        } else {
+            edgecore_async_cb_failure(request_ctx);
+        }
     }
     void *result;
     int join_status = pthread_join(*rfs_thread_result->thread, &result);
@@ -132,6 +139,91 @@ EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg)
     free(arg);
 }
 
+#ifdef RFS_GPIO
+
+#ifndef RFS_GPIO_FLAGS
+#define RFS_GPIO_FLAGS 0
+#endif
+
+#ifndef RFS_GPIO_HOLD_TIME
+#define RFS_GPIO_HOLD_TIME 10
+#endif
+
+static void *rfs_gpio_thread(void *arg)
+{
+    struct gpiod_line *line = arg;
+    struct gpiod_line_event last_event = { 0 };
+    last_event.event_type = GPIOD_LINE_EVENT_FALLING_EDGE;
+
+    for (;;) {
+        struct gpiod_line_event event;
+        // Wait for and read an event
+        if (gpiod_line_event_read(line, &event)) {
+            tr_err("gpiod_line_event_read error");
+            break;
+        }
+        // If unknown event, ignore
+        if (event.event_type != GPIOD_LINE_EVENT_FALLING_EDGE && event.event_type != GPIOD_LINE_EVENT_RISING_EDGE) {
+            continue;
+        }
+        tr_info("rfs button %s", event.event_type == GPIOD_LINE_EVENT_RISING_EDGE ? "pressed" : "released");
+        // Look for release after press
+        if (last_event.event_type == GPIOD_LINE_EVENT_RISING_EDGE && event.event_type == GPIOD_LINE_EVENT_FALLING_EDGE) {
+            // Check if it was pressed for at least RFS_GPIO_HOLD_TIME seconds
+            long long secs = event.ts.tv_sec - last_event.ts.tv_sec;
+            if (event.ts.tv_nsec < last_event.ts.tv_nsec) {
+                secs--;
+            }
+            // If so, request the reset, and exit the GPIO handler
+            if (secs >= RFS_GPIO_HOLD_TIME) {
+                rfs_reset_factory_settings_requested(NULL);
+                break;
+            }
+        }
+        last_event = event;
+    }
+
+    gpiod_line_close_chip(line);
+    return NULL;
+}
+
+static void rfs_configure_factory_reset_gpio()
+{
+    // Support (chip name + offset) or (chip name + line name) or (line name)
+    struct gpiod_line *line = NULL;
+#ifdef RFS_GPIO_CHIP
+    struct gpiod_chip *chip = gpiod_chip_open_lookup(RFS_GPIO_CHIP);
+    if (chip) {
+#ifdef RFS_GPIO_OFFSET
+        line = gpiod_chip_get_line(chip, RFS_GPIO_OFFSET);
+#else
+        line = gpiod_chip_find_line(chip, RFS_GPIO_NAME);
+#endif
+        if (!line) {
+            gpiod_chip_close(chip);
+        }
+    }
+#else
+    line = gpiod_line_find(RFS_GPIO_NAME);
+#endif
+    if (!line) {
+        tr_err("Cannot locate rfs gpio line");
+        return;
+    }
+    if (gpiod_line_request_both_edges_events_flags(line, "edgeclient rfs", RFS_GPIO_FLAGS)) {
+        tr_err("Cannot request rfs gpio events");
+        gpiod_line_close_chip(line);
+        return;
+    }
+    pthread_t gpio_thread;
+    if (pthread_create(&gpio_thread, NULL, rfs_gpio_thread, line)) {
+        tr_err("Cannot create the rfs gpio thread");
+        gpiod_line_close_chip(line);
+        return;
+    }
+}
+#endif
+
 void rfs_add_factory_reset_resource()
 {
     edgeclient_set_resource_value(NULL,
@@ -144,6 +236,10 @@ void rfs_add_factory_reset_resource()
                                   LWM2M_OPAQUE,
                                   OPERATION_EXECUTE,
                                   /* userdata */ NULL);
+
+#ifdef RFS_GPIO
+    rfs_configure_factory_reset_gpio();
+#endif
 }
 
 
