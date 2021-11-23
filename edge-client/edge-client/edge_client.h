@@ -517,6 +517,25 @@ pt_api_result_code_e edgeclient_set_resource_value(const char *endpoint_name,
                                                    void *ctx);
 
 /**
+ * \brief Set a value to a resource with given path, consisting of endpoint_name (optional), object_id, object_instance_id and resource_id.
+ * If any of the path elements are missing, a failure is returned.
+ * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource under Edge itself.
+ * \param object_id The ID of the object under which the resource is located, a 16-bit unsigned integer.
+ * \param object_instance_id The ID of the object instance under which the resource is located, a 16-bit unsigned integer.
+ * \param resource_id The ID of the resource, a 16-bit unsigned integer.
+ * \param value const The uint8_t* pointing to a new value buffer.
+ * \param value_length The length of the new value.
+ * \return #PT_API_SUCCESS on success
+ *         Other codes on failure
+ */
+pt_api_result_code_e edgeclient_set_resource_value_native(const char *endpoint_name,
+                                                          const uint16_t object_id,
+                                                          const uint16_t object_instance_id,
+                                                          const uint16_t resource_id,
+                                                          const uint8_t *value,
+                                                          uint32_t value_length);
+
+/**
  * \brief Send asynchronous response for the given resource. Use this API to send the asynchronous response after
  *        getting a post or a request callback.
  * \param endpoint_name The name of the endpoint under which the resource is located. It can also be NULL for a resource

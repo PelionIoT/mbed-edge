@@ -124,6 +124,12 @@ void M2MResourceBase::clear_value()
     mock().actualCall("M2MResourceBase::clear_value");
 }
 
+bool M2MResourceBase::set_value_float(float value)
+{
+    mock().actualCall("M2MResourceBase::set_value_float");
+    return false;
+}
+
 bool M2MResourceBase::set_value(int64_t value)
 {
     mock().actualCall("M2MResourceBase::set_value");
