@@ -174,10 +174,13 @@ static void *rfs_gpio_thread(void *arg)
             if (event.ts.tv_nsec < last_event.ts.tv_nsec) {
                 secs--;
             }
-            // If so, request the reset, and exit the GPIO handler
+            // If so, request the reset. Don't exit the GPIO handler - the reset
+            // might not stop the system if the user code reports failure.
+            // Keep going to permit a repeated button-press attempt. (If the main
+            // thread does shut down, our thread will be cancelled during
+            // gpiod_line_event_read).
             if (secs >= RFS_GPIO_HOLD_TIME) {
                 rfs_reset_factory_settings_requested(NULL);
-                break;
             }
         }
         last_event = event;
@@ -221,6 +224,7 @@ static void rfs_configure_factory_reset_gpio()
         gpiod_line_close_chip(line);
         return;
     }
+    pthread_detach(gpio_thread);
 }
 #endif
 
