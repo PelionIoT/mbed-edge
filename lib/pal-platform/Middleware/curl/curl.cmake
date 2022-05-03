@@ -15,7 +15,7 @@
 #################################################################################
 
 if (NOT MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK)
-    set (CMAKE_USE_OPENSSL OFF CACHE BOOL "disable openssl" FORCE)
+    set (CURL_USE_OPENSSL OFF CACHE BOOL "disable openssl" FORCE)
     set (BUILD_TESTING OFF CACHE BOOL "disable testing" FORCE)
     set (BUILD_CURL_EXE OFF CACHE BOOL "don't build exe" FORCE)
     set (BUILD_SHARED_LIBS OFF CACHE BOOL "don't build share libs" FORCE)
