@@ -60,9 +60,7 @@ if (PARSEC_TPM_SE_SUPPORT OR (FOTA_ENABLE AND NOT MBED_CLOUD_CLIENT_CURL_DYNAMIC
 
     add_subdirectory("pal-platform/Middleware/parsec_se_driver")
     add_subdirectory("pal-platform/Middleware/trusted_storage")
-
-  else ()
-    add_subdirectory("pal-platform/Middleware/curl/curl")
   endif ()
-
-endif ()
+  # This cannot be included until after pal-platform.py is run, as curl does not exist before that
+  add_subdirectory("${ROOT_HOME}/lib/pal-platform/Middleware/curl/")
+  endif ()
