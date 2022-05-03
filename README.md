@@ -427,7 +427,7 @@ At the repository root a Makefile is present with shortcuts to have specific
 build templates.
 
 At first it is recommended to run the tests to see that the build environment is
-in correct shape: `make run-tests`. When environment is good to go the next
+in correct shape: `make -f Makefile.test run-tests`. When environment is good to go the next
 step is to create a developer certificate build: `make build-developer`.
 
 Default Makefile:
