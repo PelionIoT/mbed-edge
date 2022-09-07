@@ -2,7 +2,7 @@
 
 This document contains the instructions for using and developing Edge.
 
-The full Edge documentation is [part of our Device Management documentation site](https://developer.pelion.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.pelion.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+The full Edge documentation is [part of our Device Management documentation site](https://developer.pelion.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.pelion.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@izumanetworks.com).
 
 ## License
 
@@ -158,7 +158,7 @@ in production environments. Please read the
 [Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
 on how to build a resource file and certificates safe for a production environment.</span>
 
-Version 0.15.0 introduces a new Firmware-Over-the-Air (FOTA) Update Framework library which extends the capability of the previous library aka Update Client (UC) Hub. Using the new library you can not only update the device itself but also push update to a component of the device. For instance, you can leverage the features of new library to update the firmware driver of a BLE or a WiFi module connected to the device managed by Pelion. By default, UC Hub library is compiled into the binary. In order to switch to new FOTA library, add this CMake flag `-DFOTA_ENABLE=ON` during build time.
+Version 0.15.0 introduces a new Firmware-Over-the-Air (FOTA) Update Framework library which extends the capability of the previous library aka Update Client (UC) Hub. Using the new library you can not only update the device itself but also push update to a component of the device. For instance, you can leverage the features of new library to update the firmware driver of a BLE or a WiFi module connected to the device managed by Izuma. By default, UC Hub library is compiled into the binary. In order to switch to new FOTA library, add this CMake flag `-DFOTA_ENABLE=ON` during build time.
 
 The FOTA Update Framework library uses `curl` to fetch the images. By default, the curl library is statically compiled. We also support dynamic linking and to enable that add this flag - `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` during build time.
 
