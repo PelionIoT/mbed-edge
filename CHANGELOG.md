@@ -3,6 +3,8 @@
 ## Release 0.20.0
 
 * Izuma branding changes.
+* Functionality for Restore Factory Settings (RFS) via GPIO-hookups.
+* New API for writing values in direct binary format without text conversions in-between.
 
 ## Release 0.19.1
 
