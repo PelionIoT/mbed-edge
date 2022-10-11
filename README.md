@@ -2,7 +2,7 @@
 
 This document contains the instructions for using and developing Edge.
 
-The full Edge documentation is [part of our Device Management documentation site](https://developer.pelion.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.pelion.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@mbed.org).
+The full Edge documentation is [part of our Device Management documentation site](https://developer.izumanetworks.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.izumanetworks.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@izumanetworks.com).
 
 ## License
 
@@ -155,10 +155,10 @@ certificates that the manifest tool uses to sign resources and the manifest for 
 
 <span class="notes">**Note:** The generated certificates are not secure for use
 in production environments. Please read the
-[Provisioning devices for Device Management documentation](https://cloud.mbed.com/docs/latest/provisioning-process/index.html)
+[Provisioning devices for Device Management documentation](https://developer.izumanetworks.com/docs/device-management/current/provisioning-process/index.html)
 on how to build a resource file and certificates safe for a production environment.</span>
 
-Version 0.15.0 introduces a new Firmware-Over-the-Air (FOTA) Update Framework library which extends the capability of the previous library aka Update Client (UC) Hub. Using the new library you can not only update the device itself but also push update to a component of the device. For instance, you can leverage the features of new library to update the firmware driver of a BLE or a WiFi module connected to the device managed by Pelion. By default, UC Hub library is compiled into the binary. In order to switch to new FOTA library, add this CMake flag `-DFOTA_ENABLE=ON` during build time.
+Version 0.15.0 introduces a new Firmware-Over-the-Air (FOTA) Update Framework library which extends the capability of the previous library aka Update Client (UC) Hub. Using the new library you can not only update the device itself but also push update to a component of the device. For instance, you can leverage the features of new library to update the firmware driver of a BLE or a WiFi module connected to the device managed by Izuma Networks. By default, UC Hub library is compiled into the binary. In order to switch to new FOTA library, add this CMake flag `-DFOTA_ENABLE=ON` during build time.
 
 The FOTA Update Framework library uses `curl` to fetch the images. By default, the curl library is statically compiled. We also support dynamic linking and to enable that add this flag - `-DMBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK=ON` during build time.
 
@@ -183,7 +183,7 @@ a value `ARM_UCP_LINUX_GENERIC`.
 
 Lets you group together multiple images on the device as requiring a simultaneous update. This is useful when the images have a strong dependency on each other during device boot in runtime. For instance, use this feature to update the boot and rootfs image of the gateway in a single update process. To enable it, add the flag `-DFOTA_COMBINED_IMAGE_SUPPORT=ON` during build time. 
 
-`fota/fota_app_callbacks.c` implements the callbacks to support the combined image update feature. For detailed information, follow [this link](https://developer.pelion.com/docs/device-management/current/connecting/implementing-combined-update.html).
+`fota/fota_app_callbacks.c` implements the callbacks to support the combined image update feature. For detailed information, follow [this link](https://developer.izumanetworks.com/docs/device-management/current/connecting/implementing-combined-update.html).
 
 
 ### Enabling Parsec
@@ -207,7 +207,7 @@ Note: You can only work with Edge Core in factory mode when you use Parsec and a
 
 Factory provisioning is the process of injecting the cryptographic credentials
 used to connect Edge to Device Management Cloud. For more information, read the
-[Provisioning documentation](https://developer.pelion.com/docs/device-management-provision/latest/introduction/index.html).
+[Provisioning documentation](https://developer.izumanetworks.com/docs/device-management-provision/latest/introduction/index.html).
 
 ### Using your own certificate authority
 
@@ -238,7 +238,7 @@ change the compile time define `MBED_CLOUD_CLIENT_LIFETIME` in the
 `config/mbed_cloud_client_user_config.h` file. The expiration time is inherited by the
 mediated endpoints from the Edge Core. You should set the expiration
 time to a meaningful value for your setup. For more the details of the expiration,
-read the [Device Management Client documentation](https://developer.pelion.com/docs/device-management/current/connecting/deregister-your-device.html).
+read the [Device Management Client documentation](https://developer.izumanetworks.com/docs/device-management/current/connecting/deregistering-the-device.html).
 
 ```C
 #define MBED_CLOUD_CLIENT_LIFETIME 3600
