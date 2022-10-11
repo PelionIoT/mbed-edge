@@ -1,5 +1,9 @@
 # Changelog for Edge
 
+## Release 0.20.0
+
+* Izuma branding changes.
+
 ## Release 0.19.1
 
 * Implemented combined update callbacks for bootloader. This assumes that boot capsule update is implemented on the device.
