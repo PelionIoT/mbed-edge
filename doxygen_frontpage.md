@@ -2,7 +2,7 @@
 
 This is the Doxygen generated API documentation of Device Management Edge.
 The API documentation should be used together with the
-[Device Management documentation](https://developer.pelion.com/docs/device-management/current/welcome/index.html).
+[Device Management documentation](https://developer.izumanetworks.com/docs/device-management/current/welcome/index.html).
 
 The Device Management Edge APIs allow the developers to create protocol translators to adapt
 devices that use non-IP based protocols to be managed with Device Management.
@@ -13,15 +13,15 @@ Edge API through the protocol translator.
 The APIs are implemented in C and some protocol translator examples are in the [mbed-edge-examples repository](https://github.com/PelionIoT/mbed-edge-examples).
 
 The requirements to connect to Device Management are similar between Device Management Edge and
-Device Management Client. Please read the [Device Management Client documentation](https://developer.pelion.com/docs/device-management/current/connecting/index.html) to understand
+Device Management Client. Please read the [Device Management Client documentation](https://developer.izumanetworks.com/docs/device-management/current/connecting/index.html) to understand
 the connectivity of Device Management Edge.
 
 ### Device Management Edge components
 
 The main components of the Device Management Edge are:
- * [Device Management Client](https://developer.pelion.com/docs/device-management/current/welcome/index.html).
- * [Device Management Edge Core](https://developer.pelion.com/docs/device-management-edge/latest/protocol-translator/edge-core.html).
- * [Protocol translator API](https://developer.pelion.com/docs/device-management-edge/latest/protocol-translator/index.html#protocol-translator-development-with-the-c-api).
+ * [Device Management Client](https://developer.izumanetworks.com/docs/device-management/current/welcome/index.html).
+ * [Device Management Edge Core](https://developer.izumanetworks.com/docs/device-management-edge/latest/protocol-translator/edge-core.html).
+ * [Protocol translator API](https://developer.izumanetworks.com/docs/device-management-edge/latest/protocol-translator/index.html#protocol-translator-development-with-the-c-api).
 
 Device Management Client provides the connectivity to Device Management which Edge core
 is extending. Device Management Edge Core implements the specific gateway functionality
