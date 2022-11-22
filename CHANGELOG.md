@@ -10,8 +10,8 @@
 * Remove embedded microprocessor targets from `pal-platform.json`.
 * Update [`mbed-cloud-client`](https://github.com/pelioniot/mbed-cloud-client/tree/4.13.0) library to version 4.13.0.
 * Add CMake flagging `CUSTOM_PORT`, which allows you to use port `443` as an alternative port with `5684`.
-   * If a socket error is encountered, next try will be done with original CoaP port `5684`.
-   * After 2nd fail we alternate back to custom port.
+   * If a socket error is encountered, the next try will be done with the original CoAP port `5684`.
+   * After 2nd failure, we alternate back to the custom port.
 ## Release 0.19.1
 
 * Implemented combined update callbacks for bootloader. This assumes that boot capsule update is implemented on the device.
