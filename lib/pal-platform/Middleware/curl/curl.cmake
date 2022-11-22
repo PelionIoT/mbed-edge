@@ -1,5 +1,5 @@
 #################################################################################
-#  Copyright 2020 ARM Ltd.
+#  Copyright 2022 Izuma Networks
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@
 #################################################################################
 
 if (NOT MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK)
-    set (CMAKE_USE_OPENSSL OFF CACHE BOOL "disable openssl" FORCE)
+    set (CURL_USE_OPENSSL OFF CACHE BOOL "disable openssl" FORCE)
     set (BUILD_TESTING OFF CACHE BOOL "disable testing" FORCE)
     set (BUILD_CURL_EXE OFF CACHE BOOL "don't build exe" FORCE)
     set (BUILD_SHARED_LIBS OFF CACHE BOOL "don't build share libs" FORCE)
     set (ENABLE_INET_PTON OFF CACHE BOOL "disable INET option" FORCE)
     set (CURL_ZLIB OFF CACHE BOOL "disable zlib" FORCE)
     set (HTTP_ONLY ON CACHE BOOL "set http only mode" FORCE)
-    set (CMAKE_USE_LIBSSH2 OFF CACHE BOOL "disable ssh2" FORCE)
+    set (CURL_USE_LIBSSH2 OFF CACHE BOOL "disable ssh2" FORCE)
     set (CURL_DISABLE_CRYPTO_AUTH ON CACHE BOOL "disable crypto" FORCE)
     set (ENABLE_IPV6 OFF CACHE BOOL "disable ipv6" FORCE)
     set (CURL_DISABLE_MQTT ON CACHE BOOL "disable MQTT" FORCE)

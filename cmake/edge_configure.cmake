@@ -14,6 +14,10 @@ option (DEVELOPER_MODE "Developer mode" OFF)
 option (BYOC_MODE "Bring your own certificate" OFF)
 option (FACTORY_MODE "Factory provisioning" OFF)
 
+# Note - CUSTOM_PORT enables also port alternation,
+# if errors occur 443 and both 5684 are tried alternatively.
+option (CUSTOM_PORT "Custom port 443 for CoAP traffic" OFF)
+
 # Trace CoAP payload
 option (TRACE_COAP_PAYLOAD "Debug trace CoAP payload" OFF)
 
@@ -127,6 +131,10 @@ endif()
 add_definitions ("-D__LINUX__")
 add_definitions ("-DTARGET_IS_PC_LINUX")
 
+if (CUSTOM_PORT)
+  add_definitions ("-DMBED_CLOUD_CLIENT_CUSTOM_URI_PORT=443")
+endif()
+
 if (NOT DEFINED TARGET_CONFIG_ROOT)
    include ("cmake/targets/default.cmake")
 else ()
@@ -207,7 +215,7 @@ if (${FIRMWARE_UPDATE})
      MESSAGE("Update client hub selected.")
      add_definitions ("-DMBED_CLOUD_CLIENT_SUPPORT_UPDATE=1")
      add_definitions("-DPAL_DNS_API_VERSION=1")
-     message("WARNING: The next release, 0.20, will deprecate the Update Client (UC) hub library. Please use the new FOTA framework library, which can be enabled by adding -DFOTA_ENABLE=ON flag.")
+     message("WARNING: The next release, 0.21, will deprecate the Update Client (UC) hub library. Please use the new FOTA framework library, which can be enabled by adding -DFOTA_ENABLE=ON flag.")
      set(ENABLE_UC_HUB ON)
   endif()
 

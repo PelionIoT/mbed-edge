@@ -427,7 +427,7 @@ At the repository root a Makefile is present with shortcuts to have specific
 build templates.
 
 At first it is recommended to run the tests to see that the build environment is
-in correct shape: `make run-tests`. When environment is good to go the next
+in correct shape: `make -f Makefile.test run-tests`. When environment is good to go the next
 step is to create a developer certificate build: `make build-developer`.
 
 Default Makefile:
@@ -461,6 +461,8 @@ To view the report:
 firefox build/coverage.html/index.html
 ```
 
+NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files anymore.
+
 ### Running the tests with valgrind by issuing
 
 ```bash
@@ -490,3 +492,5 @@ make build-doc
 
 This generates the Doxygen documentation under `build-doc/doxygen` folder.
 Run for example: `firefox build-doc/doxygen/index.html &` to view them.
+
+NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files anymore.

@@ -37,6 +37,7 @@ lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"
 lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/test/*" -o coverage.info
 lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/lib/cpputest/src/Platforms/Gcc/*" -o coverage.info
 lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/lib/jansson/*" -o coverage.info
+lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/lib/jsonrpc/*" -o coverage.info
 lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/lib/libevent/*" -o coverage.info
 lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/lib/libwebsockets/*" -o coverage.info
 lcov ${SOURCE_PATH_ADJUST:+ --rc geninfo_adjust_src_path="${SOURCE_PATH_ADJUST}"} -q -r coverage.info "*/lib/mbed-cloud-client/*" -o coverage.info
@@ -52,6 +53,7 @@ gcovr --object-directory . --root "${1}" \
                            -e '.*/test/.*' \
                            -e '.*/lib/cpputest/src/Platforms/Gcc/.*' \
                            -e '.*/lib/jansson/.*' \
+                           -e '.*/lib/jsonrpc/.*' \
                            -e '.*/lib/libevent/.*' \
                            -e '.*/lib/libwebsockets/.*' \
                            -e '.*/lib/mbed-cloud-client/.*' \

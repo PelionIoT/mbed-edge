@@ -1,5 +1,6 @@
 #################################################################################
 #  Copyright 2016, 2017 ARM Ltd.
+#  Copyright 2022 Izuma Networks
 #  
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -24,7 +25,7 @@ if ("${CMAKE_TOOLCHAIN_FILE}" STREQUAL "")
             message(STATUS "No cmake file found for Toolchain in ${MBED_CLOUD_CLIENT_TOOLCHAIN_FILE}")
     endif()
 else()
-        message(STATUS "Toolchain file was set manualy!")
+        message(STATUS "Toolchain file was set manually.")
 endif()
 include(${CMAKE_TOOLCHAIN_FILE})
 

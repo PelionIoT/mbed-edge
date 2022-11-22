@@ -3,9 +3,15 @@
 ## Release 0.20.0
 
 * Izuma branding changes.
+* Update Mbed TLS to version 2.28.1 from version 2.27.0. This closes [security vulnerability CVE-2021-44732](https://github.com/advisories/GHSA-7g56-f7p4-fmcq).
+* Update curl to version 7.85.0 from version 7.76.0. This closes multiple security vulnerabilities, see [curl releases](https://curl.se/docs/releases.html).
 * Functionality for Restore Factory Settings (RFS) via GPIO-hookups.
 * New API for writing values in direct binary format without text conversions in-between.
-
+* Remove embedded microprocessor targets from `pal-platform.json`.
+* Update [`mbed-cloud-client`](https://github.com/pelioniot/mbed-cloud-client/tree/4.13.0) library to version 4.13.0.
+* Add CMake flagging `CUSTOM_PORT`, which allows you to use port `443` as an alternative port with `5684`.
+   * If a socket error is encountered, the next try will be done with the original CoAP port `5684`.
+   * After 2nd failure, we alternate back to the custom port.
 ## Release 0.19.1
 
 * Implemented combined update callbacks for bootloader. This assumes that boot capsule update is implemented on the device.
