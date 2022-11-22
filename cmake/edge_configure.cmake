@@ -14,6 +14,10 @@ option (DEVELOPER_MODE "Developer mode" OFF)
 option (BYOC_MODE "Bring your own certificate" OFF)
 option (FACTORY_MODE "Factory provisioning" OFF)
 
+# Note - CUSTOM_PORT enables also port alternation,
+# if errors occur 443 and both 5684 are tried alternatively.
+option (CUSTOM_PORT "Custom port 443 for CoAP traffic" OFF)
+
 # Trace CoAP payload
 option (TRACE_COAP_PAYLOAD "Debug trace CoAP payload" OFF)
 
@@ -126,6 +130,10 @@ endif()
 
 add_definitions ("-D__LINUX__")
 add_definitions ("-DTARGET_IS_PC_LINUX")
+
+if (CUSTOM_PORT)
+  add_definitions ("-DMBED_CLOUD_CLIENT_CUSTOM_URI_PORT=443")
+endif()
 
 if (NOT DEFINED TARGET_CONFIG_ROOT)
    include ("cmake/targets/default.cmake")
