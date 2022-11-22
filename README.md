@@ -461,7 +461,7 @@ To view the report:
 firefox build/coverage.html/index.html
 ```
 
-NOTE! If you have a `snap`-based firefox in use, it will not access rights to show ocal files anymore.
+NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files anymore.
 
 ### Running the tests with valgrind by issuing
 
@@ -493,4 +493,4 @@ make build-doc
 This generates the Doxygen documentation under `build-doc/doxygen` folder.
 Run for example: `firefox build-doc/doxygen/index.html &` to view them.
 
-NOTE! If you have a `snap`-based firefox in use, it will not access rights to show ocal files anymore.
+NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files anymore.
