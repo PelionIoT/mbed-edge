@@ -2,18 +2,6 @@ name: Build mbed-edge-devmode-test
 description: Build mbed-edge in developer mode
 
 inputs:
-  # username:
-  #   description: login for docker registry
-  # password:
-  #   description: token or pass for docker push to registry
-  #   required: true
-  # registry:
-  #   description: the registry to login - default to docker hub
-  #   required: false
-  #   default: ''
-  # imagename:
-  #   description: The full image path with registry, repo and tag
-  #   required: true
   dockerfile:
     description: Usually "./Dockerfile"
     required: false
@@ -30,10 +18,6 @@ inputs:
     description: Additional options to pass to docker run
     required: false
     default: ''
-  # env_pattern:
-  #   description: The environment variable pattern to pass to the container
-  #   required: false
-  #   default: ''
 
 outputs:
   cid:
@@ -43,34 +27,13 @@ outputs:
 runs:
   using: composite
   steps:
-    # variables='';
-    # for i in $(env | grep '${{ inputs.env_pattern }}' | awk -F '=' '{print $1}'); do
-    #   variables="--env ${i} ${variables}";
-    # done;
     - name: Setup-Build-Files
       shell: bash
-      run: >
+      run: |
+        cd ${{ inputs.context }}
         cp -a .github/edge-config/${{ inputs.configfiles }}/* config
     - name: Run
       shell: bash
-      run: >
-        docker build 
-        ${{ inputs.options }}
-        -f ${{ inputs.dockerfile }}
-        ${{ inputs.context }} 
-      # run: >
-      #   docker build -t ${{ inputs.fullimagename }}
-      #   ${{ inputs.options }}
-      #   ${{ inputs.context }}
-    # - name: Login
-    #   shell: bash
-    #   run: >
-    #     echo "${{ inputs.password }}" | docker login -u ${{ inputs.username }} --password-stdin ${{ inputs.registry }}
-    # - name: Push
-    #   shell: bash
-    #   run: >
-    #     docker push ${{ inputs.fullimagename }}
-    # - name: Info
-    #   id: info
-    #   shell: bash
-    #   run: echo "::set-output name=cid::$(cat ${{ inputs.name }}.cid)"
+      run: |
+        cd ${{ inputs.context }}
+        docker build ${{ inputs.options }} -f ${{ inputs.dockerfile }} .
