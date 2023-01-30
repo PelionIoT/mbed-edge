@@ -26,7 +26,6 @@ jobs:
           repository: PelionIoT/scripts-internal
           token: ${{ secrets.ACCESS_TOKEN }}
           path: ${{ env.SCRIPTS_INTERNAL_DIR }}
-          ref: jenia81/edge-cred
       - name: Build devmode-test 
         uses: ./.github/actions/build-mbed-edge
         with:
