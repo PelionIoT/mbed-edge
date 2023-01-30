@@ -11,13 +11,23 @@ jobs:
   build:
 
     runs-on: ubuntu-22.04
+    env:      
+      SCRIPTS_INTERNAL_DIR: scripts-internal
+      EDGE_CONFIGS_DIR: scripts-internal/edge/edge-config/build-mbed-edge-devmode-test
 
     steps:
       - uses: actions/checkout@v3
         name: checkout repo
         with:
           submodules: recursive
+      - name: Check out scripts-internal repository code
+        uses: actions/checkout@v3
+        with:
+          repository: PelionIoT/scripts-internal
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: ${{ env.SCRIPTS_INTERNAL_DIR }}
+          ref: jenia81/edge-cred
       - name: Build devmode-test 
         uses: ./.github/actions/build-mbed-edge
         with:
-          configfiles: "build-mbed-edge-devmode-test"
+          configfiles:  ${{ env.EDGE_CONFIGS_DIR }}
