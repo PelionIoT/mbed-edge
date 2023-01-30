@@ -11,9 +11,8 @@ inputs:
     required: false
     default: "."
   configfiles:
-    description: The folder to use under .github/edge-config for config files
+    description: The folder that contains the credential files
     required: true
-    default: "build-mbed-edge-devmode-test"    
   options:
     description: Additional options to pass to docker run
     required: false
@@ -31,7 +30,7 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.context }}
-        cp -a .github/edge-config/${{ inputs.configfiles }}/* config
+        cp -a ${{ inputs.configfiles }}/* config
     - name: Run
       shell: bash
       run: |
