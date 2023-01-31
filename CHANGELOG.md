@@ -1,5 +1,9 @@
 # Changelog for Edge
 
+## Release 0.20.1
+
+* Add function name to crypto API traces.
+
 ## Release 0.20.0
 
 * Izuma branding changes.

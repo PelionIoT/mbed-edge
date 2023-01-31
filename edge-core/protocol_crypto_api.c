@@ -1,6 +1,7 @@
 /*
  * ----------------------------------------------------------------------------
  * Copyright 2018 ARM Ltd.
+ * Copyright 2023 Izuma Networks
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -370,7 +371,7 @@ int crypto_api_get_certificate(json_t *request, json_t *json_params, json_t **re
 
     int status = crypto_api_prepare_and_send_event(request, CRYPTO_API_EVENT_GET_CERTIFICATE, name, 0, connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "Could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_get_certificate/Could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
@@ -402,7 +403,7 @@ int crypto_api_get_public_key(json_t *request, json_t *json_params, json_t **res
 
     int status = crypto_api_prepare_and_send_event(request, CRYPTO_API_EVENT_GET_PUBLIC_KEY, name, 0, connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "Could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_get_public_key/Could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
@@ -525,7 +526,7 @@ int crypto_api_generate_random(json_t *request, json_t *json_params, json_t **re
 
     int status = crypto_api_prepare_and_send_event(request, CRYPTO_API_EVENT_GENERATE_RANDOM, NULL, size, connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "Could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_generate_random/Could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
@@ -625,7 +626,7 @@ int crypto_api_asymmetric_sign(json_t *request, json_t *json_params, json_t **re
 
     int status = crypto_api_prepare_and_send_asymmetric_event(request, CRYPTO_API_EVENT_ASYMMETRIC_SIGN, (uint8_t *) name, (uint8_t *) hash, NULL, connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "Could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_asymmetric_sign/Could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
@@ -737,7 +738,7 @@ int crypto_api_asymmetric_verify(json_t *request, json_t *json_params, json_t **
 
     int status = crypto_api_prepare_and_send_asymmetric_event(request, CRYPTO_API_EVENT_ASYMMETRIC_VERIFY, (uint8_t *) name, (uint8_t *) hash, (uint8_t *) signature, connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "Could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_asymmetric_verify/could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
@@ -846,7 +847,7 @@ int crypto_api_ecdh_key_agreement(json_t *request, json_t *json_params, json_t *
                                                         (uint8_t *) peer_public_key,
                                                         connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "Could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_ecdh_key_agreement/Could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
