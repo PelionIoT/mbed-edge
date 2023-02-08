@@ -1,0 +1,18 @@
+FROM ubuntu:20.04
+
+WORKDIR /usr/src/app/mbed-edge
+
+ARG developer_certificate=./config/mbed_cloud_dev_credentials.c
+ARG update_certificate=./config/update_default_resources.c
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata && \
+    apt-get install -y build-essential libc6-dev cmake python3.10 python3-pip python3-setuptools && \
+    apt-get install -y vim python3-venv valgrind
+
+COPY . .
+
+RUN pip3 install --upgrade pip
+RUN pip3 install manifest-tool
+
+CMD [ "make -f Makefile.test run-tests-with-valgrind" ]

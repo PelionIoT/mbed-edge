@@ -1,4 +1,4 @@
-name: production build
+name: PR-check unit tests
 
 on:
   push:
@@ -8,12 +8,12 @@ on:
 
 # This allows a subsequently queued workflow run to interrupt previous runs
 concurrency:
-  group: mbed-edge-test-build-${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
+  group: mbed-edge-test-valgrind-${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
 
-  build:
+  make-test-valgrind:
 
     runs-on: [ "self-hosted", "edge-builder" ]
     env:
@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        name: checkout repo
+        name: Checkout repo
         with:
           submodules: recursive
       - name: Check out scripts-internal repository code
@@ -31,7 +31,8 @@ jobs:
           repository: PelionIoT/scripts-internal
           token: ${{ secrets.ACCESS_TOKEN }}
           path: ${{ env.SCRIPTS_INTERNAL_DIR }}
-      - name: Build devmode-test 
+      - name: Run make -f Makefile.test
         uses: ./.github/actions/build-mbed-edge
         with:
+          dockerfile:  ./Dockerfile.test
           configfiles:  ${{ env.EDGE_CONFIGS_DIR }}
