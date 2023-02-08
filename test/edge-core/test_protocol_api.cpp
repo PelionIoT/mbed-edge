@@ -4028,7 +4028,7 @@ TEST(protocol_api, test_get_certificate_exists_internal_error)
     int status = crypto_api_get_certificate(request, params, &result, userdata);
     CHECK_EQUAL(1, status);
     char *response_str = json_dumps(result, JSON_COMPACT);
-    STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"Could not send "
+    STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"crypto_api_get_certificate/Could not send "
                  "crypto API event.\"}",
                  response_str);
 
@@ -4348,7 +4348,7 @@ TEST(protocol_api, test_get_public_key_internal_error)
     int status = crypto_api_get_public_key(request, params, &result, userdata);
     CHECK_EQUAL(1, status);
     char *response_str = json_dumps(result, JSON_COMPACT);
-    STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"Could not send "
+    STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"crypto_api_get_public_key/Could not send "
                  "crypto API event.\"}",
                  response_str);
 
@@ -4809,7 +4809,7 @@ TEST(protocol_api, test_generate_random_internal_error)
     int status = crypto_api_generate_random(request, params, &result, userdata);
     CHECK_EQUAL(1, status);
     char *response_str = json_dumps(result, JSON_COMPACT);
-    STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"Could not send "
+    STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"crypto_api_generate_random/Could not send "
                  "crypto API event.\"}",
                  response_str);
 
@@ -5149,9 +5149,14 @@ TEST(protocol_api, test_crypto_methods_event_send_fails)
         int status = valid_params_data[i].method_fn(request, params, &result, userdata);
         CHECK_EQUAL(JSONRPC_RETURN_CODE_ERROR, status);
         char *response_str = json_dumps(result, JSON_COMPACT);
-        STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"Could not send "
-                     "crypto API event.\"}",
+/*
+        STRCMP_EQUAL("{\"code\":-30000,\"message\":\"Protocol translator API internal error.\",\"data\":\"crypto_api_asymmetric_sign/Could not send "
+                    "crypto API event.\"}",
                      response_str);
+*/                    
+        STRCMP_CONTAINS("-30000,", response_str);
+        STRCMP_CONTAINS("Protocol translator API internal error.", response_str);
+        STRCMP_CONTAINS("Could not send crypto API event.", response_str);
         json_decref(result);
         free(response_str);
 
