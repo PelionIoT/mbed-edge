@@ -738,7 +738,7 @@ int crypto_api_asymmetric_verify(json_t *request, json_t *json_params, json_t **
 
     int status = crypto_api_prepare_and_send_asymmetric_event(request, CRYPTO_API_EVENT_ASYMMETRIC_VERIFY, (uint8_t *) name, (uint8_t *) hash, (uint8_t *) signature, connection->id);
     if (status != 0) {
-        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_asymmetric_verify/could not send crypto API event.");
+        (void)crypto_api_error(result, PT_API_INTERNAL_ERROR, "crypto_api_asymmetric_verify/Could not send crypto API event.");
         return JSONRPC_RETURN_CODE_ERROR;
     }
 
