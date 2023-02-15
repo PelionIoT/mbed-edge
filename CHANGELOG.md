@@ -1,7 +1,9 @@
 # Changelog for Edge
 
-## Release 0.20.1
+## Release 0.21.0
 
+- Update `Mbed TLS` to version 2.28.2 (from 2.28.1), updated also GitHub domain from ArmMbed to Mbed-TLS.
+- Update `cURL` to version 7.87.0 (from 7.85.0).
 * Add function name to crypto API traces.
 
 ## Release 0.20.0
