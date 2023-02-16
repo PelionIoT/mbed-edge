@@ -171,7 +171,7 @@ cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DMBED_CLOUD_CLIENT_CURL_DY
 make
 ```
 
-Alternativley, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
+Alternatively, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
 
 In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
 The exact value of the define depends on the used Linux distribution and the
