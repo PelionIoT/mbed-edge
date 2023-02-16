@@ -2,6 +2,7 @@
 
 # ----------------------------------------------------------------------------
 # Copyright 2018 ARM Ltd.
+# Copyright (c) 2023 Izuma Networks
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -18,15 +19,10 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 
-"""Observe and manipulate Edge device values.
-   Convert developer certificates to CBOR for runtime injection.
+# noqa - E501
+"""Convert developer certificates to CBOR for runtime injection.
 
 Usage:
-  edge_tool.py observe --device-id=<device-id> --resource-path=<resource-path>
-  edge_tool.py execute --device-id=<device-id> --resource-path=<resource-path>
-  edge_tool.py read    --device-id=<device-id> --resource-path=<resource-path>
-  edge_tool.py write   --device-id=<device-id> --resource-path=<resource-path> --new-resource-value=<value>
-  edge_tool.py filter  (--host-edge=<device-id> | --edge-devices) [--connected]
   edge_tool.py convert-dev-cert (--development-certificate <path> --cbor <path>) --update-resource <path>
   edge_tool.py add-custom-cert --custom-cert <name> --cbor <path>
   edge_tool.py print-cbor --cbor <path>
@@ -34,43 +30,29 @@ Usage:
 
 Options:
   --help                           Show this help.
-  --device-id=<device-id>          The id of the device to target.
-  --resource-path=<resource-path>  The resource path to target.
-  --host-edge=<device-id>          Filter devices hosted by this Edge device.
-  --edge-devices                   Filter and list all Edge devices.
-  --connected                      Filter only currently connected devices.
   --development-certificate path>  The path to Device Management development certificate C source file.
   --update-resource <path>         The path to `update_default_resources.c` source file.
   --cbor <path>                    The CBOR output / input file path.
   --custom-cert <name>             The custom certificate name.
 """
 
-import sys
-import signal
-import time
-import struct
 import docopt
-import threading
-import traceback
-import binascii
-import json
-from collections import namedtuple
 
 from cbor_converter import CBORConverter, CBORUtils
 
 
 def main():
     args = docopt.docopt(__doc__)
-    device_id = args["--device-id"]
-    resource_path = args["--resource-path"]
-    if (args["convert-dev-cert"]):
-        converter = CBORConverter(args["--development-certificate"],
-                                  args["--update-resource"],
-                                  args["--cbor"])
+    if args["convert-dev-cert"]:
+        converter = CBORConverter(
+            args["--development-certificate"],
+            args["--update-resource"],
+            args["--cbor"],
+        )
         converter.convert_to_cbor()
-    if (args["add-custom-cert"]):
+    if args["add-custom-cert"]:
         CBORUtils.add_custom_certificate(args["--cbor"], args["--custom-cert"])
-    if (args["print-cbor"]):
+    if args["print-cbor"]:
         CBORUtils.print_cbor(args["--cbor"])
 
 

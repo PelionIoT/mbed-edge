@@ -36,3 +36,30 @@ jobs:
         with:
           dockerfile:  ./Dockerfile.test
           configfiles:  ${{ env.EDGE_CONFIGS_DIR }}
+
+  test-edge-tool:
+
+    runs-on: [ "self-hosted", "edge-builder" ]
+    env:
+      SCRIPTS_INTERNAL_DIR: scripts-internal
+      EDGE_CONFIGS_DIR: scripts-internal/edge/edge-config/build-mbed-edge-devmode-test
+
+    steps:
+      - uses: actions/checkout@v3
+        name: Checkout repo
+        with:
+          submodules: recursive
+      - name: Check out scripts-internal repository code
+        uses: actions/checkout@v3
+        with:
+          repository: PelionIoT/scripts-internal
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: ${{ env.SCRIPTS_INTERNAL_DIR }}
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+      - name: pytest
+        run: | 
+             cd edge-tool
+             python setup.py install
+             pytest

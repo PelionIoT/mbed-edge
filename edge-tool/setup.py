@@ -1,5 +1,6 @@
 # ----------------------------------------------------------------------------
 # Copyright 2021 ARM Ltd.
+# Copyright (c) 2023 Izuma Networks
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -16,24 +17,29 @@
 # limitations under the License.
 # ----------------------------------------------------------------------------
 
+"""edge-tool - convert developer certificates to CBOR for runtime injection."""
+
+
 import os
 
 from setuptools import setup, find_packages
 
 repository_dir = os.path.dirname(__file__)
 
-with open(os.path.join(repository_dir, 'requirements.txt')) as fh:
-        requirements = fh.readlines()
+with open(os.path.join(repository_dir, "requirements.txt")) as fh:
+    requirements = fh.readlines()
 
 setup(
-     name='edge-tool',
-     version='0.2.0',
-     author='Yash Goyal',
-     author_email="support@pelion.com",
-     packages=find_packages(),
-     url="https://github.com/PelionIoT/mbed-edge/edge-tool",
-     install_requires=requirements,
-     license='Apache 2.0',
-     description='Tool to convert the development certificate to CBOR formatted object',
-     scripts=['edge_tool.py', 'cbor_converter.py'],
+    name="edge-tool",
+    version="0.21.0",
+    author="DM devops and sre",
+    author_email="dmdevopsandsre@izumanetworks.com",
+    packages=find_packages(),
+    url="https://github.com/PelionIoT/mbed-edge/edge-tool",
+    install_requires=requirements,
+    python_requires=">=3.6, <3.10",
+    license="Apache 2.0",
+    description="Tool to convert the development certificates to "
+    "CBOR formatted object",
+    scripts=["edge_tool.py", "cbor_converter.py"],
 )

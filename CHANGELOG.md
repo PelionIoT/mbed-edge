@@ -9,6 +9,7 @@
 * Update `Mbed TLS` to version 2.28.2 (from 2.28.1), updated also GitHub domain from ArmMbed to Mbed-TLS.
 * Update `cURL` to version 7.87.0 (from 7.85.0).
 * Add function name to crypto API traces.
+* Dependencies for edge-tool updated, misleading usage information removed.
 
 ## Release 0.20.0
 
