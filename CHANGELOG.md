@@ -2,6 +2,10 @@
 
 ## Release 0.21.0
 
+* Update mbed-cloud-client to version 4.13.1.
+    * This disables Asynchronous DNS by default, as device fails to reconnect if some of the pods in the service are restarted.
+    * In such a scenario, the device needs to be restarted (or edge-core process need to be restarted).
+    * We highly recommend updating to this release, if you are using mbed-edge version 0.19.0, 0.19.1 or 0.20.0.
 * Update `Mbed TLS` to version 2.28.2 (from 2.28.1), updated also GitHub domain from ArmMbed to Mbed-TLS.
 * Update `cURL` to version 7.87.0 (from 7.85.0).
 * Add function name to crypto API traces.
