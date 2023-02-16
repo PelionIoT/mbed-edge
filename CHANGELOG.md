@@ -2,8 +2,8 @@
 
 ## Release 0.21.0
 
-- Update `Mbed TLS` to version 2.28.2 (from 2.28.1), updated also GitHub domain from ArmMbed to Mbed-TLS.
-- Update `cURL` to version 7.87.0 (from 7.85.0).
+* Update `Mbed TLS` to version 2.28.2 (from 2.28.1), updated also GitHub domain from ArmMbed to Mbed-TLS.
+* Update `cURL` to version 7.87.0 (from 7.85.0).
 * Add function name to crypto API traces.
 
 ## Release 0.20.0
@@ -611,9 +611,9 @@ See the release CR-0.4.2 known issue list.
  * Example main thread now handles polling to CPU thermal zone for updating thermal zone thermometer IPSO object.
  * Changed example client to use correct IPSO object id (5432 -> 3303) for the simulated thermometer object.
  * Implemented resettable minimum and maximum resources for CPU thermometer object.
-  `/3303/0/5601` IPSO object path for minumum measured temperature.
+  `/3303/0/5601` IPSO object path for minimum measured temperature.
   `/3303/0/5602` IPSO object path for maximum measured temperature.
-  `/3303/0/5605` IPSO object path for executable resource to reset minumum and maximum measured temperature.
+  `/3303/0/5605` IPSO object path for executable resource to reset minimum and maximum measured temperature.
 
 ### LoRa protocol translator example for WISE-3610
 

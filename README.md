@@ -41,10 +41,10 @@ The contents of the repository.
 
 ## Build and run
 
-1. Directly on Ubuntu 20.04 or 18.04, or
+1. Directly on Ubuntu 22.04 or 20.04, or
 1. Using Docker.
 
-### Install these in Ubuntu 20.04 or 18.04:
+### Install these in Ubuntu 22.04 or 20.04:
 
 1. Prerequisites
 
@@ -171,7 +171,7 @@ cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DMBED_CLOUD_CLIENT_CURL_DY
 make
 ```
 
-Alternativley, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
+Alternatively, in order to use the UC hub library just compile with CMake `-DFIRMWARE_UPDATE=ON` flag.
 
 In addition, you need to set the `#define MBED_CLOUD_CLIENT_UPDATE_STORAGE`.
 The exact value of the define depends on the used Linux distribution and the
