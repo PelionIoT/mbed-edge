@@ -41,10 +41,10 @@ The contents of the repository.
 
 ## Build and run
 
-1. Directly on Ubuntu 20.04 or 18.04, or
+1. Directly on Ubuntu 22.04 or 20.04, or
 1. Using Docker.
 
-### Install these in Ubuntu 20.04 or 18.04:
+### Install these in Ubuntu 22.04 or 20.04:
 
 1. Prerequisites
 
