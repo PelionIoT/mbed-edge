@@ -1,6 +1,7 @@
 /*
  * ----------------------------------------------------------------------------
  * Copyright 2018 ARM Ltd.
+ * Copyright (c) 2023 Izuma Networks
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -18,6 +19,7 @@
  * ----------------------------------------------------------------------------
  */
 
+#include <stdlib.h>
 #include "edge-client/edge_client.h"
 #include "mbed-trace/mbed_trace.h"
 #include "edge-core/edge_server_customer_code.h"
@@ -33,6 +35,13 @@ bool edgeserver_execute_rfs_customer_code(edgeclient_request_context_t *request_
     } else {
         tr_info("edgeserver_execute_rfs_customer_code (local)");
     }
+    // Snap-related addition
+    // Execute a script to do factory reset tasks, such as clearing customer logs.
+    int rc = system("edge-core-factory-reset");
+
+    if (rc) {
+        tr_warn("edge-core-factory-reset exited with non-success return code %d", rc);
+        return false;
+    }
     return true;
 }
-
