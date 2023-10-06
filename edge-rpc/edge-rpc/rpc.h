@@ -224,7 +224,7 @@ int32_t rpc_construct_and_send_response(struct connection *connection,
  * \param write_func The function to use for writing data back.
  * \param protocol_error The flag is set to true if the frame data cannot be parsed or response message cannot be
  *                       matched. Otherwise it is set to false.
- * \param mutex_acquired The flag telling wheter the `rpc_mutex` is already acquired.
+ * \param mutex_acquired The flag telling whether the `rpc_mutex` is already acquired.
  * \return 0 for success.\n
  *         1 for failure.
  */

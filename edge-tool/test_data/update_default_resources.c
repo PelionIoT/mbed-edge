@@ -45,7 +45,7 @@ const uint8_t arm_uc_class_id[] = {
 const uint16_t arm_uc_class_id_size = sizeof(arm_uc_class_id);
 
 // TODO: remove it when no longer used
-// This value is here for backwards compatability purposes - it is not used
+// This value is here for backwards compatibility purposes - it is not used
 const uint8_t arm_uc_default_fingerprint[] =  {
     0
 };

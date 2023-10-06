@@ -1,5 +1,5 @@
 #For Cmake system, if we want to compile all projects with cross toolchain. Then we should set the CMAKE_TOOLCHAIN_FILE as the 1st step.
-#More information could be refered to here:
+#More information could be referred to here:
 #https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/CrossCompiling
 
 # Check if user initialized and updated git submodules

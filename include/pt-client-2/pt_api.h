@@ -155,10 +155,10 @@
  * of the value must be implemented in the callback function.
  *
  * \param[in] connection_id The ID of the connection of the requesting application.
- * \param[in] device_id The device ID targetted for this callback.
- * \param[in] object_id The object ID targetted.
- * \param[in] object_instance_id The object instance ID targetted.
- * \param[in] resource_id The resource ID targetted.
+ * \param[in] device_id The device ID targeted for this callback.
+ * \param[in] object_id The object ID targeted.
+ * \param[in] object_instance_id The object instance ID targeted.
+ * \param[in] resource_id The resource ID targeted.
  * \param[in] operation The operation, for example OPERATION_WRITE.
  * \param[in] value A pointer to the value buffer.\n
  *            The ownership of the value buffer is within the `pt_resource_t` and the pointer is only valid for the
@@ -217,7 +217,7 @@ typedef void (*pt_device_response_handler)(const connection_id_t connection_id, 
  * \param[in] device_id The unique device identifier.
  * \param[in] lifetime The expected lifetime for the device. The device
  *                     registrations must be updated. This parameter is reserved and currently not used.
- *                     The translated endpoints are tracked withing the parent Edge device lifetime.
+ *                     The translated endpoints are tracked within the parent Edge device lifetime.
  * \param[in] queuemode The queue mode before the time is elapsed. This parameter is reserved, but currently not used.
  * \param[in] userdata The user data to add to the `pt_device_t` structure. Create this structure with
  *                     `pt_api_create_device_userdata()`.
@@ -253,7 +253,7 @@ pt_status_t pt_download_asset(const connection_id_t connection_id,
  * \param[in] device_id The unique device identifier.
  * \param[in] lifetime The expected lifetime for the device. The device
  *                     registrations must be updated. This parameter is reserved and currently not used.
- *                     The translated endpoints are tracked withing the parent Edge device lifetime.
+ *                     The translated endpoints are tracked within the parent Edge device lifetime.
  * \param[in] queuemode The queue mode before the time is elapsed. This parameter is reserved, but currently not used.
  * \param[in] features The feature flags for enabling features this device supports. See `pt_device_feature_e` enum
  *                     in `pt_common_api.h` for supported feature flags.
@@ -278,7 +278,7 @@ pt_status_t pt_device_create_with_feature_flags(const connection_id_t connection
  * \param[in] device_id The unique device identifier.
  * \param[in] lifetime The expected lifetime for the device. The device
  *                     registrations must be updated. This parameter is reserved and currently not used.
- *                     The translated endpoints are tracked withing the parent Edge device lifetime.
+ *                     The translated endpoints are tracked within the parent Edge device lifetime.
  * \param[in] queuemode The queue mode before the time is elapsed. This parameter is reserved, but currently not used.
  *
  * \return `PT_STATUS_SUCCESS` in case of success. Other error codes for failure.
@@ -373,10 +373,10 @@ pt_status_t pt_device_write_values(const connection_id_t connection_id,
  * Edge Core. This function can called multiple times for the device before updating the value to Edge Core.
  *
  * \param[in] connection_id The ID of the connection of the requesting application.
- * \param[in] device_id The device ID targetted for the write.
- * \param[in] object_id The object ID targetted.
- * \param[in] object_instance_id The object instance ID targetted.
- * \param[in] resource_id The resource ID targetted.
+ * \param[in] device_id The device ID targeted for the write.
+ * \param[in] object_id The object ID targeted.
+ * \param[in] object_instance_id The object instance ID targeted.
+ * \param[in] resource_id The resource ID targeted.
  * \param[in] value The value to write to the resource.
  * \param[in] value_len The size of the value to write.
  * \param[in] value_free_cb A callback function to free the value buffer that will be called when the resource is

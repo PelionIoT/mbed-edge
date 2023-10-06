@@ -919,7 +919,7 @@ TEST(pt_api, test_add_resource_callback_for_write)
         .withPointerParameter("userdata", NULL);
     /*
      * Check manually that the set callbacks are callable.
-     * The current responsibilty to call the callbacks are in the
+     * The current responsibility to call the callbacks are in the
      * customer implementation of `received_write_callback`
      */
     resource->callback(resource, (uint8_t*) &value, 0, NULL);

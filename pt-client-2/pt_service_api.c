@@ -401,7 +401,7 @@ EDGE_LOCAL int pt_receive_manifest_vendor_class(json_t *request, json_t *json_pa
 {
     (void) request;
     struct json_message_t *jt = (struct json_message_t*) userdata;
-    tr_debug("Recieve manifest class and vendor value to protocol translator.");
+    tr_debug("Receive manifest class and vendor value to protocol translator.");
     int status = 0;
 
     if (!check_request_id(jt, result) != 0) {

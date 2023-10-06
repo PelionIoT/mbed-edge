@@ -469,7 +469,7 @@ DEPRECATED(pt_device_userdata_t *pt_api_create_device_userdata(void *data,
  * `device_id` is transferred to returned `pt_device_t`
  * \param lifetime The expected lifetime for the device. The device
  * registrations must be updated. This parameter is reserved and currently not used.
- * The translated endpoints are tracked withing the parent Edge device lifetime.
+ * The translated endpoints are tracked within the parent Edge device lifetime.
  * \param queuemode The queue mode before the time is elapsed.
  * \param status A pointer to user provided variable for the operation status
  * output. If a device was created, the status will be set to `PT_STATUS_SUCCESS`.
@@ -494,7 +494,7 @@ DEPRECATED(
  * `device_id` is transferred to returned `pt_device_t`
  * \param lifetime The expected lifetime for the device. The device
  * registrations must be updated. This parameter is reserved and currently not used.
- * The translated endpoints are tracked withing the parent Edge device lifetime.
+ * The translated endpoints are tracked within the parent Edge device lifetime.
  * \param queuemode The queue mode before the time is elapsed.
  * \param status A pointer to user provided variable for the operation status
  * output. If a device was created, the status will be set to `PT_STATUS_SUCCESS`.

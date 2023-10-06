@@ -44,7 +44,7 @@ ENDIF()
 #SET (CMAKE_EXECUTABLE_SUFFIX ".elf")
 
 
-#zeroing previos declard flags
+#zeroing previous declard flags
 #set(CMAKE_EXE_LINKER_FLAGS_DEBUG "")
 #set(CMAKE_EXE_LINKER_FLAGS_RELESE "")
 # TOOLCHAIN_DIR AND NANO LIBRARY
