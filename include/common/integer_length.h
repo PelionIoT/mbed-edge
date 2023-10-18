@@ -48,7 +48,7 @@ uint16_t edge_int_length(uint32_t value);
  * \param str String to convert. String must be NUL-terminated.
  * \param result The pointer where to store the result.
  * \return 0 if conversion succeeded.\n
-           1 if an error occured when converting str to uint16_t.
+           1 if an error occurred when converting str to uint16_t.
  */
 int edge_str_to_uint16_t(const char *str, uint16_t *result);
 

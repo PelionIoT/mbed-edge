@@ -9,7 +9,7 @@ int rpc_write_func_mock(struct connection *connection, char *data, size_t size)
         .withParameter("connection", connection)
         .withParameter("data", data)
         .withParameter("size", size);
-    // This mocks the data writing to ouput socket
+    // This mocks the data writing to output socket
     // must free the data here.
     free(data);
     return 0;

@@ -425,7 +425,7 @@ int write_resource(json_t *request, json_t *json_params, json_t **result, void *
             free(mgmt_ctx->request_id);
             free(mgmt_ctx);
             free(uri_with_device);
-            return 1; // error occured.
+            return 1; // error occurred.
         }
     } else {
         tr_debug("write_resource: edgeclient request context is NULL. Failing.");
@@ -442,7 +442,7 @@ error_exit:
         free(mgmt_ctx->request_id);
         free(mgmt_ctx);
     }
-    return 1; // error occured.
+    return 1; // error occurred.
 }
 
 struct jsonrpc_method_entry_t mgmt_api_method_table[] = {{"devices", devices, "o"},

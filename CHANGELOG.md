@@ -1,5 +1,7 @@
 # Changelog for Edge
 
+## Release 0.x.y
+* Fixed numerous small spelling mistakes pointed by `misspell`.
 ## Release 0.21.0
 
 * Update mbed-cloud-client to version 4.13.1.

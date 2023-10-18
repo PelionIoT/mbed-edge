@@ -650,7 +650,7 @@ const char* edgeclient_get_endpoint_name();
 /**
  * \brief Check if Edge Client is shutting down. If it is, it's no longer allowed to send new data to Device Management.
  * \return true  if the shutdown process has started.
- *         false if shutdown proces hasn't been started.
+ *         false if shutdown process hasn't been started.
  */
 bool edgeclient_is_shutting_down();
 

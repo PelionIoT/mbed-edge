@@ -204,7 +204,7 @@ def git_fetch_submodule(submodule_name, overwrite_url, overwrite_branch, dest_di
         # Use submodule configuration to update the submodule
         check_cmd(['git', 'submodule', 'update', '--init', '--recursive', '--remote', '--', submodule_name], cwd=dest_dir, **stream_kwargs)
     else:
-        logger.info('Updating submodule \'%s\' from %s at superproject\'s commited hash', submodule_name, url)
+        logger.info('Updating submodule \'%s\' from %s at superproject\'s committed hash', submodule_name, url)
         # Use the superproject's recorded SHA-1 to update the submodule
         check_cmd(['git', 'submodule', 'update', '--init', '--recursive', '--', submodule_name], cwd=dest_dir, **stream_kwargs)
 
@@ -508,7 +508,7 @@ class GitSource(Source):
             git_fetch(self.location, self.tag, dst, self.submodules, **self.stream_kwargs)
         except Exception as e:
             logger.error(e)
-            logger.error("** failed to fetch %s from git - please check that remote is correct and avialable **", name)
+            logger.error("** failed to fetch %s from git - please check that remote is correct and available **", name)
             sys.exit()
 
 class LocalSource(Source):
@@ -972,9 +972,9 @@ def getPathForToolChainInPath(toolchain):
 
 def checkToolchainEnv(toolchain):
     logger.info('Checking Environment for Toolchain - %s', toolchain)
-    #toolchain_env stucture: key == toolchain name , value is a tupple  with two elements:
+    #toolchain_env structure: key == toolchain name , value is a tupple  with two elements:
     #1. a tuple of relevant environment variables for the toolchain - Note : the first value is the one we want (we will export it if any of the values are found)
-    #2. a string with the expected name of compiler binary for path seach
+    #2. a string with the expected name of compiler binary for path search
     toolchainEnv = {"ARMCC":(("ARMCC_DIR", "ARM_PATH", "MBED_ARM_PATH"), "armcc"),
                     "ARMGCC":(("ARMGCC_DIR", "GCC_ARM_PATH", "MBED_GCC_ARM_PATH"), "arm-none-eabi-gcc"),
                     "GCC": (("GCC_DIR",), "gcc"),

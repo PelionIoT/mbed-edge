@@ -157,7 +157,7 @@ typedef void (*pt_device_certificate_renew_response_handler)(const connection_id
  * \param name The name of the certificate.
  * \param userdata. The Userdata which was passed to `pt_client_start`.
  *
- * \return The callback should return PT_STATUS_SUCCESS if the renewal process was started succesfully.
+ * \return The callback should return PT_STATUS_SUCCESS if the renewal process was started successfully.
  *         If the renewal could not be started or there was some error, an error should be returned.
  *         See ::pt_status_t for possible error codes.
  */

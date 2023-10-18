@@ -392,7 +392,7 @@ EDGE_LOCAL pt_ce_status_e certificate_renew_parse_request(const uint8_t *data, c
 EDGE_LOCAL void certificate_renew_execute_success_handler(connection_id_t connection_id, const char *device_id, void *ctx)
 {
     (void) connection_id;
-    tr_debug("Certificate renew status sent sucessfully.");
+    tr_debug("Certificate renew status sent successfully.");
 }
 
 EDGE_LOCAL void certificate_renew_execute_failure_handler(connection_id_t connection_id, const char *device_id, void *ctx)

@@ -307,7 +307,7 @@ char *jsonrpc_handler(const char *input,
                                                                                              NULL));
                         json_array_append_new(json_response, rep);
                     } else if (rc == -1) {
-                        tr_error("Protocol error: reponse is not matched to any request.");
+                        tr_error("Protocol error: response is not matched to any request.");
                         *ret_rc = JSONRPC_HANDLER_REQUEST_NOT_MATCHED;
                     }
                 } else {
@@ -328,7 +328,7 @@ char *jsonrpc_handler(const char *input,
             // payload is response
             int rc = response_handler(userdata->connection, json_request);
             if (rc == -1) {
-                tr_error("Protocol error: reponse is not matched to any request.");
+                tr_error("Protocol error: response is not matched to any request.");
                 *ret_rc = JSONRPC_HANDLER_REQUEST_NOT_MATCHED;
             }
         } else {

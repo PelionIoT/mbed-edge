@@ -314,7 +314,7 @@ public:
                 stop_client();
                 error = "UNKNOWN";
         }
-        tr_error("Error occured : %s", error);
+        tr_error("Error occurred : %s", error);
         tr_error("Error code : %d", error_code);
         tr_error("Error details : %s",_cloud_client.error_description());
         if (_on_error_cb) {
