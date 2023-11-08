@@ -10,4 +10,4 @@ target_include_directories (edge-rpc-test PUBLIC ${CPPUTEST_HOME}/include)
 target_include_directories (edge-rpc-test PUBLIC ${ROOT_HOME}/lib/jsonrpc)
 target_include_directories (edge-rpc-test PUBLIC ${ROOT_HOME}/test/test-lib)
 
-target_link_libraries (edge-rpc-test test-lib libevent-mock-lib rpc jansson jsonrpc mbedTrace libservice CppUTest CppUTestExt)
+target_link_libraries (edge-rpc-test test-lib libevent-mock-lib rpc jansson jsonrpc mbedTrace nanostacklibservice CppUTest CppUTestExt)
