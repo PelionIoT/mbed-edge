@@ -21,6 +21,13 @@ source ./edge-tool/bin/activate
 python3 setup.py install
 ```
 
+## Run tests
+
+You can run the tests simply with `pytest``.
+```
+pytest -v
+```
+
 ### How to run
 
 The entry point for Edge tool is [edge_tool.py](./edge_tool.py).
