@@ -1,7 +1,11 @@
 # Changelog for Edge
 
-## Release 0.x.y
+## Release 0.21.1
+
+* Update mbed-cloud-client to version [4.13.2](https://github.com/PelionIoT/mbed-cloud-client/blob/4.13.2/CHANGELOG.md).
+* Update `cURL` to version 8.5.0 (from 7.87.0).
 * Fixed numerous small spelling mistakes pointed by `misspell`.
+
 ## Release 0.21.0
 
 * Update mbed-cloud-client to version 4.13.1.
