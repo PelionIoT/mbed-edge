@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ARG developer_certificate=./config/mbed_cloud_dev_credentials.c
 ARG update_certificate=./config/update_default_resources.c
