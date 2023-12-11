@@ -493,8 +493,7 @@ make build-doc
 This generates the Doxygen documentation under `build-doc/doxygen` folder.
 Run for example: `firefox build-doc/doxygen/index.html &` to view them.
 
-NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files anymore.
-
+NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files by default.
 
 ## Troubleshooting
 
