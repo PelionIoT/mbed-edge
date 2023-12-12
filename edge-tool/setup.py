@@ -31,7 +31,7 @@ with open(os.path.join(repository_dir, "requirements.txt")) as fh:
 
 setup(
     name="edge-tool",
-    version="0.21.0",
+    version="0.22.0",
     author="DM devops and sre",
     author_email="dmdevopsandsre@izumanetworks.com",
     packages=find_packages(),
