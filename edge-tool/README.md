@@ -21,6 +21,8 @@ source ./edge-tool/bin/activate
 python3 setup.py install
 ```
 
+Please note that Yocto-builds work differently, they do not follow the `requirements.txt`. The Yocto builds bring in the Python-modules via recipes (version specific).
+
 ## Run tests
 
 You can run the tests simply with `pytest``.
