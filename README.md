@@ -493,4 +493,24 @@ make build-doc
 This generates the Doxygen documentation under `build-doc/doxygen` folder.
 Run for example: `firefox build-doc/doxygen/index.html &` to view them.
 
-NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files anymore.
+NOTE! If you have a `snap`-based Firefox in use, it will not have access rights to show local files by default.
+
+## Troubleshooting
+
+### mbed-edge will not start due port being taken
+
+```
+$ bin/edge-core 
+2023-12-11 11:42:06.302 tid:  20972 [ERR ][serv]: Couldn't bind to port 8080.
+2023-12-11 11:42:06.302 tid:  20972 [ERR ][serv]: Cannot create http server to port 8080.
+2023-12-11 11:42:06.302 tid:  20972 [ERR ][serv]: Could not create http server.
+```
+
+Someone else has taken port 8080. You can see who is taking the port with:
+```
+sudo lsof -i :8080 
+```
+
+Solutions:
+- Remove that other program using that same port.
+- Start mbed-edge to a different port than 8080 (`bin/mbed-edge --http-port <int>``).
