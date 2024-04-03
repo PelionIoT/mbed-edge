@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   static-checks:
-    runs-on: ubuntu-latest
+    runs-on: [ "self-hosted", "client" ]
     steps:
       - name: Check out code
         uses: actions/checkout@v4
