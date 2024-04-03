@@ -39,7 +39,7 @@ jobs:
 
   test-edge-tool:
 
-    runs-on: [ "self-hosted", "edge-builder" ]
+    runs-on: [ "self-hosted", "client" ]
     env:
       SCRIPTS_INTERNAL_DIR: scripts-internal
       EDGE_CONFIGS_DIR: scripts-internal/edge/edge-config/build-mbed-edge-devmode-test
