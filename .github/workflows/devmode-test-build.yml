@@ -2,9 +2,14 @@ name: production build
 
 on:
   push:
-    branches: [ "master" ]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
+  schedule:
+    # Once week 03:26 on Saturday
+    - cron: '26 3 * * Sat'
 
 # This allows a subsequently queued workflow run to interrupt previous runs
 concurrency:
@@ -12,14 +17,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   build:
-
     runs-on: [ "self-hosted", "client" ]
     env:
       SCRIPTS_INTERNAL_DIR: scripts-internal
       EDGE_CONFIGS_DIR: scripts-internal/edge/edge-config/build-mbed-edge-devmode-test
-
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
         name: checkout repo
@@ -35,3 +38,9 @@ jobs:
         uses: ./.github/actions/build-mbed-edge
         with:
           configfiles:  ${{ env.EDGE_CONFIGS_DIR }}
+      - name: Post status to Slack testing_builds
+        if: always()
+        uses: act10ns/slack@v2
+        with:
+          status: ${{ job.status }}
+          channel: '#testing_builds'
