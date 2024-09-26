@@ -49,7 +49,7 @@
 #define ENDPOINT_SIZE 256
 #define MANIFEST_URI_SIZE 256
 #if !defined(SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION)
-#define SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION "."
+#define SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION "/tmp"
 #endif
 int fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state);
 int fota_manifest_parse(const uint8_t *input_data, size_t input_size, manifest_firmware_info_t *fw_info);
