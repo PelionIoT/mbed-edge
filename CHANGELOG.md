@@ -6,6 +6,8 @@
 * Update `cURL` to version 8.5.0 (from 7.87.0).
 * Update `Dockerfile` base image to Ubuntu 22.04 (from Ubuntu 20.04).
 * Fixed numerous small spelling mistakes pointed by `misspell`.
+* Improve error logging in subdevice FOTA download case.
+* Change subdevice FOTA download folder default from `.` to `/tmp`.
 
 ## Release 0.21.0
 

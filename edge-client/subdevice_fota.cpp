@@ -1,6 +1,7 @@
 /*
  * ----------------------------------------------------------------------------
  * Copyright 2021 Pelion Ltd.
+ * Copyright 2022-2024 Izuma Networks
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -236,6 +237,7 @@ int start_download(char* downloaded_path) {
     char filename[FILENAME_MAX] = "";
     sprintf(filename,"%s/%s-%" PRIu64 ".bin",SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION,fota_ctx->fw_info->component_name, fota_ctx->fw_info->version);
     tr_info("File location: %s", filename);
+    tr_info("File URL     : %s", fota_ctx->fw_info->uri);
     fota_ctx->state = FOTA_STATE_DOWNLOADING;
     CURL *curl_handle;
     FILE *fwfile;
@@ -252,6 +254,7 @@ int start_download(char* downloaded_path) {
             curl_easy_cleanup(curl_handle);
             curl_global_cleanup();
             fclose(fwfile);
+            tr_error("can not download firmware %s, aborting", fota_ctx->fw_info->uri);
             subdevice_abort_update(FOTA_STATUS_DOWNLOAD_AUTH_NOT_GRANTED, "can not download firmware");
             return FOTA_STATUS_DOWNLOAD_AUTH_NOT_GRANTED;
         }
@@ -261,7 +264,7 @@ int start_download(char* downloaded_path) {
         }
     }
     else {
-        tr_error("can not open file, aborting");
+        tr_error("can not open file %s, aborting", filename);
         subdevice_abort_update(FOTA_STATUS_STORAGE_WRITE_FAILED,"Can not open file, aborting the update!");
         curl_easy_cleanup(curl_handle);
         curl_global_cleanup();
