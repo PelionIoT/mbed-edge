@@ -254,6 +254,7 @@ int start_download(char* downloaded_path) {
             curl_easy_cleanup(curl_handle);
             curl_global_cleanup();
             fclose(fwfile);
+            tr_error("can not download firmware %s, aborting", fota_ctx->fw_info->uri);
             subdevice_abort_update(FOTA_STATUS_DOWNLOAD_AUTH_NOT_GRANTED, "can not download firmware");
             return FOTA_STATUS_DOWNLOAD_AUTH_NOT_GRANTED;
         }
