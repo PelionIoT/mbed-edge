@@ -45,9 +45,9 @@ endif()
 SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -shared")
 
 if (TARGET_GROUP STREQUAL test)
-  target_link_libraries (pt-client-2 jansson rpc mbedTraceEdge)
+  target_link_libraries (pt-client-2 jansson rpc nanostacklibservice mbedTrace)
 else ()
   target_link_libraries (pt-client-2 edge-websocket-common
     edge-integer-length edge-apr-base64 edge-default-message-id-generator
-    pt-api-error-codes edge-msg-api event jansson websockets rpc nanostack mbedTraceEdge)
+    pt-api-error-codes edge-msg-api event jansson websockets rpc nanostacklibservice mbedTrace)
 endif()
