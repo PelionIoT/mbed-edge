@@ -94,14 +94,17 @@ First, fetch the dependencies
 git submodule update --init --recursive
 ```
 
-The edge-core docker image is a developer build with firmware update enabled. Thus, place the `mbed_cloud_dev_credentials.c` and `update_default_resources.c` in `config` folder before starting the build -
-```
-docker build -t edge-core:latest -f ./Dockerfile .
-```
+The edge-core Docker image is a developer build with firmware update enabled. Before starting the build, ensure that `mbed_cloud_dev_credentials.c` and `update_default_resources.c` are placed in the `config` folder.
 
-Alternatively, you can specify the location of the certificates as build arguments -
+To build a Docker image, run:
 ```
-docker build --build-arg developer_certificate=./config/mbed_cloud_dev_credentials.c --build-arg update_certificate=./config/update_default_resources.c -t edge-core:latest -f ./Dockerfile .
+docker build -t edge-core:latest -f ./Dockerfile.debian .
+```
+This will produce a Debian-based Docker image (~98MB in size) containing the edge-core binary along with the necessary runtime libraries.
+
+Alternatively, you can specify the location of the certificates as build arguments:
+```
+docker build --build-arg developer_certificate=./config/mbed_cloud_dev_credentials.c --build-arg update_certificate=./config/update_default_resources.c -t edge-core:latest -f ./Dockerfile.debian .
 ```
 
 Run the docker image. To restart the container from last known state of edge-core, mount the `mcc_config` folder to the host machine. Also, you can mount the default unix domain socket path `/tmp/edge.sock` to the host machine for other docker containers or service to establish the JSON-RPC websocket connection with this edge-core instance.
@@ -181,7 +184,7 @@ a value `ARM_UCP_LINUX_GENERIC`.
 
 #### Combined image update
 
-Lets you group together multiple images on the device as requiring a simultaneous update. This is useful when the images have a strong dependency on each other during device boot in runtime. For instance, use this feature to update the boot and rootfs image of the gateway in a single update process. To enable it, add the flag `-DFOTA_COMBINED_IMAGE_SUPPORT=ON` during build time. 
+Lets you group together multiple images on the device as requiring a simultaneous update. This is useful when the images have a strong dependency on each other during device boot in runtime. For instance, use this feature to update the boot and rootfs image of the gateway in a single update process. To enable it, add the flag `-DFOTA_COMBINED_IMAGE_SUPPORT=ON` during build time.
 
 `fota/fota_app_callbacks.c` implements the callbacks to support the combined image update feature. For detailed information, follow [this link](https://developer.izumanetworks.com/docs/device-management/current/connecting/implementing-combined-update.html).
 
@@ -408,7 +411,7 @@ then to Edge Core:
 
 ### Configuring the subdevice FOTA
 
-To enable the subdevice FOTA, you need to build edge-core with the `FOTA_ENABLE` along with `FIRMWARE_UPDATE` cmake flag. You can also configure the download location of the firmware by explicitly defining the `SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION` flag. By default the firmware will be downloaded to the working directory. 
+To enable the subdevice FOTA, you need to build edge-core with the `FOTA_ENABLE` along with `FIRMWARE_UPDATE` cmake flag. You can also configure the download location of the firmware by explicitly defining the `SUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION` flag. By default the firmware will be downloaded to the working directory.
 For example:
 ``` bash
     cmake -D[MODE] -DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON  -DSUBDEVICE_FIRMWARE_DOWNLOAD_LOCATION=\"your_download_location\" ..
@@ -500,7 +503,7 @@ NOTE! If you have a `snap`-based Firefox in use, it will not have access rights 
 ### mbed-edge will not start due port being taken
 
 ```
-$ bin/edge-core 
+$ bin/edge-core
 2023-12-11 11:42:06.302 tid:  20972 [ERR ][serv]: Couldn't bind to port 8080.
 2023-12-11 11:42:06.302 tid:  20972 [ERR ][serv]: Cannot create http server to port 8080.
 2023-12-11 11:42:06.302 tid:  20972 [ERR ][serv]: Could not create http server.
@@ -508,7 +511,7 @@ $ bin/edge-core
 
 Someone else has taken port 8080. You can see who is taking the port with:
 ```
-sudo lsof -i :8080 
+sudo lsof -i :8080
 ```
 
 Solutions:
