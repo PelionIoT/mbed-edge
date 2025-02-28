@@ -16,7 +16,7 @@ COPY . .
 # Return to main project and ensure it links with libbsd
 WORKDIR /usr/src/app/mbed-edge
 RUN mkdir -p build && cd build && \
-    cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=ON .. && \
+    cmake -DFACTORY_MODE=ON -DDEVELOPER_MODE=OFF -DFIRMWARE_UPDATE=ON .. && \
     make
 
 # Stage 2: Create a minimal runtime image
