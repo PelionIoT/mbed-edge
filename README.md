@@ -97,20 +97,32 @@ git submodule update --init --recursive
 The edge-core Docker image is a developer build with firmware update enabled. Before starting the build, ensure that `mbed_cloud_dev_credentials.c` and `update_default_resources.c` are placed in the `config` folder.
 
 To build a Docker image, run:
+```sh
+docker build -t edge-core:dev-latest -f ./Dockerfile.debian.dev .
 ```
-docker build -t edge-core:latest -f ./Dockerfile.debian .
+
+For production mode:
+```sh
+docker build -t edge-core:prod-latest -f ./Dockerfile.debian.prod .
 ```
+
 This will produce a Debian-based Docker image (~98MB in size) containing the edge-core binary along with the necessary runtime libraries.
 
 Alternatively, you can specify the location of the certificates as build arguments:
-```
-docker build --build-arg developer_certificate=./config/mbed_cloud_dev_credentials.c --build-arg update_certificate=./config/update_default_resources.c -t edge-core:latest -f ./Dockerfile.debian .
+```sh
+docker build --build-arg developer_certificate=./config/mbed_cloud_dev_credentials.c --build-arg update_certificate=./config/update_default_resources.c -t edge-core:dev-latest -f ./Dockerfile.debian.dev .
 ```
 
 Run the docker image. To restart the container from last known state of edge-core, mount the `mcc_config` folder to the host machine. Also, you can mount the default unix domain socket path `/tmp/edge.sock` to the host machine for other docker containers or service to establish the JSON-RPC websocket connection with this edge-core instance.
 
+```sh
+docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:dev-latest
 ```
-docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:latest
+
+Similarly, for production mode
+
+```sh
+docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:prod-latest
 ```
 
 For interactive bash session, run the following command -
