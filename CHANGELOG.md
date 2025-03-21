@@ -8,6 +8,7 @@
 * Fixed numerous small spelling mistakes pointed by `misspell`.
 * Improve error logging in subdevice FOTA download case.
 * Change subdevice FOTA download folder default from `.` to `/tmp`.
+* Update `edge-tool` dependency `cryptography` to latest (v44.0.0).
 
 ## Release 0.21.0
 
