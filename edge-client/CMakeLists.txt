@@ -40,4 +40,6 @@ if(PARSEC_TPM_SE_SUPPORT)
   list (APPEND EDGE_CLIENT_LIBS palFilesystem fccstorage mbedcrypto -lm trusted_storage)
 endif()
 
+list (APPEND EDGE_CLIENT_LIBS tinycbor)
+
 target_link_libraries(edge-client ${EDGE_CLIENT_LIBS})
