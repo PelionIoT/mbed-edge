@@ -1,0 +1,43 @@
+# Stage 1: Build the application
+FROM debian:bookworm-slim AS builder
+
+# Set the working directory
+WORKDIR /usr/src/app/mbed-edge
+
+# Install dependencies in a single step to reduce layers
+RUN apt-get update && \
+    DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
+    tzdata build-essential libc6-dev cmake libcurl4-openssl-dev libssl-dev \
+    python3 python3-pip pkg-config git && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy source files after dependencies are installed
+COPY . .
+
+# Return to main project and ensure it links with libbsd
+WORKDIR /usr/src/app/mbed-edge
+RUN mkdir -p build && cd build && \
+    cmake -DBYOC_MODE=ON \
+    -DFIRMWARE_UPDATE=ON \
+    -DTRACE_LEVEL=DEBUG \
+    -DFOTA_ENABLE=ON \
+    -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
+    .. && \
+    make
+
+# Stage 2: Create a minimal runtime image
+FROM debian:bookworm-slim
+
+# Set working directory
+WORKDIR /usr/src/app/mbed-edge
+
+# Install only the required runtime dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
+    tzdata libc6 libcurl4 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy only the built binary from the builder stage
+COPY --from=builder /usr/src/app/mbed-edge/build/ /usr/src/app/mbed-edge/build/
+
+ENTRYPOINT [ "./build/bin/edge-core" ]

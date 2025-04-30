@@ -37,7 +37,7 @@ if (PARSEC_TPM_SE_SUPPORT OR (FOTA_ENABLE AND NOT MBED_CLOUD_CLIENT_CURL_DYNAMIC
     message(FATAL_ERROR "pip3 not found!")
   endif ()
 
-  execute_process( COMMAND pip3 install -r pal-platform/requirements.txt
+  execute_process( COMMAND pip3 install --break-system-packages -r pal-platform/requirements.txt
                     RESULT_VARIABLE CMD_ERROR
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
