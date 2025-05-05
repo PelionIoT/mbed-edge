@@ -18,11 +18,15 @@ COPY . .
 WORKDIR /usr/src/app/mbed-edge
 RUN mkdir -p build && cd build && \
     cmake -DBYOC_MODE=ON \
-    -DFIRMWARE_UPDATE=ON \
-    -DTRACE_LEVEL=DEBUG \
-    -DFOTA_ENABLE=ON \
-    -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
-    .. && \
+          -DFIRMWARE_UPDATE=ON \
+          -DTRACE_LEVEL=DEBUG \
+          -DFOTA_ENABLE=ON \
+          -DFOTA_COMBINED_IMAGE_SUPPORT=ON \
+          -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
+          -DFOTA_SCRIPT_DIR=\"/opt/izuma\" \
+          -DFOTA_INSTALL_SCRIPT=\"fota_update_activate.sh\" \
+          -DFOTA_VERIFY_SCRIPT=\"fota_update_verify.sh\" \
+          .. && \
     make
 
 # Stage 2: Create a minimal runtime image
@@ -34,10 +38,15 @@ WORKDIR /usr/src/app/mbed-edge
 # Install only the required runtime dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
-    tzdata libc6 libcurl4 && \
+    tzdata libc6 libcurl4 \
+    vim iptables && \
     rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/izuma
 
 # Copy only the built binary from the builder stage
 COPY --from=builder /usr/src/app/mbed-edge/build/ /usr/src/app/mbed-edge/build/
+COPY --from=builder /usr/src/app/mbed-edge/fota/MAIN /opt/izuma/MAIN
+COPY --from=builder /usr/src/app/mbed-edge/fota/COMP_1 /opt/izuma/COMP_1
 
 ENTRYPOINT [ "./build/bin/edge-core" ]

@@ -18,6 +18,14 @@ generated
 compilation_info.txt
 config/edge_version_info.h
 release_whitelist_remove_intermediate_files
+mcc_config*
+edge_configuration/*.c
+edge_configuration/*.der
+edge_configuration/*.pem
+edge_configuration/*.cnf
+edge_configuration/*.srl
+edge_configuration/*.yaml
+edge_configuration/*.txt
 
 ### C ###
 # Object files
@@ -126,3 +134,9 @@ edge-tool/edge-tool
 
 # Python virtualenv
 venv
+
+docs/internal.md
+*.log
+*.img
+*.dtb
+*.zip

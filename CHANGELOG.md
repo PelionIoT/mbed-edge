@@ -1,5 +1,22 @@
 # Changelog for Edge
 
+## Release 0.21.2
+
+### New Features
+
+* Register a default component COMP_1 when FOTA is enabled using `-DFOTA_ENABLE=ON -DFIRMWARE_UPDATE=ON -DFOTA_COMBINED_IMAGE_SUPPORT=ON`.
+* Added default firmware install `fota_update_activate.sh` and verify `fota_update_verify.sh` scripts to demonstarted edge-core FOTA feature.
+* Added documentation `./docs/create_manifest_v3.md` and `./docs/prepare_fota_component_update.md`.
+* Updated `Dockerfile.debian.byoc` to enabled FOTA feature.
+* Docker Support: Added new Dockerfiles to build a lightweight, Debian-based `edge-core` Docker image for different modes:
+  * Dockerfile.debian.dev: DEVELOPER_MODE
+  * Dockerfile.debian.byoc: BYOC_MODE (Bring Your Own Certificate/Configuration)
+  * Dockerfile.debian.prod: PRODUCTION_MODE (provisioning requires use of Izuma's factory tooling)
+
+### Improvements
+
+* Upgraded `libevent` to version 2.1.12
+
 ## Release 0.21.1
 
 * Update mbed-cloud-client to version [4.13.2](https://github.com/PelionIoT/mbed-cloud-client/blob/4.13.2/CHANGELOG.md).
