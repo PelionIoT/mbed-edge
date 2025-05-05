@@ -25,7 +25,7 @@ target_include_directories (pt-client PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../edge-r
 SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -shared")
 
 if (TARGET_GROUP STREQUAL test)
-  target_link_libraries (pt-client jansson rpc mbedTraceEdge)
+  target_link_libraries (pt-client jansson rpc nanostacklibservice mbedTrace)
 else ()
-  target_link_libraries (pt-client event jansson websockets rpc nanostack mbedTraceEdge)
+  target_link_libraries (pt-client event jansson websockets rpc nanostacklibservice mbedTrace)
 endif()
