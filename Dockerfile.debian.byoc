@@ -39,7 +39,18 @@ WORKDIR /usr/src/app/mbed-edge
 RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
     tzdata libc6 libcurl4 \
-    vim iptables && \
+    vim \
+    iptables \
+    iputils-ping \
+    net-tools \
+    dnsutils \
+    traceroute \
+    curl \
+    wget \
+    tcpdump \
+    socat \
+    telnet \
+    nmap && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/izuma
