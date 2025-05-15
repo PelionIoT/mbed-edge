@@ -231,7 +231,7 @@ int fota_platform_init_hook(bool after_upgrade)
 
     external_component_info.install_alignment = 1;
     external_component_info.support_delta = false;
-    external_component_info.need_reboot = false;
+    external_component_info.need_reboot = true;
     external_component_info.component_verify_install_cb = NULL;
     external_component_info.component_verify_cb = edge_component_1_verifier;
 
