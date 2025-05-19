@@ -1,6 +1,8 @@
 # Stage 1: Build the application
 FROM debian:bookworm-slim AS builder
 
+ARG fota_linux_storage_dir=/opt/izuma
+
 # Set the working directory
 WORKDIR /usr/src/app/mbed-edge
 
@@ -23,6 +25,7 @@ RUN mkdir -p build && cd build && \
           -DFOTA_ENABLE=ON \
           -DFOTA_COMBINED_IMAGE_SUPPORT=ON \
           -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
+          -DFOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir} \
           -DFOTA_SCRIPT_DIR=\"/opt/izuma\" \
           -DFOTA_INSTALL_SCRIPT=\"fota_update_activate.sh\" \
           -DFOTA_VERIFY_SCRIPT=\"fota_update_verify.sh\" \
@@ -34,6 +37,9 @@ FROM debian:bookworm-slim
 
 # Set working directory
 WORKDIR /usr/src/app/mbed-edge
+
+ARG fota_linux_storage_dir=/opt/izuma
+ENV FOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir}
 
 # Install only the required runtime dependencies
 RUN apt-get update && \
@@ -50,15 +56,18 @@ RUN apt-get update && \
     tcpdump \
     socat \
     telnet \
-    nmap && \
+    nmap \
+    gdb \
+    libc6-dbg \
+    coreutils && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/izuma
 
 # Copy only the built binary from the builder stage
 COPY --from=builder /usr/src/app/mbed-edge/build/ /usr/src/app/mbed-edge/build/
-COPY --from=builder /usr/src/app/mbed-edge/fota/MAIN /opt/izuma/MAIN
-COPY --from=builder /usr/src/app/mbed-edge/fota/COMP_1 /opt/izuma/COMP_1
+COPY --from=builder /usr/src/app/mbed-edge/fota/MAIN "${FOTA_LINUX_STORAGE_DIR}/MAIN"
+COPY --from=builder /usr/src/app/mbed-edge/fota/COMP_1 "${FOTA_LINUX_STORAGE_DIR}/COMP_1"
 COPY --from=builder /usr/src/app/mbed-edge/start.sh /start.sh
 RUN chmod +x /start.sh
 
