@@ -59,7 +59,8 @@ RUN apt-get update && \
     nmap \
     gdb \
     libc6-dbg \
-    coreutils && \
+    coreutils \
+    procps && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/izuma
