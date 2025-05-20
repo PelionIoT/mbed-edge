@@ -19,30 +19,48 @@ COPY . .
 # Return to main project and ensure it links with libbsd
 WORKDIR /usr/src/app/mbed-edge
 RUN mkdir -p build && cd build && \
-    cmake -DFACTORY_MODE=ON \
-        -DDEVELOPER_MODE=OFF \
-        -DFIRMWARE_UPDATE=ON \
-        -DTRACE_LEVEL=DEBUG \
-        -DFOTA_ENABLE=ON \
-        -DFOTA_COMBINED_IMAGE_SUPPORT=ON \
-        -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
-        -DFOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir} \
-        .. && \
+    cmake -DBYOC_MODE=ON \
+          -DFIRMWARE_UPDATE=ON \
+          -DTRACE_LEVEL=DEBUG \
+          -DFOTA_ENABLE=ON \
+          -DFOTA_COMBINED_IMAGE_SUPPORT=ON \
+          -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
+          -DFOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir} \
+          -DFOTA_SCRIPT_DIR=\"/opt/izuma\" \
+          -DFOTA_INSTALL_SCRIPT=\"fota_update_activate.sh\" \
+          -DFOTA_VERIFY_SCRIPT=\"fota_update_verify.sh\" \
+          .. && \
     make -j$(nproc)
 
 # Stage 2: Create a minimal runtime image
 FROM debian:bookworm-slim
 
-ARG fota_linux_storage_dir=/opt/izuma
-ENV FOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir}
-
 # Set working directory
 WORKDIR /usr/src/app/mbed-edge
+
+ARG fota_linux_storage_dir=/opt/izuma
+ENV FOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir}
 
 # Install only the required runtime dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
-    tzdata libc6 && \
+    tzdata libc6 libcurl4 \
+    vim \
+    iptables \
+    iputils-ping \
+    net-tools \
+    dnsutils \
+    traceroute \
+    curl \
+    wget \
+    tcpdump \
+    socat \
+    telnet \
+    nmap \
+    gdb \
+    libc6-dbg \
+    coreutils \
+    procps && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/izuma
@@ -51,5 +69,8 @@ RUN mkdir -p /opt/izuma
 COPY --from=builder /usr/src/app/mbed-edge/build/ /usr/src/app/mbed-edge/build/
 COPY --from=builder /usr/src/app/mbed-edge/fota/MAIN "${FOTA_LINUX_STORAGE_DIR}/MAIN"
 COPY --from=builder /usr/src/app/mbed-edge/fota/COMP_1 "${FOTA_LINUX_STORAGE_DIR}/COMP_1"
+COPY --from=builder /usr/src/app/mbed-edge/start.sh /start.sh
+RUN chmod +x /start.sh
 
-CMD [ "./build/bin/edge-core", "--http-port", "8080", "--edge-pt-domain-socket", "/tmp/edge.sock" ]
+ENTRYPOINT ["/start.sh"]
+CMD []

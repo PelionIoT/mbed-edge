@@ -1,0 +1,11 @@
+# Firmware (FOTA) with Edge Core
+
+## Prepare edge-core for firmware update of the MAIN and COMP_1 components
+
+In the `./fota` directory, there are 2 folders that contain example firmware update scripts to demonstrate how to update the MAIN and COMP_1 components. Each component requires 2 update scripts: 1 for installation, `fota_update_activate.sh`, and 2 for verification, `fota_update_verify.sh`. By default, the MAIN component verification is performed internally by reading the firmware version from the metadata file; therefore, MAIN does not require a verification script. To complete the update process, Edge-core requires a restart after the installation script has successfully exited. By default, the Docker containers use the `./start.sh` script, which traps the process exit code and restarts edge-core after 5 seconds.
+
+The `fota_update_activate.sh` script is invoked once the firmware image is downloaded. A success is reported when the script exits with code 0. For any other value, the installation will fail and require a new firmware update campaign to retry the installation. The `fota_update_verify.sh` script is invoked after the installation is complete. To support an asynchronous update workflow, you can stall any of the scripts to report success only after the update process is finished.
+
+Edge-core reports to Izuma Cloud the number of components it supports. By default, you can have five components (including MAIN). You can update this number by overriding the compile-time macro [FOTA_NUM_COMPONENTS](https://github.com/PelionIoT/mbed-cloud-client/blob/c04abe4de443a82e4634737e8d5b9ae036718ba2/fota/fota_component_defs.h#L26). Additionally, note that currently, only the SemVer format MAJOR.MINOR.PATCH is supported, with all non-negative integer values. This is primarily done to easily compare versions between upgrades and ensure that updates are applied in an incremental manner. The component name cannot exceed nine characters, as set by the macro [FOTA_COMPONENT_MAX_NAME_SIZE](https://github.com/PelionIoT/mbed-cloud-client/blob/c04abe4de443a82e4634737e8d5b9ae036718ba2/fota/fota_component_defs.h#L31).
+
+To enable FOTA features, compile edge-core with the following flags: `-DFIRMWARE_UPDATE=ON -DFOTA_ENABLE=ON -DFOTA_COMBINED_IMAGE_SUPPORT=ON`. For a compilation example, refer to `Dockerfile.debian.*`.

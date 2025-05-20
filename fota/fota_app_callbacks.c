@@ -24,6 +24,7 @@
 
 #include "fota/fota_app_ifs.h"    // required for implementing custom install callback for Linux like targets
 #include "fota/fota_platform_hooks.h"
+#include "../config/edge_component_update_config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -40,7 +41,7 @@ int deploy_ostree_delta_update(const char *candidate_fs_name)
     int length = snprintf(command,
                           ACTIVATE_SCRIPT_LENGTH,
                           "%s %s %s",
-                          FOTA_SCRIPT_DIR "/" FOTA_INSTALL_MAIN_SCRIPT,  candidate_fs_name, MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME);
+                          FOTA_SCRIPT_DIR "/" FOTA_COMPONENT_MAIN_COMPONENT_NAME "/" FOTA_INSTALL_MAIN_SCRIPT,  candidate_fs_name, MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME);
     FOTA_ASSERT(length < ACTIVATE_SCRIPT_LENGTH);
 
     /* execute script command */
@@ -171,9 +172,76 @@ int boot_sub_component_finalize_handler(const char *comp_name, const char *sub_c
 
 #endif
 
+static fota_component_desc_info_t external_component_info;
+
+static int edge_component_1_installer(const char *comp_name, const char *sub_comp_name, const char *file_name, const uint8_t *vendor_data, size_t vendor_data_size, void *app_ctx)
+{
+    int ret = FOTA_STATUS_SUCCESS;
+    int rc;
+    char command[ACTIVATE_SCRIPT_LENGTH] = {0};
+
+    int length = snprintf(command,
+                          ACTIVATE_SCRIPT_LENGTH,
+                          "%s %s",
+                          FOTA_SCRIPT_DIR "/" EDGE_COMPONENT_1_NAME "/" FOTA_INSTALL_SCRIPT,  file_name);
+    FOTA_ASSERT(length < ACTIVATE_SCRIPT_LENGTH);
+
+    /* execute script command */
+    rc = system(command);
+    if (rc) {
+        ret = FOTA_STATUS_FW_INSTALLATION_FAILED;
+        if (rc == -1) {
+            FOTA_TRACE_ERROR("shell could not be run");
+        } else {
+            FOTA_TRACE_ERROR("Installation failed. Result of running command is %d", WEXITSTATUS(rc));
+        }
+    }
+    return ret;
+}
+
+static int edge_component_1_verifier(const char *comp_name, const char *sub_comp_name, const uint8_t *vendor_data, size_t vendor_data_size, void* app_ctx)
+{
+    int ret = FOTA_STATUS_SUCCESS;
+    int rc;
+    char command[ACTIVATE_SCRIPT_LENGTH] = {0};
+
+    int length = snprintf(command,
+                          ACTIVATE_SCRIPT_LENGTH,
+                          "%s",
+                          FOTA_SCRIPT_DIR "/" EDGE_COMPONENT_1_NAME "/" FOTA_VERIFY_SCRIPT);
+    FOTA_ASSERT(length < ACTIVATE_SCRIPT_LENGTH);
+
+    /* execute script command */
+    rc = system(command);
+    if (rc) {
+        ret = FOTA_STATUS_FW_INSTALLATION_FAILED;
+        if (rc == -1) {
+            FOTA_TRACE_ERROR("shell could not be run");
+        } else {
+            FOTA_TRACE_ERROR("Verification failed. Result of running command is %d", WEXITSTATUS(rc));
+        }
+    }
+    return ret;
+}
+
+
 int fota_platform_init_hook(bool after_upgrade)
 {
     int ret = 0;
+
+    external_component_info.install_alignment = 1;
+    external_component_info.support_delta = false;
+    external_component_info.need_reboot = true;
+    external_component_info.component_verify_install_cb = NULL;
+    external_component_info.component_verify_cb = edge_component_1_verifier;
+
+    external_component_info.component_install_cb = edge_component_1_installer;
+    external_component_info.component_finalize_cb = NULL;
+
+    external_component_info.curr_fw_read = 0; // only needed if support_delta = true
+    external_component_info.curr_fw_get_digest = 0; // only needed if support_delta = true
+
+    ret = fota_component_add(&external_component_info, EDGE_COMPONENT_1_NAME, EDGE_COMPONENT_1_VERSION);
 
 #if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
     fota_sub_comp_info_t main_sub_component_desc = { 0 };

@@ -94,19 +94,13 @@ First, fetch the dependencies
 git submodule update --init --recursive
 ```
 
-The edge-core Docker image is a developer build with firmware update enabled. Before starting the build, ensure that `mbed_cloud_dev_credentials.c` and `update_default_resources.c` are placed in the `config` folder.
+#### Developer mode
+The edge-core Docker image is a developer build with firmware update enabled. Before starting the build, ensure that `mbed_cloud_dev_credentials.c` and `update_default_resources.c` (see [Enabling firmware update](#enabling-firmware-update) on how to generate the update certificate) are placed in the `config` folder.
 
 To build a Docker image, run:
 ```sh
 docker build -t edge-core:dev-latest -f ./Dockerfile.debian.dev .
 ```
-
-For production mode:
-```sh
-docker build -t edge-core:prod-latest -f ./Dockerfile.debian.prod .
-```
-
-This will produce a Debian-based Docker image (~98MB in size) containing the edge-core binary along with the necessary runtime libraries.
 
 Alternatively, you can specify the location of the certificates as build arguments:
 ```sh
@@ -119,7 +113,15 @@ Run the docker image. To restart the container from last known state of edge-cor
 docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:dev-latest
 ```
 
-Similarly, for production mode
+The Firmware-Over-the-Air (FOTA) feature is enabled by default on these Docker images. To test a firmware update, refer to `./docs/create_manifest_v3.md` for instructions on generating the firmware manifest and `./docs/prepare_fota_component_update.md` for guidance on integrating your firmware update workflow with edge-core.
+
+#### Production mode
+
+```sh
+docker build -t edge-core:prod-latest -f ./Dockerfile.debian.prod .
+```
+
+This will produce a Debian-based Docker image (~98MB in size) containing the edge-core binary along with the necessary runtime libraries.
 
 ```sh
 docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:prod-latest
@@ -127,7 +129,7 @@ docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edg
 
 For interactive bash session, run the following command -
 ```
-docker run -it --entrypoint bash -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp -v $PWD:/usr/src/app/mbed-edge edge-core:latest
+docker run -it --entrypoint bash -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:prod-latest
 ```
 
 ## Configuring Edge build
@@ -529,3 +531,59 @@ sudo lsof -i :8080
 Solutions:
 - Remove that other program using that same port.
 - Start mbed-edge to a different port than 8080 (`bin/mbed-edge --http-port <int>``).
+
+### Connectivity issues
+
+```sh
+$ dig tcp-lwm2m.us-east-1.mbedcloud.com +short
+
+dns-lb-lwm2m-production.us-east-1.mbedcloud.com.
+
+$ dig udp-lwm2m.us-east-1.mbedcloud.com +short
+
+dns-lb-lwm2m-production.us-east-1.mbedcloud.com.
+
+$ dig tcp-bootstrap.us-east-1.mbedcloud.com +short
+
+dns-lb-bootstrap-production.us-east-1.mbedcloud.com.
+
+$ dig udp-bootstrap.us-east-1.mbedcloud.com +short
+
+dns-lb-bootstrap-production.us-east-1.mbedcloud.com.
+
+# Time to resolve the DNS from within the container
+$ dig tcp-lwm2m.us-east-1.mbedcloud.com | grep Query
+
+;; Query time: 116 msec
+
+# Round-Trip Time between edge-core and firmware update S3 bucket 
+$ ping -c 5 firmware-catalog-media-ca57.s3.dualstack.us-east-1.amazonaws.com
+
+PING s3-r-w.dualstack.us-east-1.amazonaws.com (52.217.224.154) 56(84) bytes of data.
+64 bytes from s3-us-east-1-r-w.amazonaws.com (52.217.224.154): icmp_seq=1 ttl=63 time=93.8 ms
+64 bytes from s3-us-east-1-r-w.amazonaws.com (52.217.224.154): icmp_seq=2 ttl=63 time=86.7 ms
+64 bytes from s3-us-east-1-r-w.amazonaws.com (52.217.224.154): icmp_seq=3 ttl=63 time=95.3 ms
+64 bytes from s3-us-east-1-r-w.amazonaws.com (52.217.224.154): icmp_seq=4 ttl=63 time=87.0 ms
+64 bytes from s3-us-east-1-r-w.amazonaws.com (52.217.224.154): icmp_seq=5 ttl=63 time=88.6 ms
+
+--- s3-r-w.dualstack.us-east-1.amazonaws.com ping statistics ---
+5 packets transmitted, 5 received, 0% packet loss, time 4009ms
+rtt min/avg/max/mdev = 86.660/90.286/95.333/3.587 ms
+
+# Check HTTP connectivity and response time
+$ curl -o /dev/null -s -w \
+"DNS: %{time_namelookup}s\nConnect: %{time_connect}s\nTTFB: %{time_starttransfer}s\nTotal: %{time_total}s\n" \
+http://firmware-catalog-media-ca57.s3.dualstack.us-east-1.amazonaws.com
+
+DNS: 0.103582s
+Connect: 0.196595s
+TTFB: 0.299006s
+Total: 0.299089s
+
+# Validate download works using curl
+$ curl -O <Fimrware_image_url>
+
+# Packet capture
+tcpdump -vvv -i any "(port 5684 or port 443)" -w coap-and-tls.pcap
+
+```

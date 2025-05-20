@@ -1,2 +1,5 @@
-build
 .git
+build/
+*.o
+*.log
+edge-tool-c

@@ -3,6 +3,7 @@ FROM debian:bookworm-slim AS builder
 
 ARG developer_certificate=./config/mbed_cloud_dev_credentials.c
 ARG update_certificate=./config/update_default_resources.c
+ARG fota_linux_storage_dir=/opt/izuma
 
 # Set the working directory
 WORKDIR /usr/src/app/mbed-edge
@@ -10,7 +11,8 @@ WORKDIR /usr/src/app/mbed-edge
 # Install dependencies in a single step to reduce layers
 RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
-    tzdata build-essential libc6-dev cmake && \
+    tzdata build-essential libc6-dev cmake libcurl4-openssl-dev libssl-dev \
+    python3 python3-pip pkg-config git && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy source files after dependencies are installed
@@ -19,8 +21,17 @@ COPY . .
 # Return to main project and ensure it links with libbsd
 WORKDIR /usr/src/app/mbed-edge
 RUN mkdir -p build && cd build && \
-    cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=ON .. && \
-    make
+    cmake -DDEVELOPER_MODE=ON \
+        -DFACTORY_MODE=OFF \
+        -DBYOC_MODE=OFF \
+        -DFIRMWARE_UPDATE=ON \
+        -DTRACE_LEVEL=DEBUG \
+        -DFOTA_ENABLE=ON \
+        -DFOTA_COMBINED_IMAGE_SUPPORT=ON \
+        -DPLATFORM_TARGET=x86_x64_NativeLinux_mbedtls \
+        -DFOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir} \
+        .. && \
+    make -j$(nproc)
 
 # Stage 2: Create a minimal runtime image
 FROM debian:bookworm-slim
@@ -28,13 +39,39 @@ FROM debian:bookworm-slim
 # Set working directory
 WORKDIR /usr/src/app/mbed-edge
 
+ARG fota_linux_storage_dir=/opt/izuma
+ENV FOTA_LINUX_STORAGE_DIR=${fota_linux_storage_dir}
+
 # Install only the required runtime dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
-    tzdata libc6 && \
+    tzdata libc6 libcurl4 \
+    vim \
+    iptables \
+    iputils-ping \
+    net-tools \
+    dnsutils \
+    traceroute \
+    curl \
+    wget \
+    tcpdump \
+    socat \
+    telnet \
+    nmap \
+    gdb \
+    libc6-dbg \
+    coreutils \
+    procps && \
     rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/izuma
 
 # Copy only the built binary from the builder stage
 COPY --from=builder /usr/src/app/mbed-edge/build/ /usr/src/app/mbed-edge/build/
+COPY --from=builder /usr/src/app/mbed-edge/fota/MAIN "${FOTA_LINUX_STORAGE_DIR}/MAIN"
+COPY --from=builder /usr/src/app/mbed-edge/fota/COMP_1 "${FOTA_LINUX_STORAGE_DIR}/COMP_1"
+COPY --from=builder /usr/src/app/mbed-edge/start.sh /start.sh
+RUN chmod +x /start.sh
 
-CMD [ "./build/bin/edge-core", "--http-port", "8080", "--edge-pt-domain-socket", "/tmp/edge.sock" ]
+ENTRYPOINT ["/start.sh"]
+CMD []
