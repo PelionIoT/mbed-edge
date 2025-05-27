@@ -47,9 +47,9 @@ include (cmake/edge_configure.cmake)
 include (cmake/edge_include_directories.cmake)
 
 set(LIBEVENT_LIBRARIES
-  "/usr/src/app/mbed-edge/build/lib/libevent/libevent/lib/libevent.so"
-  "/usr/src/app/mbed-edge/build/lib/libevent/libevent/lib/libevent_core.so"
-  "/usr/src/app/mbed-edge/build/lib/libevent/libevent/lib/libevent_pthreads.so"
+  "${CMAKE_BINARY_DIR}/lib/libevent/libevent/lib/libevent.so"
+  "${CMAKE_BINARY_DIR}/lib/libevent/libevent/lib/libevent_core.so"
+  "${CMAKE_BINARY_DIR}/lib/libevent/libevent/lib/libevent_pthreads.so"
 )
 
 if (BUILD_TARGET STREQUAL test)
