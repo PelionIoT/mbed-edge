@@ -88,7 +88,7 @@ set_target_properties(ssl-platform PROPERTIES
 )
 
 # Compiler definitions - use target_compile_definitions for proper propagation
-target_compile_definitions(ssl-platform PRIVATE
+target_compile_definitions(ssl-platform PUBLIC
     SSL_PLATFORM_BACKEND=${SSL_PLATFORM_BACKEND}
 )
 

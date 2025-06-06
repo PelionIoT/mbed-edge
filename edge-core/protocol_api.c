@@ -35,7 +35,7 @@
 #include "edge-core/server.h"
 #include "edge-core/edge_server.h"
 #include "edge-core/srv_comm.h"
-#include "mbedtls/base64.h"
+#include "lib/ssl-platform/ssl_platform.h"
 #include "common/pt_api_error_parser.h"
 
 #include "ns_list.h"
@@ -1002,8 +1002,8 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
 
     tr_debug("write_to_pt - base64 encoding the value to json object");
     size_t out_size = 0;
-    int32_t ret_val = mbedtls_base64_encode(NULL, 0, &out_size, request_ctx->value, request_ctx->value_len);
-    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+    int32_t ret_val = ssl_platform_base64_encode(NULL, 0, &out_size, request_ctx->value, request_ctx->value_len);
+    if (0 != ret_val && SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
@@ -1019,7 +1019,7 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
         return 1;
     }
     if (out_size != 0) {
-        if (0 != mbedtls_base64_encode(json_value, out_size, &out_size, request_ctx->value, request_ctx->value_len)) {
+        if (0 != ssl_platform_base64_encode(json_value, out_size, &out_size, request_ctx->value, request_ctx->value_len)) {
             tr_error("Could not encode value to base64.");
             ret_val = 1;
             goto write_to_pt_cleanup;
@@ -1118,20 +1118,20 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     size_t class_size = 0;
     size_t version_size = 0;
 
-    ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE);
-    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+    ret_val = ssl_platform_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE);
+    if (0 != ret_val && SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
 
-    ret_val = mbedtls_base64_encode(NULL, 0, &class_size, manifest_class_id, CLASS_ID_SIZE);
-    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+    ret_val = ssl_platform_base64_encode(NULL, 0, &class_size, manifest_class_id, CLASS_ID_SIZE);
+    if (0 != ret_val && SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
 
-    ret_val = mbedtls_base64_encode(NULL, 0, &version_size, new_version, strlen(new_version));
-    if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
+    ret_val = ssl_platform_base64_encode(NULL, 0, &version_size, new_version, strlen(new_version));
+    if (0 != ret_val && SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
@@ -1158,7 +1158,7 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
         goto write_to_pt_fota_cleanup;
     }
     if (vendor_size != 0) {
-        if (0 != mbedtls_base64_encode(vendor_id, vendor_size, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE)) {
+        if (0 != ssl_platform_base64_encode(vendor_id, vendor_size, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE)) {
             tr_error("Could not encode vendor_id to base64.");
             ret_val = 1;
             goto write_to_pt_fota_cleanup;
@@ -1166,7 +1166,7 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     }
 
     if (class_size != 0) {
-        if (0 != mbedtls_base64_encode(class_id, class_size, &class_size, manifest_class_id, CLASS_ID_SIZE)) {
+        if (0 != ssl_platform_base64_encode(class_id, class_size, &class_size, manifest_class_id, CLASS_ID_SIZE)) {
             tr_error("Could not encode class_id to base64.");
             ret_val = 1;
             goto write_to_pt_fota_cleanup;
@@ -1174,7 +1174,7 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     }
 
     if (version_size != 0) {
-        if (0 != mbedtls_base64_encode(fw_version, version_size, &version_size, new_version, strlen(new_version))) {
+        if (0 != ssl_platform_base64_encode(fw_version, version_size, &version_size, new_version, strlen(new_version))) {
             tr_error("Could not encode class_id to base64.");
             ret_val = 1;
             goto write_to_pt_fota_cleanup;
