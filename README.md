@@ -248,6 +248,16 @@ these steps:
  * Give a name and an optional description to the certificate.
  * Download the certificate file `mbed_cloud_dev_credentials.c`.
 
+#### Further notes on building
+
+It maybe necesary to use the switch:
+
+```
+-DCMAKE_C_COMPILER=gcc
+```
+
+When running `cmake` depending on your environment.
+
 ### Expiration time configuration
 
 To configure the expiration time from the default of one hour (3600 seconds),

@@ -17,6 +17,7 @@ if (ENABLE_SUBDEVICE_FOTA)
   target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/fota/)
 endif()
 target_include_directories (edge-core PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories (edge-core PUBLIC ${ROOT_HOME}/lib/ssl-platform)
 
 if(ENABLE_UC_HUB)
   add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)

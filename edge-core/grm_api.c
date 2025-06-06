@@ -34,7 +34,7 @@
 #include "edge-core/server.h"
 #include "edge-core/edge_server.h"
 #include "edge-core/srv_comm.h"
-#include "lib/ssl-platform/ssl_platform.h"
+#include "ssl_platform.h"
 #include "common/pt_api_error_parser.h"
 
 #include "ns_list.h"

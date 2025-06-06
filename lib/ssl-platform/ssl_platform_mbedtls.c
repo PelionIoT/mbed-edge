@@ -7,6 +7,7 @@
  */
 
 #include "ssl_platform.h"
+#include <string.h>
 
 #if SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_MBEDTLS
 
@@ -100,20 +101,16 @@ int ssl_platform_hash_init(ssl_platform_hash_context_t *ctx, ssl_platform_hash_t
     ctx->type = type;
     
     switch (type) {
-        case SSL_PLATFORM_HASH_SHA1:
-            mbedtls_sha1_init(&ctx->ctx.sha1);
-            break;
         case SSL_PLATFORM_HASH_SHA224:
         case SSL_PLATFORM_HASH_SHA256:
             mbedtls_sha256_init(&ctx->ctx.sha256);
             break;
+        case SSL_PLATFORM_HASH_SHA1:
         case SSL_PLATFORM_HASH_SHA384:
         case SSL_PLATFORM_HASH_SHA512:
-            mbedtls_sha512_init(&ctx->ctx.sha512);
-            break;
         case SSL_PLATFORM_HASH_MD5:
-            mbedtls_md5_init(&ctx->ctx.md5);
-            break;
+            // These hash functions are not enabled in the current mbed-TLS configuration
+            return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
         default:
             return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
@@ -128,19 +125,15 @@ void ssl_platform_hash_free(ssl_platform_hash_context_t *ctx)
     }
     
     switch (ctx->type) {
-        case SSL_PLATFORM_HASH_SHA1:
-            mbedtls_sha1_free(&ctx->ctx.sha1);
-            break;
         case SSL_PLATFORM_HASH_SHA224:
         case SSL_PLATFORM_HASH_SHA256:
-            mbedtls_sha256_free(&ctx->ctx.sha256);
+            memset(&ctx->ctx.sha256, 0, sizeof(ctx->ctx.sha256));
             break;
+        case SSL_PLATFORM_HASH_SHA1:
         case SSL_PLATFORM_HASH_SHA384:
         case SSL_PLATFORM_HASH_SHA512:
-            mbedtls_sha512_free(&ctx->ctx.sha512);
-            break;
         case SSL_PLATFORM_HASH_MD5:
-            mbedtls_md5_free(&ctx->ctx.md5);
+            // These hash functions are not supported
             break;
         default:
             break;
@@ -156,24 +149,19 @@ int ssl_platform_hash_starts(ssl_platform_hash_context_t *ctx)
     int ret;
     
     switch (ctx->type) {
-        case SSL_PLATFORM_HASH_SHA1:
-            ret = mbedtls_sha1_starts_ret(&ctx->ctx.sha1);
-            break;
         case SSL_PLATFORM_HASH_SHA224:
-            ret = mbedtls_sha256_starts_ret(&ctx->ctx.sha256, 1);  /* 1 for SHA224 */
+            mbedtls_sha256_starts(&ctx->ctx.sha256, 1);  /* 1 for SHA224 */
+            ret = 0;
             break;
         case SSL_PLATFORM_HASH_SHA256:
-            ret = mbedtls_sha256_starts_ret(&ctx->ctx.sha256, 0);  /* 0 for SHA256 */
+            mbedtls_sha256_starts(&ctx->ctx.sha256, 0);  /* 0 for SHA256 */
+            ret = 0;
             break;
+        case SSL_PLATFORM_HASH_SHA1:
         case SSL_PLATFORM_HASH_SHA384:
-            ret = mbedtls_sha512_starts_ret(&ctx->ctx.sha512, 1);  /* 1 for SHA384 */
-            break;
         case SSL_PLATFORM_HASH_SHA512:
-            ret = mbedtls_sha512_starts_ret(&ctx->ctx.sha512, 0);  /* 0 for SHA512 */
-            break;
         case SSL_PLATFORM_HASH_MD5:
-            ret = mbedtls_md5_starts_ret(&ctx->ctx.md5);
-            break;
+            return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
         default:
             return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
@@ -192,20 +180,16 @@ int ssl_platform_hash_update(ssl_platform_hash_context_t *ctx,
     int ret;
     
     switch (ctx->type) {
-        case SSL_PLATFORM_HASH_SHA1:
-            ret = mbedtls_sha1_update_ret(&ctx->ctx.sha1, input, ilen);
-            break;
         case SSL_PLATFORM_HASH_SHA224:
         case SSL_PLATFORM_HASH_SHA256:
-            ret = mbedtls_sha256_update_ret(&ctx->ctx.sha256, input, ilen);
+            mbedtls_sha256_update(&ctx->ctx.sha256, input, ilen);
+            ret = 0;
             break;
+        case SSL_PLATFORM_HASH_SHA1:
         case SSL_PLATFORM_HASH_SHA384:
         case SSL_PLATFORM_HASH_SHA512:
-            ret = mbedtls_sha512_update_ret(&ctx->ctx.sha512, input, ilen);
-            break;
         case SSL_PLATFORM_HASH_MD5:
-            ret = mbedtls_md5_update_ret(&ctx->ctx.md5, input, ilen);
-            break;
+            return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
         default:
             return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
@@ -223,25 +207,49 @@ int ssl_platform_hash_finish(ssl_platform_hash_context_t *ctx,
     int ret;
     
     switch (ctx->type) {
-        case SSL_PLATFORM_HASH_SHA1:
-            ret = mbedtls_sha1_finish_ret(&ctx->ctx.sha1, output);
-            break;
         case SSL_PLATFORM_HASH_SHA224:
         case SSL_PLATFORM_HASH_SHA256:
-            ret = mbedtls_sha256_finish_ret(&ctx->ctx.sha256, output);
+            mbedtls_sha256_finish(&ctx->ctx.sha256, output);
+            ret = 0;
             break;
+        case SSL_PLATFORM_HASH_SHA1:
         case SSL_PLATFORM_HASH_SHA384:
         case SSL_PLATFORM_HASH_SHA512:
-            ret = mbedtls_sha512_finish_ret(&ctx->ctx.sha512, output);
-            break;
         case SSL_PLATFORM_HASH_MD5:
-            ret = mbedtls_md5_finish_ret(&ctx->ctx.md5, output);
-            break;
+            return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
         default:
             return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
     
     return ssl_platform_mbedtls_error_map(ret);
+}
+
+void ssl_platform_hash_clone(ssl_platform_hash_context_t *dst,
+                             const ssl_platform_hash_context_t *src)
+{
+    if (!dst || !src) {
+        return;
+    }
+
+    // Copy the hash type
+    dst->type = src->type;
+
+    // Clone the appropriate context based on type
+    switch (src->type) {
+        case SSL_PLATFORM_HASH_SHA224:
+        case SSL_PLATFORM_HASH_SHA256:
+            memcpy(&dst->ctx.sha256, &src->ctx.sha256, sizeof(src->ctx.sha256));
+            break;
+        case SSL_PLATFORM_HASH_SHA1:
+        case SSL_PLATFORM_HASH_SHA384:
+        case SSL_PLATFORM_HASH_SHA512:
+        case SSL_PLATFORM_HASH_MD5:
+            // These hash functions are not supported
+            break;
+        default:
+            // Invalid type, do nothing
+            break;
+    }
 }
 
 size_t ssl_platform_hash_get_size(ssl_platform_hash_type_t type)

@@ -93,7 +93,7 @@ target_compile_definitions(ssl-platform PUBLIC
 )
 
 # Link backend-specific libraries
-target_link_libraries(ssl-platform ${SSL_PLATFORM_LIBRARIES})
+target_link_libraries(ssl-platform PUBLIC ${SSL_PLATFORM_LIBRARIES})
 
 # Include directories for the library
 target_include_directories(ssl-platform PUBLIC

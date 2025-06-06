@@ -29,9 +29,10 @@ extern "C" {
 #endif
 
 /* Configuration macros for backend selection */
-#ifndef SSL_PLATFORM_BACKEND
 #define SSL_PLATFORM_BACKEND_MBEDTLS  1
 #define SSL_PLATFORM_BACKEND_OPENSSL  2
+
+#ifndef SSL_PLATFORM_BACKEND
 #define SSL_PLATFORM_BACKEND SSL_PLATFORM_BACKEND_MBEDTLS  /* Default to mbed-TLS */
 #endif
 
@@ -241,6 +242,15 @@ int ssl_platform_hash_update(ssl_platform_hash_context_t *ctx,
  */
 int ssl_platform_hash_finish(ssl_platform_hash_context_t *ctx,
                              unsigned char *output);
+
+/**
+ * \brief          Clone hash context
+ *
+ * \param dst      Destination hash context
+ * \param src      Source hash context
+ */
+void ssl_platform_hash_clone(ssl_platform_hash_context_t *dst,
+                             const ssl_platform_hash_context_t *src);
 
 /**
  * \brief          Get hash output size
