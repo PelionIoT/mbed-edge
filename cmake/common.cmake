@@ -36,7 +36,6 @@ ENDMACRO()
 
 MACRO(ADD_GLOBALDIR dirname)
 	include_directories(${dirname})
-	file(APPEND ${INCLUDE_FILE_NAME} "-I${dirname} ")
 ENDMACRO()
 
 MACRO(ADDSUBDIRS_CMAKE)
