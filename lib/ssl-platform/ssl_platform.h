@@ -276,36 +276,126 @@ void ssl_platform_pk_init(ssl_platform_pk_context_t *ctx);
 /**
  * \brief          Free the components of a PK context
  *
- * \param ctx      Context to be cleared
+ * \param ctx      Context to be freed
  */
 void ssl_platform_pk_free(ssl_platform_pk_context_t *ctx);
 
 /**
- * \brief          Parse a private key
+ * \brief          Parse a private key in PEM or DER format
  *
- * \param ctx      The PK context to fill
- * \param key      Input buffer to parse
- * \param keylen   Size of the buffer (including the terminating null byte for PEM data)
+ * \param ctx      The PK context to fill. It must have been initialized
+ *                 but not set up.
+ * \param key      Input buffer to parse. The buffer must contain the input
+ *                 exactly, with no extra trailing material.
+ * \param keylen   Size of \b key in bytes.
  * \param pwd      Optional password for decryption
- * \param pwdlen   Size of the password
+ * \param pwdlen   Size of the password in bytes
  *
- * \return         SSL_PLATFORM_SUCCESS on success
+ * \return         SSL_PLATFORM_SUCCESS on success, or a specific error code.
  */
 int ssl_platform_pk_parse_key(ssl_platform_pk_context_t *ctx,
                               const unsigned char *key, size_t keylen,
                               const unsigned char *pwd, size_t pwdlen);
 
 /**
- * \brief          Parse a public key
+ * \brief          Parse a public key in PEM or DER format
  *
- * \param ctx      The PK context to fill
- * \param key      Input buffer to parse
- * \param keylen   Size of the buffer
+ * \param ctx      The PK context to fill. It must have been initialized
+ *                 but not set up.
+ * \param key      Input buffer to parse. The buffer must contain the input
+ *                 exactly, with no extra trailing material.
+ * \param keylen   Size of \b key in bytes.
  *
- * \return         SSL_PLATFORM_SUCCESS on success
+ * \return         SSL_PLATFORM_SUCCESS on success, or a specific error code.
  */
 int ssl_platform_pk_parse_public_key(ssl_platform_pk_context_t *ctx,
                                      const unsigned char *key, size_t keylen);
+
+/**
+ * \brief          Verify signature (including any type of signature, RSA or ECDSA)
+ *
+ * \param ctx      PK context to use
+ * \param md_alg   Hash algorithm used (see notes)
+ * \param hash     Hash of the message to sign
+ * \param hash_len Hash length or 0 (see notes)
+ * \param sig      Signature buffer
+ * \param sig_len  Signature length
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success (signature is valid),
+ *                 SSL_PLATFORM_ERROR_INVALID_DATA on failure (signature check failed).
+ */
+int ssl_platform_pk_verify(ssl_platform_pk_context_t *ctx, ssl_platform_hash_type_t md_alg,
+                           const unsigned char *hash, size_t hash_len,
+                           const unsigned char *sig, size_t sig_len);
+
+/**
+ * \brief          Make signature, including padding if relevant.
+ *
+ * \param ctx      PK context to use
+ * \param md_alg   Hash algorithm used (see notes)
+ * \param hash     Hash of the message to sign
+ * \param hash_len Hash length or 0 (see notes)
+ * \param sig      Place to write signature
+ * \param sig_len  Number of bytes written
+ * \param f_rng    RNG function
+ * \param p_rng    RNG parameter
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success, or a specific error code.
+ */
+int ssl_platform_pk_sign(ssl_platform_pk_context_t *ctx, ssl_platform_hash_type_t md_alg,
+                         const unsigned char *hash, size_t hash_len,
+                         unsigned char *sig, size_t *sig_len,
+                         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng);
+
+/**
+ * \brief          Initialize a PK context with the given key type and setup
+ *
+ * \param ctx      Context to initialize and setup
+ * \param info     Information structure for the key type
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success, or SSL_PLATFORM_ERROR_* on failure.
+ */
+int ssl_platform_pk_setup(ssl_platform_pk_context_t *ctx, const void *info);
+
+/**
+ * \brief          Write a private key to a PKCS#1 or SEC1 DER structure
+ *
+ * \param ctx      PK context which must contain a valid private key.
+ * \param buf      buffer to write to
+ * \param size     size of the buffer
+ *
+ * \return         length of data written if successful, or a specific
+ *                 error code
+ */
+int ssl_platform_pk_write_key_der(ssl_platform_pk_context_t *ctx,
+                                  unsigned char *buf, size_t size);
+
+/**
+ * \brief          Write a public key to a SubjectPublicKeyInfo DER structure
+ *
+ * \param ctx      PK context which must contain a valid public or private key.
+ * \param buf      buffer to write to
+ * \param size     size of the buffer
+ *
+ * \return         length of data written if successful, or a specific
+ *                 error code
+ */
+int ssl_platform_pk_write_pubkey_der(ssl_platform_pk_context_t *ctx,
+                                     unsigned char *buf, size_t size);
+
+/**
+ * \brief          Get access to the underlying backend context
+ *                 
+ * This function provides access to the underlying crypto library context
+ * for advanced operations that are not yet abstracted by ssl_platform.
+ * Use with caution as this breaks backend independence.
+ *
+ * \param ctx      PK context
+ *
+ * \return         Pointer to underlying context (mbedtls_pk_context* for mbed-TLS,
+ *                 EVP_PKEY* for OpenSSL), or NULL on error
+ */
+void *ssl_platform_pk_get_backend_context(ssl_platform_pk_context_t *ctx);
 
 /* =============================================================================
  * X.509 CERTIFICATE OPERATIONS

@@ -301,31 +301,219 @@ int ssl_platform_pk_parse_key(ssl_platform_pk_context_t *ctx,
 int ssl_platform_pk_parse_public_key(ssl_platform_pk_context_t *ctx,
                                      const unsigned char *key, size_t keylen)
 {
-    if (ctx == NULL || key == NULL) {
+    if (!ctx || !key) {
         return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
     
-    BIO *bio = BIO_new_mem_buf(key, keylen);
-    if (bio == NULL) {
+    BIO *bio = BIO_new_mem_buf(key, (int)keylen);
+    if (!bio) {
         return SSL_PLATFORM_ERROR_MEMORY_ALLOCATION;
     }
     
-    // Try PEM format first
-    ctx->pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
-    if (ctx->pkey == NULL) {
-        // Try DER format
+    EVP_PKEY *pkey = NULL;
+    
+    // Try DER format first
+    BIO_reset(bio);
+    pkey = d2i_PUBKEY_bio(bio, NULL);
+    
+    if (!pkey) {
+        // Try PEM format
         BIO_reset(bio);
-        ctx->pkey = d2i_PUBKEY_bio(bio, NULL);
+        pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
     }
     
     BIO_free(bio);
     
-    if (ctx->pkey == NULL) {
+    if (!pkey) {
         return SSL_PLATFORM_ERROR_INVALID_DATA;
     }
     
-    ctx->key_type = EVP_PKEY_base_id(ctx->pkey);
+    if (ctx->pkey) {
+        EVP_PKEY_free(ctx->pkey);
+    }
+    ctx->pkey = pkey;
+    
     return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_pk_verify(ssl_platform_pk_context_t *ctx, ssl_platform_hash_type_t md_alg,
+                           const unsigned char *hash, size_t hash_len,
+                           const unsigned char *sig, size_t sig_len)
+{
+    if (!ctx || !ctx->pkey || !hash || !sig) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    const EVP_MD *md = NULL;
+    switch (md_alg) {
+        case SSL_PLATFORM_HASH_SHA1:
+            md = EVP_sha1();
+            break;
+        case SSL_PLATFORM_HASH_SHA224:
+            md = EVP_sha224();
+            break;
+        case SSL_PLATFORM_HASH_SHA256:
+            md = EVP_sha256();
+            break;
+        case SSL_PLATFORM_HASH_SHA384:
+            md = EVP_sha384();
+            break;
+        case SSL_PLATFORM_HASH_SHA512:
+            md = EVP_sha512();
+            break;
+        case SSL_PLATFORM_HASH_MD5:
+            md = EVP_md5();
+            break;
+        default:
+            return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
+    }
+    
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        return SSL_PLATFORM_ERROR_MEMORY_ALLOCATION;
+    }
+    
+    int ret = SSL_PLATFORM_ERROR_GENERIC;
+    if (EVP_DigestVerifyInit(mdctx, NULL, md, NULL, ctx->pkey) == 1) {
+        if (EVP_DigestVerify(mdctx, sig, sig_len, hash, hash_len) == 1) {
+            ret = SSL_PLATFORM_SUCCESS;
+        } else {
+            ret = SSL_PLATFORM_ERROR_INVALID_DATA;
+        }
+    }
+    
+    EVP_MD_CTX_free(mdctx);
+    return ret;
+}
+
+int ssl_platform_pk_sign(ssl_platform_pk_context_t *ctx, ssl_platform_hash_type_t md_alg,
+                         const unsigned char *hash, size_t hash_len,
+                         unsigned char *sig, size_t *sig_len,
+                         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
+{
+    if (!ctx || !ctx->pkey || !hash || !sig || !sig_len) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    (void)f_rng;  // OpenSSL manages randomness internally
+    (void)p_rng;
+    
+    const EVP_MD *md = NULL;
+    switch (md_alg) {
+        case SSL_PLATFORM_HASH_SHA1:
+            md = EVP_sha1();
+            break;
+        case SSL_PLATFORM_HASH_SHA224:
+            md = EVP_sha224();
+            break;
+        case SSL_PLATFORM_HASH_SHA256:
+            md = EVP_sha256();
+            break;
+        case SSL_PLATFORM_HASH_SHA384:
+            md = EVP_sha384();
+            break;
+        case SSL_PLATFORM_HASH_SHA512:
+            md = EVP_sha512();
+            break;
+        case SSL_PLATFORM_HASH_MD5:
+            md = EVP_md5();
+            break;
+        default:
+            return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
+    }
+    
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        return SSL_PLATFORM_ERROR_MEMORY_ALLOCATION;
+    }
+    
+    int ret = SSL_PLATFORM_ERROR_GENERIC;
+    if (EVP_DigestSignInit(mdctx, NULL, md, NULL, ctx->pkey) == 1) {
+        if (EVP_DigestSign(mdctx, sig, sig_len, hash, hash_len) == 1) {
+            ret = SSL_PLATFORM_SUCCESS;
+        }
+    }
+    
+    EVP_MD_CTX_free(mdctx);
+    return ret;
+}
+
+int ssl_platform_pk_setup(ssl_platform_pk_context_t *ctx, const void *info)
+{
+    if (!ctx) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    // OpenSSL doesn't require explicit setup like mbedTLS
+    // This is a no-op for OpenSSL backend
+    (void)info;
+    return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_pk_write_key_der(ssl_platform_pk_context_t *ctx,
+                                  unsigned char *buf, size_t size)
+{
+    if (!ctx || !ctx->pkey || !buf) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    BIO *bio = BIO_new(BIO_s_mem());
+    if (!bio) {
+        return SSL_PLATFORM_ERROR_MEMORY_ALLOCATION;
+    }
+    
+    int ret = SSL_PLATFORM_ERROR_GENERIC;
+    if (i2d_PrivateKey_bio(bio, ctx->pkey) == 1) {
+        BUF_MEM *mem;
+        BIO_get_mem_ptr(bio, &mem);
+        
+        if (mem->length <= size) {
+            memcpy(buf, mem->data, mem->length);
+            ret = (int)mem->length;
+        } else {
+            ret = SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
+        }
+    }
+    
+    BIO_free(bio);
+    return ret;
+}
+
+int ssl_platform_pk_write_pubkey_der(ssl_platform_pk_context_t *ctx,
+                                     unsigned char *buf, size_t size)
+{
+    if (!ctx || !ctx->pkey || !buf) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    BIO *bio = BIO_new(BIO_s_mem());
+    if (!bio) {
+        return SSL_PLATFORM_ERROR_MEMORY_ALLOCATION;
+    }
+    
+    int ret = SSL_PLATFORM_ERROR_GENERIC;
+    if (i2d_PUBKEY_bio(bio, ctx->pkey) == 1) {
+        BUF_MEM *mem;
+        BIO_get_mem_ptr(bio, &mem);
+        
+        if (mem->length <= size) {
+            memcpy(buf, mem->data, mem->length);
+            ret = (int)mem->length;
+        } else {
+            ret = SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
+        }
+    }
+    
+    BIO_free(bio);
+    return ret;
+}
+
+void *ssl_platform_pk_get_backend_context(ssl_platform_pk_context_t *ctx)
+{
+    if (!ctx) {
+        return NULL;
+    }
+    return ctx->pkey;
 }
 
 /* =============================================================================

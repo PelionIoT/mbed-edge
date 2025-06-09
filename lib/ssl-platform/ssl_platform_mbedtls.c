@@ -291,12 +291,95 @@ int ssl_platform_pk_parse_key(ssl_platform_pk_context_t *ctx,
 int ssl_platform_pk_parse_public_key(ssl_platform_pk_context_t *ctx,
                                      const unsigned char *key, size_t keylen)
 {
-    if (ctx == NULL || key == NULL) {
+    if (!ctx || !key) {
         return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
     
     int ret = mbedtls_pk_parse_public_key(&ctx->mbedtls_ctx, key, keylen);
     return ssl_platform_mbedtls_error_map(ret);
+}
+
+int ssl_platform_pk_verify(ssl_platform_pk_context_t *ctx, ssl_platform_hash_type_t md_alg,
+                           const unsigned char *hash, size_t hash_len,
+                           const unsigned char *sig, size_t sig_len)
+{
+    if (!ctx || !hash || !sig) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    mbedtls_md_type_t mbedtls_md_alg = ssl_platform_hash_type_to_mbedtls(md_alg);
+    if (mbedtls_md_alg == MBEDTLS_MD_NONE) {
+        return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
+    }
+    
+    int ret = mbedtls_pk_verify(&ctx->mbedtls_ctx, mbedtls_md_alg, hash, hash_len, sig, sig_len);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
+int ssl_platform_pk_sign(ssl_platform_pk_context_t *ctx, ssl_platform_hash_type_t md_alg,
+                         const unsigned char *hash, size_t hash_len,
+                         unsigned char *sig, size_t *sig_len,
+                         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
+{
+    if (!ctx || !hash || !sig || !sig_len) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    mbedtls_md_type_t mbedtls_md_alg = ssl_platform_hash_type_to_mbedtls(md_alg);
+    if (mbedtls_md_alg == MBEDTLS_MD_NONE) {
+        return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
+    }
+    
+    int ret = mbedtls_pk_sign(&ctx->mbedtls_ctx, mbedtls_md_alg, hash, hash_len, sig, sig_len, f_rng, p_rng);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
+int ssl_platform_pk_setup(ssl_platform_pk_context_t *ctx, const void *info)
+{
+    if (!ctx || !info) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_pk_setup(&ctx->mbedtls_ctx, (const mbedtls_pk_info_t *)info);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
+int ssl_platform_pk_write_key_der(ssl_platform_pk_context_t *ctx,
+                                  unsigned char *buf, size_t size)
+{
+    if (!ctx || !buf) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_pk_write_key_der(&ctx->mbedtls_ctx, buf, size);
+    if (ret < 0) {
+        return ssl_platform_mbedtls_error_map(ret);
+    }
+    return ret;  // Return length on success
+}
+
+int ssl_platform_pk_write_pubkey_der(ssl_platform_pk_context_t *ctx,
+                                     unsigned char *buf, size_t size)
+{
+    if (!ctx || !buf) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_pk_write_pubkey_der(&ctx->mbedtls_ctx, buf, size);
+    if (ret < 0) {
+        return ssl_platform_mbedtls_error_map(ret);
+    }
+    return ret;  // Return length on success
+}
+
+
+
+void *ssl_platform_pk_get_backend_context(ssl_platform_pk_context_t *ctx)
+{
+    if (!ctx) {
+        return NULL;
+    }
+    return &ctx->mbedtls_ctx;
 }
 
 /* =============================================================================

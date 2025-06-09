@@ -57,6 +57,11 @@ extern "C" {
 #define mbedtls_pk_free              ssl_platform_pk_free
 #define mbedtls_pk_parse_key         ssl_platform_pk_parse_key
 #define mbedtls_pk_parse_public_key  ssl_platform_pk_parse_public_key
+#define mbedtls_pk_verify            ssl_platform_pk_verify
+#define mbedtls_pk_sign              ssl_platform_pk_sign
+#define mbedtls_pk_setup             ssl_platform_pk_setup
+#define mbedtls_pk_write_key_der     ssl_platform_pk_write_key_der
+#define mbedtls_pk_write_pubkey_der  ssl_platform_pk_write_pubkey_der
 
 /* X.509 certificate operations */
 #define mbedtls_x509_crt             ssl_platform_x509_crt_t
