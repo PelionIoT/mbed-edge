@@ -390,8 +390,6 @@ int ssl_platform_pk_write_pubkey_der(ssl_platform_pk_context_t *ctx,
     return ret;  // Return length on success
 }
 
-
-
 void *ssl_platform_pk_get_backend_context(ssl_platform_pk_context_t *ctx)
 {
     if (!ctx) {
@@ -456,6 +454,88 @@ int ssl_platform_x509_get_pubkey(ssl_platform_x509_crt_t *crt,
     return SSL_PLATFORM_SUCCESS;
 }
 
+// Enhanced X.509 certificate field access functions
+int ssl_platform_x509_get_issuer_raw(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
+{
+    if (crt == NULL || buf == NULL || len == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    *buf = crt->mbedtls_crt.issuer_raw.p;
+    *len = crt->mbedtls_crt.issuer_raw.len;
+    return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_x509_get_subject_raw(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
+{
+    if (crt == NULL || buf == NULL || len == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    *buf = crt->mbedtls_crt.subject_raw.p;
+    *len = crt->mbedtls_crt.subject_raw.len;
+    return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_x509_get_validity(ssl_platform_x509_crt_t *crt, struct tm *not_before, struct tm *not_after)
+{
+    if (crt == NULL || not_before == NULL || not_after == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    // Convert mbedtls_x509_time to struct tm
+    memset(not_before, 0, sizeof(struct tm));
+    memset(not_after, 0, sizeof(struct tm));
+    
+    not_before->tm_year = crt->mbedtls_crt.valid_from.year - 1900;
+    not_before->tm_mon = crt->mbedtls_crt.valid_from.mon - 1;
+    not_before->tm_mday = crt->mbedtls_crt.valid_from.day;
+    not_before->tm_hour = crt->mbedtls_crt.valid_from.hour;
+    not_before->tm_min = crt->mbedtls_crt.valid_from.min;
+    not_before->tm_sec = crt->mbedtls_crt.valid_from.sec;
+    
+    not_after->tm_year = crt->mbedtls_crt.valid_to.year - 1900;
+    not_after->tm_mon = crt->mbedtls_crt.valid_to.mon - 1;
+    not_after->tm_mday = crt->mbedtls_crt.valid_to.day;
+    not_after->tm_hour = crt->mbedtls_crt.valid_to.hour;
+    not_after->tm_min = crt->mbedtls_crt.valid_to.min;
+    not_after->tm_sec = crt->mbedtls_crt.valid_to.sec;
+    
+    return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_x509_get_signature(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
+{
+    if (crt == NULL || buf == NULL || len == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    *buf = crt->mbedtls_crt.sig.p;
+    *len = crt->mbedtls_crt.sig.len;
+    return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_x509_get_tbs(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
+{
+    if (crt == NULL || buf == NULL || len == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    *buf = crt->mbedtls_crt.tbs.p;
+    *len = crt->mbedtls_crt.tbs.len;
+    return SSL_PLATFORM_SUCCESS;
+}
+
+int ssl_platform_x509_get_subject_name(ssl_platform_x509_crt_t *crt, char *buf, size_t buf_size)
+{
+    if (crt == NULL || buf == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_x509_dn_gets(buf, buf_size, &crt->mbedtls_crt.subject);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
 /* =============================================================================
  * ENTROPY AND RANDOM NUMBER GENERATION IMPLEMENTATION
  * =============================================================================
@@ -511,6 +591,17 @@ int ssl_platform_ctr_drbg_random(void *p_rng, unsigned char *output, size_t outp
     
     ssl_platform_ctr_drbg_context_t *ctx = (ssl_platform_ctr_drbg_context_t *)p_rng;
     int ret = mbedtls_ctr_drbg_random(&ctx->mbedtls_ctx, output, output_len);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
+// Enhanced CTR-DRBG operations
+int ssl_platform_ctr_drbg_reseed(ssl_platform_ctr_drbg_context_t *ctx, const unsigned char *additional, size_t len)
+{
+    if (ctx == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_ctr_drbg_reseed(&ctx->mbedtls_ctx, additional, len);
     return ssl_platform_mbedtls_error_map(ret);
 }
 

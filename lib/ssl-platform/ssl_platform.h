@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -586,6 +587,17 @@ int ssl_platform_x509_get_signature(ssl_platform_x509_crt_t *crt,
 int ssl_platform_x509_get_tbs(ssl_platform_x509_crt_t *crt,
                               unsigned char **buf, size_t *len);
 
+/**
+ * \brief          Get subject name in a human-readable format
+ *
+ * \param crt      Certificate
+ * \param buf      Buffer to store subject name
+ * \param buf_size Size of the buffer
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_subject_name(ssl_platform_x509_crt_t *crt, char *buf, size_t buf_size);
+
 /* =============================================================================
  * ASN.1 PARSING OPERATIONS
  * =============================================================================
@@ -673,6 +685,17 @@ int ssl_platform_ctr_drbg_seed(ssl_platform_ctr_drbg_context_t *ctx,
  * \return         SSL_PLATFORM_SUCCESS on success
  */
 int ssl_platform_ctr_drbg_random(void *p_rng, unsigned char *output, size_t output_len);
+
+/**
+ * \brief          Re-seed CTR-DRBG context
+ *
+ * \param ctx      CTR-DRBG context
+ * \param additional Additional seed data
+ * \param len      Length of additional seed data
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ctr_drbg_reseed(ssl_platform_ctr_drbg_context_t *ctx, const unsigned char *additional, size_t len);
 
 /* =============================================================================
  * SSL/TLS OPERATIONS
