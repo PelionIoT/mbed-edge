@@ -87,6 +87,24 @@ int ssl_platform_aes_crypt_ecb(ssl_platform_aes_context_t *ctx,
     return ssl_platform_mbedtls_error_map(ret);
 }
 
+int ssl_platform_aes_crypt_ctr(ssl_platform_aes_context_t *ctx,
+                               size_t length,
+                               size_t *nc_off,
+                               unsigned char nonce_counter[16],
+                               unsigned char stream_block[16],
+                               const unsigned char *input,
+                               unsigned char *output)
+{
+    if (ctx == NULL || nc_off == NULL || nonce_counter == NULL || 
+        stream_block == NULL || input == NULL || output == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_aes_crypt_ctr(&ctx->mbedtls_ctx, length, nc_off,
+                                   nonce_counter, stream_block, input, output);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
 /* =============================================================================
  * HASH OPERATIONS IMPLEMENTATION
  * =============================================================================
@@ -410,6 +428,32 @@ int ssl_platform_x509_crt_parse(ssl_platform_x509_crt_t *chain,
     
     int ret = mbedtls_x509_crt_parse(&chain->mbedtls_crt, buf, buflen);
     return ssl_platform_mbedtls_error_map(ret);
+}
+
+int ssl_platform_x509_get_pubkey(ssl_platform_x509_crt_t *crt,
+                                 ssl_platform_pk_context_t *pk)
+{
+    if (crt == NULL || pk == NULL) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    // Copy the public key from the certificate to the PK context
+    int ret = mbedtls_pk_setup(&pk->mbedtls_ctx, mbedtls_pk_info_from_type(mbedtls_pk_get_type(&crt->mbedtls_crt.pk)));
+    if (ret != 0) {
+        return ssl_platform_mbedtls_error_map(ret);
+    }
+    
+    ret = mbedtls_pk_check_pair(&crt->mbedtls_crt.pk, &pk->mbedtls_ctx);
+    if (ret == 0) {
+        // If check_pair succeeds, we can copy the key
+        pk->mbedtls_ctx = crt->mbedtls_crt.pk;
+    } else {
+        // For public key extraction, we need to copy the public key part
+        // This is a simplified implementation - copy the entire PK context
+        memcpy(&pk->mbedtls_ctx, &crt->mbedtls_crt.pk, sizeof(mbedtls_pk_context));
+    }
+    
+    return SSL_PLATFORM_SUCCESS;
 }
 
 /* =============================================================================

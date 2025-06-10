@@ -26,6 +26,9 @@ if (ENABLE_UC_HUB)
   add_definitions(-D__LINUX__=1)
   add_definitions(-DSN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE=1024)
 
+  # Add ssl-platform include directory for update-client-hub dependencies
+  target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/ssl-platform)
+
   target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/mbed-cloud-client/update-client-hub/modules/manifest-manager/source)
   target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/mbed-cloud-client/update-client-hub/modules/common)
   target_include_directories (pt-client-2 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/mbed-cloud-client/update-client-hub/modules/common/update-client-common)
@@ -47,7 +50,13 @@ SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -shared")
 if (TARGET_GROUP STREQUAL test)
   target_link_libraries (pt-client-2 jansson rpc mbedTraceEdge)
 else ()
-  target_link_libraries (pt-client-2 edge-websocket-common
-    edge-integer-length edge-apr-base64 edge-default-message-id-generator
-    pt-api-error-codes edge-msg-api event jansson websockets rpc nanostack mbedTraceEdge)
+  if (ENABLE_UC_HUB)
+    target_link_libraries (pt-client-2 edge-websocket-common
+      edge-integer-length edge-apr-base64 edge-default-message-id-generator
+      pt-api-error-codes edge-msg-api event jansson websockets rpc nanostack mbedTraceEdge ssl-platform)
+  else ()
+    target_link_libraries (pt-client-2 edge-websocket-common
+      edge-integer-length edge-apr-base64 edge-default-message-id-generator
+      pt-api-error-codes edge-msg-api event jansson websockets rpc nanostack mbedTraceEdge)
+  endif()
 endif()

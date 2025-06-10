@@ -489,6 +489,121 @@ void ssl_platform_x509_crt_free(ssl_platform_x509_crt_t *crt);
 int ssl_platform_x509_crt_parse(ssl_platform_x509_crt_t *chain,
                                 const unsigned char *buf, size_t buflen);
 
+/**
+ * \brief          Verify a certificate against CA chain
+ *
+ * \param crt         Certificate to verify
+ * \param trust_ca    CA chain to verify against (can be NULL)
+ * \param flags       Verification flags output
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_crt_verify(ssl_platform_x509_crt_t *crt, 
+                                 ssl_platform_x509_crt_t *trust_ca,
+                                 uint32_t *flags);
+
+/**
+ * \brief          Check extended key usage extension
+ *
+ * \param crt      Certificate to check
+ * \param usage    Extended key usage OID
+ * \param oid_len  Length of OID
+ *
+ * \return         SSL_PLATFORM_SUCCESS if usage is found
+ */
+int ssl_platform_x509_crt_check_extended_key_usage(ssl_platform_x509_crt_t *crt,
+                                                   const unsigned char *usage,
+                                                   size_t oid_len);
+
+/**
+ * \brief          Extract public key from certificate
+ *
+ * \param crt      Certificate
+ * \param pk       Public key context to fill
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_pubkey(ssl_platform_x509_crt_t *crt,
+                                 ssl_platform_pk_context_t *pk);
+
+/**
+ * \brief          Get issuer name in raw DER format
+ *
+ * \param crt      Certificate
+ * \param buf      Buffer to store raw issuer data
+ * \param len      Length of the issuer data
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_issuer_raw(ssl_platform_x509_crt_t *crt,
+                                     unsigned char **buf, size_t *len);
+
+/**
+ * \brief          Get subject name in raw DER format
+ *
+ * \param crt      Certificate
+ * \param buf      Buffer to store raw subject data
+ * \param len      Length of the subject data
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_subject_raw(ssl_platform_x509_crt_t *crt,
+                                      unsigned char **buf, size_t *len);
+
+/**
+ * \brief          Get certificate validity period
+ *
+ * \param crt         Certificate
+ * \param not_before  Valid from time
+ * \param not_after   Valid to time
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_validity(ssl_platform_x509_crt_t *crt,
+                                   struct tm *not_before, struct tm *not_after);
+
+/**
+ * \brief          Get certificate signature
+ *
+ * \param crt      Certificate
+ * \param buf      Buffer to store signature data
+ * \param len      Length of the signature data
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_signature(ssl_platform_x509_crt_t *crt,
+                                    unsigned char **buf, size_t *len);
+
+/**
+ * \brief          Get certificate TBS (To Be Signed) data
+ *
+ * \param crt      Certificate
+ * \param buf      Buffer to store TBS data
+ * \param len      Length of the TBS data
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_x509_get_tbs(ssl_platform_x509_crt_t *crt,
+                              unsigned char **buf, size_t *len);
+
+/* =============================================================================
+ * ASN.1 PARSING OPERATIONS
+ * =============================================================================
+ */
+
+/**
+ * \brief          Get tag and length of the element
+ *
+ * \param p        Pointer to the beginning of the ASN.1 element
+ * \param end      End of data
+ * \param len      Length of the element
+ * \param tag      Expected tag
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_asn1_get_tag(unsigned char **p, const unsigned char *end,
+                              size_t *len, int tag);
+
 /* =============================================================================
  * ENTROPY AND RANDOM NUMBER GENERATION
  * =============================================================================
@@ -511,24 +626,33 @@ void ssl_platform_entropy_free(ssl_platform_entropy_context_t *ctx);
 /**
  * \brief          Initialize CTR-DRBG context
  *
- * \param ctx      CTR-DRBG context to initialize
+ * \param ctx      CTR-DRBG context to be initialized
  */
 void ssl_platform_ctr_drbg_init(ssl_platform_ctr_drbg_context_t *ctx);
 
 /**
  * \brief          Free CTR-DRBG context
  *
- * \param ctx      CTR-DRBG context to free
+ * \param ctx      CTR-DRBG context to be freed
  */
 void ssl_platform_ctr_drbg_free(ssl_platform_ctr_drbg_context_t *ctx);
 
 /**
- * \brief          Initialize CTR-DRBG context with entropy
+ * \brief          Check if CTR-DRBG is seeded
  *
  * \param ctx      CTR-DRBG context
- * \param f_entropy Entropy callback
+ *
+ * \return         SSL_PLATFORM_SUCCESS if seeded, error otherwise
+ */
+int ssl_platform_ctr_drbg_is_seeded(ssl_platform_ctr_drbg_context_t *ctx);
+
+/**
+ * \brief          Seed CTR-DRBG context
+ *
+ * \param ctx      CTR-DRBG context
+ * \param f_entropy Entropy function
  * \param p_entropy Entropy context
- * \param custom   Optional custom data
+ * \param custom   Custom seed data
  * \param len      Length of custom data
  *
  * \return         SSL_PLATFORM_SUCCESS on success
