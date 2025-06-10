@@ -190,6 +190,67 @@ int ssl_platform_aes_crypt_ecb(ssl_platform_aes_context_t *ctx,
                                const unsigned char input[16],
                                unsigned char output[16]);
 
+/**
+ * \brief          AES-CTR buffer encryption/decryption
+ *
+ * \param ctx      AES context
+ * \param length   The length of the input data.
+ * \param nc_off   The offset in the current stream_block
+ * \param nonce_counter The 128-bit nonce and counter.
+ * \param stream_block The saved stream-block for resuming.
+ * \param input    The input data stream
+ * \param output   The output data stream
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_aes_crypt_ctr(ssl_platform_aes_context_t *ctx,
+                               size_t length,
+                               size_t *nc_off,
+                               unsigned char nonce_counter[16],
+                               unsigned char stream_block[16],
+                               const unsigned char *input,
+                               unsigned char *output);
+
+/* =============================================================================
+ * CMAC OPERATIONS
+ * =============================================================================
+ */
+
+/**
+ * \brief          Output = CMAC_128( K, input buffer )
+ *
+ * \param key      CMAC key
+ * \param keylen   length of the CMAC key in bits
+ * \param input    buffer holding the input data
+ * \param ilen     length of the input data
+ * \param output   CMAC result
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_aes_cmac(const unsigned char *key, size_t keylen,
+                          const unsigned char *input, size_t ilen,
+                          unsigned char *output);
+
+/* =============================================================================
+ * HMAC OPERATIONS  
+ * =============================================================================
+ */
+
+/**
+ * \brief          Output = HMAC_SHA256( hmac key, input buffer )
+ *
+ * \param key      HMAC secret key
+ * \param keylen   length of the HMAC key
+ * \param input    buffer holding the input data
+ * \param ilen     length of the input data
+ * \param output   HMAC-SHA256 result
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_hmac_sha256(const unsigned char *key, size_t keylen,
+                             const unsigned char *input, size_t ilen,
+                             unsigned char *output);
+
 /* =============================================================================
  * HASH OPERATIONS
  * =============================================================================
