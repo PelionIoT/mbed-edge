@@ -694,4 +694,15 @@ void ssl_platform_ssl_config_free(ssl_platform_ssl_config_t *conf)
     }
 }
 
-#endif /* SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_OPENSSL */ 
+int ssl_platform_aes_crypt_ctr(ssl_platform_aes_context_t *ctx, size_t length, size_t *nc_off, unsigned char nonce_counter[16], unsigned char stream_block[16], const unsigned char *input, unsigned char *output) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_get_tbs(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+
+int ssl_platform_x509_get_subject_name(ssl_platform_x509_crt_t *crt, char *buf, size_t buf_size) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_get_issuer_raw(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_get_subject_raw(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_get_validity(ssl_platform_x509_crt_t *crt, struct tm *not_before, struct tm *not_after) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_get_signature(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_crt_check_extended_key_usage(ssl_platform_x509_crt_t *crt, const unsigned char *usage, size_t oid_len) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_x509_get_pubkey(ssl_platform_x509_crt_t *crt, ssl_platform_pk_context_t *pk) { return SSL_PLATFORM_ERROR_NOT_SUPPORTED; }
+int ssl_platform_ctr_drbg_reseed(ssl_platform_ctr_drbg_context_t *ctx, const unsigned char *additional, size_t len) { return SSL_PLATFORM_SUCCESS; }
+#endif /* SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_OPENSSL */

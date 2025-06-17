@@ -528,11 +528,25 @@ int ssl_platform_x509_get_tbs(ssl_platform_x509_crt_t *crt, unsigned char **buf,
 
 int ssl_platform_x509_get_subject_name(ssl_platform_x509_crt_t *crt, char *buf, size_t buf_size)
 {
-    if (crt == NULL || buf == NULL) {
+    if (crt == NULL || buf == NULL || buf_size == 0) {
         return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
     }
     
     int ret = mbedtls_x509_dn_gets(buf, buf_size, &crt->mbedtls_crt.subject);
+    return ssl_platform_mbedtls_error_map(ret);
+}
+
+int ssl_platform_x509_crt_check_extended_key_usage(ssl_platform_x509_crt_t *crt,
+                                                   const unsigned char *usage,
+                                                   size_t oid_len)
+{
+    if (crt == NULL || usage == NULL || oid_len == 0) {
+        return SSL_PLATFORM_ERROR_INVALID_PARAMETER;
+    }
+    
+    int ret = mbedtls_x509_crt_check_extended_key_usage(&crt->mbedtls_crt, 
+                                                       (const char *)usage, 
+                                                       oid_len);
     return ssl_platform_mbedtls_error_map(ret);
 }
 

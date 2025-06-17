@@ -112,7 +112,23 @@ static inline int ssl_platform_mbedtls_error_map(int mbedtls_ret)
             return SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
         case MBEDTLS_ERR_BASE64_INVALID_CHARACTER:
             return SSL_PLATFORM_ERROR_INVALID_DATA;
+        // X.509 related error codes
+        case MBEDTLS_ERR_X509_BUFFER_TOO_SMALL:
+            return SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
+        case MBEDTLS_ERR_X509_INVALID_FORMAT:
+        case MBEDTLS_ERR_X509_INVALID_VERSION:
+        case MBEDTLS_ERR_X509_INVALID_SERIAL:
+        case MBEDTLS_ERR_X509_INVALID_ALG:
+        case MBEDTLS_ERR_X509_INVALID_NAME:
+        case MBEDTLS_ERR_X509_INVALID_DATE:
+        case MBEDTLS_ERR_X509_INVALID_SIGNATURE:
+        case MBEDTLS_ERR_X509_INVALID_EXTENSIONS:
+            return SSL_PLATFORM_ERROR_INVALID_DATA;
+        // For positive return values from mbedtls_x509_dn_gets (success case)
         default:
+            if (mbedtls_ret > 0) {
+                return SSL_PLATFORM_SUCCESS;
+            }
             return SSL_PLATFORM_ERROR_GENERIC;
     }
 }

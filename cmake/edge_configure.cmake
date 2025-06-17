@@ -50,6 +50,7 @@ SET (EDGE_CLIENT_REQUEST_TIMEOUT_THRESHOLD_MS 1800000) # Thirty minute
 if (${DEVELOPER_MODE})
   MESSAGE ("Developer mode provisioning set.")
   add_definitions ("-DDEVELOPER_MODE=1")
+  add_definitions ("-DMBED_CONF_APP_DEVELOPER_MODE=1")
   add_definitions ("-DBIND_TO_ALL_INTERFACES=1")
   # Set trace on by default for developer mode
   add_definitions ("-DMBED_CONF_MBED_TRACE_ENABLE=1")
