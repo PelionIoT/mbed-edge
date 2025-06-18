@@ -140,3 +140,6 @@ docs/internal.md
 *.img
 *.dtb
 *.zip
+lib/ssl-platform/test_aes_ctr
+lib/ssl-platform/test_x509_functions
+test_ssl_platform

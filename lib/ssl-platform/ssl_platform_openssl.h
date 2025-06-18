@@ -17,6 +17,9 @@
 #include <openssl/md5.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/asn1.h>
+#include <openssl/objects.h>
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -102,6 +105,28 @@ struct ssl_platform_ssl_config {
     int authmode;     /* verification mode */
     int min_version;  /* minimum TLS version */
     int max_version;  /* maximum TLS version */
+};
+
+/**
+ * \brief Cipher context structure for OpenSSL backend
+ */
+struct ssl_platform_cipher_context {
+    EVP_CIPHER_CTX *ctx;
+    const EVP_CIPHER *cipher;
+    ssl_platform_cipher_type_t cipher_type;
+    unsigned char *cmac_key;
+    size_t cmac_key_len;
+};
+
+/**
+ * \brief CCM context structure for OpenSSL backend
+ */
+struct ssl_platform_ccm_context {
+    EVP_CIPHER_CTX *ctx;
+    const EVP_CIPHER *cipher;
+    int key_bits;
+    unsigned char key[32];  /* Store key for re-initialization */
+    int key_len;
 };
 
 /* =============================================================================
@@ -210,6 +235,29 @@ static inline const EVP_CIPHER* ssl_platform_cipher_type_to_openssl(ssl_platform
             return EVP_aes_192_gcm();
         case SSL_PLATFORM_CIPHER_AES_256_GCM:
             return EVP_aes_256_gcm();
+        case SSL_PLATFORM_CIPHER_AES_128_CCM:
+            return EVP_aes_128_ccm();
+        case SSL_PLATFORM_CIPHER_AES_192_CCM:
+            return EVP_aes_192_ccm();
+        case SSL_PLATFORM_CIPHER_AES_256_CCM:
+            return EVP_aes_256_ccm();
+        default:
+            return NULL;
+    }
+}
+
+/**
+ * \brief Map key size to appropriate OpenSSL CCM cipher
+ */
+static inline const EVP_CIPHER* ssl_platform_ccm_cipher_from_keybits(unsigned int keybits)
+{
+    switch (keybits) {
+        case 128:
+            return EVP_aes_128_ccm();
+        case 192:
+            return EVP_aes_192_ccm();
+        case 256:
+            return EVP_aes_256_ccm();
         default:
             return NULL;
     }

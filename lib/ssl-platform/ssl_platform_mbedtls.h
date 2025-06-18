@@ -22,6 +22,12 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/config.h"
+#include "mbedtls/cipher.h"
+#include "mbedtls/cmac.h"
+#include "mbedtls/ccm.h"
+#include "mbedtls/asn1.h"
+#include "mbedtls/asn1write.h"
+#include "mbedtls/oid.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,6 +101,21 @@ struct ssl_platform_ssl_config {
     mbedtls_ssl_config mbedtls_conf;
 };
 
+/**
+ * \brief Cipher context structure for mbed-TLS backend
+ */
+struct ssl_platform_cipher_context {
+    mbedtls_cipher_context_t mbedtls_ctx;
+    ssl_platform_cipher_type_t cipher_type;
+};
+
+/**
+ * \brief CCM context structure for mbed-TLS backend
+ */
+struct ssl_platform_ccm_context {
+    mbedtls_ccm_context mbedtls_ctx;
+};
+
 /* =============================================================================
  * ERROR CODE MAPPINGS
  * =============================================================================
@@ -111,6 +132,9 @@ static inline int ssl_platform_mbedtls_error_map(int mbedtls_ret)
         case MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL:
             return SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
         case MBEDTLS_ERR_BASE64_INVALID_CHARACTER:
+            return SSL_PLATFORM_ERROR_INVALID_DATA;
+        // CCM related error codes
+        case MBEDTLS_ERR_CCM_AUTH_FAILED:
             return SSL_PLATFORM_ERROR_INVALID_DATA;
         // X.509 related error codes
         case MBEDTLS_ERR_X509_BUFFER_TOO_SMALL:
@@ -203,6 +227,46 @@ static inline mbedtls_ecp_group_id ssl_platform_ecp_group_to_mbedtls(ssl_platfor
             return MBEDTLS_ECP_DP_SECP521R1;
         default:
             return MBEDTLS_ECP_DP_NONE;
+    }
+}
+
+/* =============================================================================
+ * CIPHER TYPE MAPPINGS
+ * =============================================================================
+ */
+
+/**
+ * \brief Map SSL platform cipher type to mbed-TLS cipher type
+ */
+static inline mbedtls_cipher_type_t ssl_platform_cipher_type_to_mbedtls(ssl_platform_cipher_type_t type)
+{
+    switch (type) {
+        case SSL_PLATFORM_CIPHER_AES_128_ECB:
+            return MBEDTLS_CIPHER_AES_128_ECB;
+        case SSL_PLATFORM_CIPHER_AES_192_ECB:
+            return MBEDTLS_CIPHER_AES_192_ECB;
+        case SSL_PLATFORM_CIPHER_AES_256_ECB:
+            return MBEDTLS_CIPHER_AES_256_ECB;
+        case SSL_PLATFORM_CIPHER_AES_128_CBC:
+            return MBEDTLS_CIPHER_AES_128_CBC;
+        case SSL_PLATFORM_CIPHER_AES_192_CBC:
+            return MBEDTLS_CIPHER_AES_192_CBC;
+        case SSL_PLATFORM_CIPHER_AES_256_CBC:
+            return MBEDTLS_CIPHER_AES_256_CBC;
+        case SSL_PLATFORM_CIPHER_AES_128_GCM:
+            return MBEDTLS_CIPHER_AES_128_GCM;
+        case SSL_PLATFORM_CIPHER_AES_192_GCM:
+            return MBEDTLS_CIPHER_AES_192_GCM;
+        case SSL_PLATFORM_CIPHER_AES_256_GCM:
+            return MBEDTLS_CIPHER_AES_256_GCM;
+        case SSL_PLATFORM_CIPHER_AES_128_CCM:
+            return MBEDTLS_CIPHER_AES_128_CCM;
+        case SSL_PLATFORM_CIPHER_AES_192_CCM:
+            return MBEDTLS_CIPHER_AES_192_CCM;
+        case SSL_PLATFORM_CIPHER_AES_256_CCM:
+            return MBEDTLS_CIPHER_AES_256_CCM;
+        default:
+            return MBEDTLS_CIPHER_NONE;
     }
 }
 
