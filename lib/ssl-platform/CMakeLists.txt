@@ -125,6 +125,49 @@ elseif(SSL_PLATFORM_BACKEND EQUAL 2)
     )
 endif()
 
+# Optional: Add test targets
+option(SSL_PLATFORM_BUILD_TESTS "Build SSL Platform tests" ON)
+
+if(SSL_PLATFORM_BUILD_TESTS)
+    # AES CTR test
+    add_executable(test_aes_ctr test_aes_ctr.c)
+    target_link_libraries(test_aes_ctr ssl-platform)
+    
+    # X.509 and CTR-DRBG functions test
+    add_executable(test_x509_functions test_x509_functions.c)
+    target_link_libraries(test_x509_functions ssl-platform)
+    
+    # ECC and MPI functions test
+    add_executable(test_ecc_mpi test_ecc_mpi.c)
+    target_link_libraries(test_ecc_mpi ssl-platform)
+    
+    # CMAC operations test
+    add_executable(test_cmac test_cmac.c)
+    target_link_libraries(test_cmac ssl-platform)
+    
+    # CMAC integration test
+    add_executable(test_cmac_integration test_cmac_integration.c)
+    target_link_libraries(test_cmac_integration ssl-platform)
+    
+    # CCM test
+    add_executable(test_ccm test_ccm.c)
+    target_link_libraries(test_ccm ssl-platform)
+    
+    # Add tests to CTest if enabled
+    if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+        include(CTest)
+        if(BUILD_TESTING)
+            add_test(NAME test_aes_ctr COMMAND test_aes_ctr)
+            add_test(NAME test_x509_functions COMMAND test_x509_functions)
+            add_test(NAME test_ecc_mpi COMMAND test_ecc_mpi)
+            add_test(NAME test_cmac COMMAND test_cmac)
+            add_test(NAME test_ccm COMMAND test_ccm)
+        endif()
+    endif()
+    
+    message(STATUS "SSL Platform tests will be built: test_aes_ctr, test_x509_functions, test_ecc_mpi, test_cmac, test_ccm")
+endif()
+
 # Optional: Add test subdirectory if it exists
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests" AND IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     add_subdirectory(tests)
