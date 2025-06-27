@@ -129,8 +129,9 @@ uint32_t connection_free(struct connection *connection);
  * \brief Create and start Edge eventloop.
  * \param ctx The program context.
  * \param http_port The port of the HTTP server to listen to.
+ * \param http_address The address of the HTTP server to listen to.
  */
-bool create_server_event_loop(struct context *ctx, int http_port);
+bool create_server_event_loop(struct context *ctx, int http_port, char *http_address);
 
 /**
  * \brief Finds the connection given the connection ID.
