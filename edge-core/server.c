@@ -81,7 +81,7 @@ static int configure_libevent()
     return 1;
 }
 
-bool create_server_event_loop(struct context *ctx, int http_port)
+bool create_server_event_loop(struct context *ctx, int http_port, char *http_address)
 {
     init_protocol();
 
@@ -97,7 +97,7 @@ bool create_server_event_loop(struct context *ctx, int http_port)
         return false;
     }
 
-    bool http_server_init_ok = http_server_init(ctx, http_port);
+    bool http_server_init_ok = http_server_init(ctx, http_port, http_address);
     if (!http_server_init_ok) {
         tr_err("Cannot create http server to port %d.", http_port);
     }

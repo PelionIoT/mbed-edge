@@ -104,7 +104,7 @@ EDGE_LOCAL void generic_request_cb(struct evhttp_request *req, void *arg)
     buf = NULL;
 }
 
-bool http_server_init(struct context *ctx, int port)
+bool http_server_init(struct context *ctx, int port, char *http_address)
 {
     struct evhttp *http = NULL;
     struct evhttp_bound_socket *handle = NULL;
@@ -119,11 +119,11 @@ bool http_server_init(struct context *ctx, int port)
         tr_err("Couldn't set the status request call back.\n");
     } else {
         evhttp_set_gencb(http, generic_request_cb, NULL);
-        ctx_data->http_server->bound_socket = handle = evhttp_bind_socket_with_handle(http, "127.0.0.1", port);
+        ctx_data->http_server->bound_socket = handle = evhttp_bind_socket_with_handle(http, http_address, port);
         if (!handle) {
             tr_err("Couldn't bind to port %d.\n", (int) port);
         } else {
-            tr_info("Listening 127.0.0.1 on http port %d.", port);
+            tr_info("Listening %s on http port %d.", http_address, port);
             init_succeeded = true;
         }
     }

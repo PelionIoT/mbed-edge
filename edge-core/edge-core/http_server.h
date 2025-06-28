@@ -31,7 +31,7 @@ struct http_server {
     struct evhttp_bound_socket *bound_socket;
 };
 
-bool http_server_init(struct context *ctx, int port);
+bool http_server_init(struct context *ctx, int port, char *http_address);
 void http_server_clean(struct http_server **server);
 json_t *http_state_in_json(struct context *ctx);
 
