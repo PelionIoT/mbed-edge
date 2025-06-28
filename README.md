@@ -1,8 +1,8 @@
-# Edge
+# Izuma Edge (edge-core)
 
-This document contains the instructions for using and developing Edge.
+This document contains the instructions for using and developing `edge-core` a major component of the Izuma Edge suite.
 
-The full Edge documentation is [part of our Device Management documentation site](https://developer.izumanetworks.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.izumanetworks.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@izumanetworks.com).
+The full Izuma Edge documentation is [part of our Device Management documentation site](https://developer.izumanetworks.com/docs/device-management-edge/latest/introduction/index.html), where you can also find the [API documentation](https://developer.izumanetworks.com/docs/device-management-edge/latest/edge-api-references/index.html). For comments or questions about the documentation, please [email us](mailto:support@izumanetworks.com).
 
 ## License
 
