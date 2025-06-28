@@ -143,3 +143,6 @@ docs/internal.md
 lib/ssl-platform/test_aes_ctr
 lib/ssl-platform/test_x509_functions
 test_ssl_platform
+build-ssl-mbedtls
+build-ssl-openssl
+build-test-openssl
