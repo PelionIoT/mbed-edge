@@ -24,6 +24,10 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/opensslv.h>
+#include <openssl/ec.h>
+#include <openssl/ecdh.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
 #include "ssl_platform_compat.h"
 
 #ifdef __cplusplus
@@ -65,6 +69,7 @@ struct ssl_platform_hash_context {
 struct ssl_platform_pk_context {
     EVP_PKEY *pkey;
     int key_type;  /* RSA, EC, etc. */
+    void *pk_ctx;   /* Compatibility pointer for factory-configurator-client */
 };
 
 /**
@@ -127,6 +132,36 @@ struct ssl_platform_ccm_context {
     int key_bits;
     unsigned char key[32];  /* Store key for re-initialization */
     int key_len;
+};
+
+/**
+ * \brief ECP group structure for OpenSSL backend
+ */
+struct ssl_platform_ecp_group {
+    EC_GROUP *group;
+};
+
+/**
+ * \brief ECP point structure for OpenSSL backend
+ */
+struct ssl_platform_ecp_point {
+    EC_POINT *point;
+    EC_GROUP *group; /* Keep reference to group for operations */
+};
+
+/**
+ * \brief MPI structure for OpenSSL backend
+ */
+struct ssl_platform_mpi {
+    BIGNUM *bn;
+};
+
+/**
+ * \brief ECP keypair structure for OpenSSL backend
+ */
+struct ssl_platform_ecp_keypair {
+    EVP_PKEY *pkey;
+    EC_KEY *ec_key;
 };
 
 /* =============================================================================

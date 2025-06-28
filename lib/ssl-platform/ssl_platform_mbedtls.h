@@ -28,6 +28,8 @@
 #include "mbedtls/asn1.h"
 #include "mbedtls/asn1write.h"
 #include "mbedtls/oid.h"
+#include "mbedtls/bignum.h"
+#include "mbedtls/ecp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,7 +65,7 @@ struct ssl_platform_hash_context {
  * \brief Public key context structure for mbed-TLS backend
  */
 struct ssl_platform_pk_context {
-    mbedtls_pk_context mbedtls_ctx;
+    mbedtls_pk_context pk_ctx;  /* Use pk_ctx name for compatibility with existing code */
 };
 
 /**
@@ -116,6 +118,34 @@ struct ssl_platform_ccm_context {
     mbedtls_ccm_context mbedtls_ctx;
 };
 
+/**
+ * \brief ECP group structure for mbed-TLS backend
+ */
+struct ssl_platform_ecp_group {
+    mbedtls_ecp_group mbedtls_grp;
+};
+
+/**
+ * \brief ECP point structure for mbed-TLS backend
+ */
+struct ssl_platform_ecp_point {
+    mbedtls_ecp_point mbedtls_pt;
+};
+
+/**
+ * \brief ECP keypair structure for mbed-TLS backend
+ */
+struct ssl_platform_ecp_keypair {
+    mbedtls_ecp_keypair mbedtls_keypair;
+};
+
+/**
+ * \brief MPI (Multi-Precision Integer) structure for mbed-TLS backend
+ */
+struct ssl_platform_mpi {
+    mbedtls_mpi mbedtls_mpi;
+};
+
 /* =============================================================================
  * ERROR CODE MAPPINGS
  * =============================================================================
@@ -123,39 +153,10 @@ struct ssl_platform_ccm_context {
 
 /**
  * \brief Convert mbed-TLS error codes to SSL platform error codes
+ * \note This function is implemented in ssl_platform_mbedtls.c 
+ *       to access all SSL platform error constants
  */
-static inline int ssl_platform_mbedtls_error_map(int mbedtls_ret)
-{
-    switch (mbedtls_ret) {
-        case 0:
-            return SSL_PLATFORM_SUCCESS;
-        case MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL:
-            return SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
-        case MBEDTLS_ERR_BASE64_INVALID_CHARACTER:
-            return SSL_PLATFORM_ERROR_INVALID_DATA;
-        // CCM related error codes
-        case MBEDTLS_ERR_CCM_AUTH_FAILED:
-            return SSL_PLATFORM_ERROR_INVALID_DATA;
-        // X.509 related error codes
-        case MBEDTLS_ERR_X509_BUFFER_TOO_SMALL:
-            return SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL;
-        case MBEDTLS_ERR_X509_INVALID_FORMAT:
-        case MBEDTLS_ERR_X509_INVALID_VERSION:
-        case MBEDTLS_ERR_X509_INVALID_SERIAL:
-        case MBEDTLS_ERR_X509_INVALID_ALG:
-        case MBEDTLS_ERR_X509_INVALID_NAME:
-        case MBEDTLS_ERR_X509_INVALID_DATE:
-        case MBEDTLS_ERR_X509_INVALID_SIGNATURE:
-        case MBEDTLS_ERR_X509_INVALID_EXTENSIONS:
-            return SSL_PLATFORM_ERROR_INVALID_DATA;
-        // For positive return values from mbedtls_x509_dn_gets (success case)
-        default:
-            if (mbedtls_ret > 0) {
-                return SSL_PLATFORM_SUCCESS;
-            }
-            return SSL_PLATFORM_ERROR_GENERIC;
-    }
-}
+int ssl_platform_mbedtls_error_map(int mbedtls_ret);
 
 /* =============================================================================
  * HASH TYPE MAPPINGS

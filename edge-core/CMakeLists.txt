@@ -35,10 +35,9 @@ if (TARGET_GROUP STREQUAL test)
 
   target_link_libraries (edge-core jansson jsonrpc libevent-mock-lib rpc mbedTrace libservice edge-client-mock-lib pal-mock-lib test-lib pthread mbed-cloud-client-mock mbedtls ssl-platform)
 else ()
-  target_link_libraries (edge-core jansson websockets event rpc edge-client fccstorage ssl-platform)
+  target_link_libraries (edge-core ssl-platform jansson websockets event rpc edge-client fccstorage ssl-platform)
 endif ()
 
 if(PARSEC_TPM_SE_SUPPORT)
   target_link_libraries (edge-core jansson websockets event rpc edge-client fccstorage mbedcrypto trusted_storage)
 endif()
-

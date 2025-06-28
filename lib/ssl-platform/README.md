@@ -70,8 +70,10 @@ This library was created to enable easy migration from mbed-TLS to OpenSSL in th
 
 ### SSL/TLS Operations
 - SSL context and configuration management
+- Server Name Indication (SNI) support
 - `ssl_platform_ssl_init()`
 - `ssl_platform_ssl_config_init()`
+- `ssl_platform_ssl_set_hostname()` - Set hostname for SNI
 
 ## Usage
 
@@ -135,6 +137,43 @@ void aes_example() {
 }
 ```
 
+### SSL/TLS SNI Example
+
+```c
+#include "ssl_platform.h"
+
+void ssl_sni_example() {
+    ssl_platform_ssl_context_t ssl_ctx;
+    ssl_platform_ssl_config_t ssl_conf;
+    
+    // Initialize SSL context and configuration
+    ssl_platform_ssl_init(&ssl_ctx);
+    ssl_platform_ssl_config_init(&ssl_conf);
+    
+    // Set configuration defaults for client
+    ssl_platform_ssl_config_defaults(&ssl_conf, SSL_PLATFORM_SSL_IS_CLIENT, 
+                                     SSL_PLATFORM_SSL_TRANSPORT_STREAM, 
+                                     SSL_PLATFORM_SSL_PRESET_DEFAULT);
+    
+    // Apply configuration to context
+    ssl_platform_ssl_setup(&ssl_ctx, &ssl_conf);
+    
+    // Set hostname for SNI - critical for many servers
+    int ret = ssl_platform_ssl_set_hostname(&ssl_ctx, "bootstrap.us-east-1.mbedcloud.com");
+    if (ret != SSL_PLATFORM_SUCCESS) {
+        printf("Failed to set hostname for SNI: %d\n", ret);
+    }
+    
+    // Alternatively, use compatibility macro
+    // mbedtls_ssl_set_hostname(&ssl_ctx, "bootstrap.us-east-1.mbedcloud.com");
+    
+    // ... continue with SSL connection setup ...
+    
+    ssl_platform_ssl_free(&ssl_ctx);
+    ssl_platform_ssl_config_free(&ssl_conf);
+}
+```
+
 ## Configuration
 
 ### Backend Selection
@@ -195,6 +234,22 @@ mbedtls_base64_encode(dst, dlen, &olen, src, slen);
 // New SSL platform code
 #include "ssl_platform.h"
 ssl_platform_base64_encode(dst, dlen, &olen, src, slen);
+```
+
+For SSL/TLS operations with SNI support:
+
+```c
+// Old mbed-TLS code
+#include "mbedtls/ssl.h"
+mbedtls_ssl_set_hostname(&ssl, "example.com");
+
+// New SSL platform code (with compatibility macro)
+#include "ssl_platform.h"
+#include "ssl_platform_compat.h"
+mbedtls_ssl_set_hostname(&ssl, "example.com");  // Uses ssl_platform_ssl_set_hostname internally
+
+// Or use SSL platform API directly
+ssl_platform_ssl_set_hostname(&ssl, "example.com");
 ```
 
 ### From SSL Platform to OpenSSL

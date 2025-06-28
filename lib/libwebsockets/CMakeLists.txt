@@ -20,7 +20,4 @@ set(MBEDCRYPTO_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/../mbedtls/library/libmbedcr
 # Add mbedTLS include directories to the current scope
 include_directories("${CMAKE_SOURCE_DIR}/lib/mbedtls/include")
 
-# Define MBEDTLS_RSA_C to enable RSA functions
-add_definitions(-DMBEDTLS_RSA_C)
-
 add_subdirectory(libwebsockets)

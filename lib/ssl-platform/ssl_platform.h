@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,26 @@ extern "C" {
 #define SSL_PLATFORM_ERROR_INVALID_DATA        -4
 #define SSL_PLATFORM_ERROR_MEMORY_ALLOCATION   -5
 #define SSL_PLATFORM_ERROR_NOT_SUPPORTED       -6
+#define SSL_PLATFORM_ERROR_ASN1_UNEXPECTED_TAG -7
+#define SSL_PLATFORM_ERROR_ASN1_OUT_OF_DATA    -8
+#define SSL_PLATFORM_ERROR_ASN1_INVALID_LENGTH -9
+#define SSL_PLATFORM_ERROR_OID_NOT_FOUND       -10
+
+/* SSL/TLS specific error codes */
+#define SSL_PLATFORM_ERROR_WANT_READ           -11
+#define SSL_PLATFORM_ERROR_WANT_WRITE          -12
+#define SSL_PLATFORM_ERROR_TIMEOUT             -13
+#define SSL_PLATFORM_ERROR_CLIENT_RECONNECT    -14
+#define SSL_PLATFORM_ERROR_PEER_CLOSE_NOTIFY   -15
+#define SSL_PLATFORM_ERROR_HELLO_VERIFY_REQUIRED -18
+#define SSL_PLATFORM_ERROR_BAD_INPUT_DATA      -17
+
+/* SSL/TLS configuration constants */
+#define SSL_PLATFORM_SSL_IS_CLIENT             0
+#define SSL_PLATFORM_SSL_IS_SERVER             1
+#define SSL_PLATFORM_SSL_TRANSPORT_STREAM      0
+#define SSL_PLATFORM_SSL_TRANSPORT_DATAGRAM    1
+#define SSL_PLATFORM_SSL_PRESET_DEFAULT        0
 
 /* AES modes */
 typedef enum {
@@ -62,6 +83,9 @@ typedef enum {
     SSL_PLATFORM_HASH_MD5
 } ssl_platform_hash_type_t;
 
+/* Message digest types (for compatibility) */
+typedef ssl_platform_hash_type_t ssl_platform_md_type_t;
+
 /* Cipher modes */
 typedef enum {
     SSL_PLATFORM_CIPHER_AES_128_ECB,
@@ -78,12 +102,37 @@ typedef enum {
     SSL_PLATFORM_CIPHER_AES_256_CCM
 } ssl_platform_cipher_type_t;
 
-/* ECC curves */
+/* ECC curve identifiers */
 typedef enum {
-    SSL_PLATFORM_ECP_DP_SECP256R1,
-    SSL_PLATFORM_ECP_DP_SECP384R1,
-    SSL_PLATFORM_ECP_DP_SECP521R1
+    SSL_PLATFORM_ECP_DP_NONE = 0,
+    SSL_PLATFORM_ECP_DP_SECP256R1,    /* secp256r1 */
+    SSL_PLATFORM_ECP_DP_SECP384R1,    /* secp384r1 */
+    SSL_PLATFORM_ECP_DP_SECP521R1,    /* secp521r1 */
 } ssl_platform_ecp_group_id_t;
+
+/* ASN.1 buffer structure */
+typedef struct ssl_platform_asn1_buf {
+    int tag;                /**< ASN1 type, e.g. MBEDTLS_ASN1_UTF8_STRING. */
+    size_t len;             /**< ASN1 length, in octets. */
+    unsigned char *p;       /**< ASN1 data, e.g. in ASCII. */
+} ssl_platform_asn1_buf;
+
+/* X.509 buffer (alias for ASN.1 buffer) */
+typedef ssl_platform_asn1_buf ssl_platform_x509_buf;
+
+/* ASN.1 sequence structure */
+typedef struct ssl_platform_asn1_sequence {
+    ssl_platform_asn1_buf buf;                   /**< Buffer containing the given ASN.1 item. */
+    struct ssl_platform_asn1_sequence *next;    /**< The next entry in the sequence. */
+} ssl_platform_asn1_sequence;
+
+/* ASN.1 named data structure */
+typedef struct ssl_platform_asn1_named_data {
+    ssl_platform_asn1_buf oid;                         /**< The object identifier. */
+    ssl_platform_asn1_buf val;                         /**< The named value. */
+    struct ssl_platform_asn1_named_data *next;         /**< The next entry in the sequence. */
+    unsigned char next_merged;                          /**< Merge next item into the current one? */
+} ssl_platform_asn1_named_data;
 
 /* Forward declarations for opaque types */
 typedef struct ssl_platform_aes_context ssl_platform_aes_context_t;
@@ -96,6 +145,23 @@ typedef struct ssl_platform_ssl_context ssl_platform_ssl_context_t;
 typedef struct ssl_platform_ssl_config ssl_platform_ssl_config_t;
 typedef struct ssl_platform_cipher_context ssl_platform_cipher_context_t;
 typedef struct ssl_platform_ccm_context ssl_platform_ccm_context_t;
+typedef struct ssl_platform_mpi ssl_platform_mpi_t;
+typedef struct ssl_platform_ecp_group ssl_platform_ecp_group_t;
+typedef struct ssl_platform_ecp_point ssl_platform_ecp_point_t;
+typedef struct ssl_platform_ecp_keypair ssl_platform_ecp_keypair_t;
+
+/* ECC point format constants */
+#define SSL_PLATFORM_ECP_PF_UNCOMPRESSED    0    /**< Uncompressed point format */
+#define SSL_PLATFORM_ECP_PF_COMPRESSED      1    /**< Compressed point format */
+
+/* Include backend-specific definitions */
+#if SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_MBEDTLS
+#include "ssl_platform_mbedtls.h"
+#elif SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_OPENSSL
+#include "ssl_platform_openssl.h"
+#else
+#error "SSL_PLATFORM_BACKEND must be set to either SSL_PLATFORM_BACKEND_MBEDTLS or SSL_PLATFORM_BACKEND_OPENSSL"
+#endif
 
 /* =============================================================================
  * BASE64 OPERATIONS
@@ -617,29 +683,23 @@ int ssl_platform_pk_write_key_der(ssl_platform_pk_context_t *ctx,
                                   unsigned char *buf, size_t size);
 
 /**
- * \brief          Write a public key to a SubjectPublicKeyInfo DER structure
+ * \brief          Write private key to DER format
  *
- * \param ctx      PK context which must contain a valid public or private key.
- * \param buf      buffer to write to
- * \param size     size of the buffer
+ * \param ctx      PK context to use
+ * \param buf      Buffer to write to (or NULL to determine required size)
+ * \param size     Size of the buffer
  *
- * \return         length of data written if successful, or a specific
- *                 error code
+ * \return         Number of bytes written on success, or negative error code
  */
 int ssl_platform_pk_write_pubkey_der(ssl_platform_pk_context_t *ctx,
                                      unsigned char *buf, size_t size);
 
 /**
- * \brief          Get access to the underlying backend context
- *                 
- * This function provides access to the underlying crypto library context
- * for advanced operations that are not yet abstracted by ssl_platform.
- * Use with caution as this breaks backend independence.
+ * \brief          Get the underlying backend context for compatibility
  *
- * \param ctx      PK context
+ * \param ctx      SSL platform PK context
  *
- * \return         Pointer to underlying context (mbedtls_pk_context* for mbed-TLS,
- *                 EVP_PKEY* for OpenSSL), or NULL on error
+ * \return         Pointer to the underlying backend context, or NULL on error
  */
 void *ssl_platform_pk_get_backend_context(ssl_platform_pk_context_t *ctx);
 
@@ -813,6 +873,55 @@ int ssl_platform_asn1_get_tag(unsigned char **p, const unsigned char *end,
 void ssl_platform_entropy_init(ssl_platform_entropy_context_t *ctx);
 
 /**
+ * \brief          Initialize global entropy system for PAL use
+ *                 This creates and initializes a global entropy context for PAL operations
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success, error code otherwise
+ */
+int ssl_platform_pal_entropy_init(void);
+
+/**
+ * \brief          Get the global PAL entropy context
+ *                 Returns the global entropy context for use by PAL functions
+ *
+ * \return         Pointer to global entropy context, NULL if not initialized
+ */
+void* ssl_platform_pal_entropy_get(void);
+
+/**
+ * \brief          Cleanup global entropy system for PAL use
+ *                 This frees the global entropy context used by PAL operations
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success, error code otherwise
+ */
+int ssl_platform_pal_entropy_cleanup(void);
+
+/**
+ * \brief          Add entropy source to global PAL entropy context
+ *
+ * \param f_source Entropy source callback function
+ * \param p_source Entropy source context
+ * \param threshold Minimum bytes required from this source per call
+ * \param strong   Whether this is a strong entropy source
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success, error code otherwise
+ */
+int ssl_platform_pal_entropy_add_source(int (*f_source)(void *, unsigned char *, size_t, size_t *),
+                                        void *p_source, size_t threshold, int strong);
+
+/**
+ * \brief          Entropy function wrapper for PAL use
+ *                 Compatible with ssl_platform_ctr_drbg_seed entropy function signature
+ *
+ * \param data     Entropy context (should be PAL entropy context)
+ * \param output   Buffer to write entropy data to
+ * \param len      Number of bytes to write
+ *
+ * \return         0 on success, error code otherwise
+ */
+int ssl_platform_entropy_func(void *data, unsigned char *output, size_t len);
+
+/**
  * \brief          Free entropy context
  *
  * \param ctx      Entropy context to free
@@ -914,12 +1023,321 @@ void ssl_platform_ssl_config_init(ssl_platform_ssl_config_t *conf);
  */
 void ssl_platform_ssl_config_free(ssl_platform_ssl_config_t *conf);
 
+/**
+ * \brief          Set up SSL context with configuration
+ *
+ * \param ssl      SSL context to set up
+ * \param conf     SSL configuration to use
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_setup(ssl_platform_ssl_context_t *ssl, const ssl_platform_ssl_config_t *conf);
+
+/**
+ * \brief          Set SSL configuration defaults
+ *
+ * \param conf     SSL configuration
+ * \param endpoint SSL_PLATFORM_SSL_IS_CLIENT or SSL_PLATFORM_SSL_IS_SERVER
+ * \param transport SSL_PLATFORM_SSL_TRANSPORT_STREAM or SSL_PLATFORM_SSL_TRANSPORT_DATAGRAM
+ * \param preset   Configuration preset (SSL_PLATFORM_SSL_PRESET_DEFAULT)
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_config_defaults(ssl_platform_ssl_config_t *conf,
+                                    int endpoint, int transport, int preset);
+
+/**
+ * \brief          Perform TLS handshake
+ *
+ * \param ssl      SSL context
+ *
+ * \return         SSL_PLATFORM_SUCCESS when handshake is finished,
+ *                 SSL_PLATFORM_ERROR_WANT_READ/WRITE if handshake is ongoing
+ */
+int ssl_platform_ssl_handshake(ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Perform one step of TLS handshake
+ *
+ * \param ssl      SSL context
+ *
+ * \return         SSL_PLATFORM_SUCCESS when handshake is finished,
+ *                 SSL_PLATFORM_ERROR_WANT_READ/WRITE if handshake is ongoing
+ */
+int ssl_platform_ssl_handshake_step(ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Read data from SSL connection
+ *
+ * \param ssl      SSL context
+ * \param buf      Buffer to read into
+ * \param len      Length of buffer
+ *
+ * \return         Number of bytes read, or a negative error code
+ */
+int ssl_platform_ssl_read(ssl_platform_ssl_context_t *ssl, unsigned char *buf, size_t len);
+
+/**
+ * \brief          Write data to SSL connection
+ *
+ * \param ssl      SSL context
+ * \param buf      Buffer to write from
+ * \param len      Length of data to write
+ *
+ * \return         Number of bytes written, or a negative error code
+ */
+int ssl_platform_ssl_write(ssl_platform_ssl_context_t *ssl, const unsigned char *buf, size_t len);
+
+/**
+ * \brief          Send close notify alert
+ *
+ * \param ssl      SSL context
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_close_notify(ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Set RNG function for SSL configuration
+ *
+ * \param conf     SSL configuration
+ * \param f_rng    RNG function
+ * \param p_rng    RNG parameter
+ */
+void ssl_platform_ssl_conf_rng(ssl_platform_ssl_config_t *conf,
+                               int (*f_rng)(void *, unsigned char *, size_t),
+                               void *p_rng);
+
+/**
+ * \brief          Set authentication mode
+ *
+ * \param conf     SSL configuration
+ * \param authmode Authentication mode
+ */
+void ssl_platform_ssl_conf_authmode(ssl_platform_ssl_config_t *conf, int authmode);
+
+/**
+ * \brief          Set certificate chain and private key
+ *
+ * \param conf     SSL configuration
+ * \param own_cert Certificate chain
+ * \param pk_key   Private key
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_conf_own_cert(ssl_platform_ssl_config_t *conf,
+                                   ssl_platform_x509_crt_t *own_cert,
+                                   ssl_platform_pk_context_t *pk_key);
+
+/**
+ * \brief          Set CA certificate chain
+ *
+ * \param conf     SSL configuration
+ * \param ca_chain CA certificate chain
+ * \param ca_crl   Certificate revocation list (can be NULL)
+ */
+void ssl_platform_ssl_conf_ca_chain(ssl_platform_ssl_config_t *conf,
+                                    ssl_platform_x509_crt_t *ca_chain,
+                                    void *ca_crl);
+
+/**
+ * \brief          Set cipher suites list
+ *
+ * \param conf     SSL configuration
+ * \param ciphersuites Array of cipher suite IDs, terminated by 0
+ */
+void ssl_platform_ssl_conf_ciphersuites(ssl_platform_ssl_config_t *conf,
+                                        const int *ciphersuites);
+
+/**
+ * \brief          Set handshake timeout
+ *
+ * \param conf     SSL configuration
+ * \param min      Minimum timeout in milliseconds
+ * \param max      Maximum timeout in milliseconds
+ */
+void ssl_platform_ssl_conf_handshake_timeout(ssl_platform_ssl_config_t *conf,
+                                             uint32_t min, uint32_t max);
+
+/**
+ * \brief          Set pre-shared key and identity
+ *
+ * \param conf     SSL configuration
+ * \param psk      Pre-shared key
+ * \param psk_len  Length of PSK
+ * \param psk_identity PSK identity
+ * \param psk_identity_len Length of PSK identity
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+#if defined(MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED)
+int ssl_platform_ssl_conf_psk(ssl_platform_ssl_config_t *conf,
+                              const unsigned char *psk, size_t psk_len,
+                              const unsigned char *psk_identity, size_t psk_identity_len);
+#endif
+
+/**
+ * \brief          Set hostname for SNI (Server Name Indication)
+ *
+ * \param ssl      SSL context
+ * \param hostname Server hostname (can be NULL to clear)
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_set_hostname(ssl_platform_ssl_context_t *ssl, const char *hostname);
+
+/**
+ * \brief          Set BIO callbacks
+ *
+ * \param ssl      SSL context
+ * \param p_bio    BIO context
+ * \param f_send   Send function
+ * \param f_recv   Receive function
+ * \param f_recv_timeout Receive with timeout function
+ */
+void ssl_platform_ssl_set_bio(ssl_platform_ssl_context_t *ssl,
+                              void *p_bio,
+                              int (*f_send)(void *, const unsigned char *, size_t),
+                              int (*f_recv)(void *, unsigned char *, size_t),
+                              int (*f_recv_timeout)(void *, unsigned char *, size_t, uint32_t));
+
+/**
+ * \brief          Set timer callbacks for DTLS
+ *
+ * \param ssl      SSL context
+ * \param p_timer  Timer context
+ * \param f_set_timer Set timer function
+ * \param f_get_timer Get timer function
+ */
+void ssl_platform_ssl_set_timer_cb(ssl_platform_ssl_context_t *ssl,
+                                   void *p_timer,
+                                   void (*f_set_timer)(void *, uint32_t, uint32_t),
+                                   int (*f_get_timer)(void *));
+
+/**
+ * \brief          Get verification result
+ *
+ * \param ssl      SSL context
+ *
+ * \return         Verification result flags
+ */
+uint32_t ssl_platform_ssl_get_verify_result(const ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Set debug callback
+ *
+ * \param conf     SSL configuration
+ * \param f_dbg    Debug function
+ * \param p_dbg    Debug context
+ */
+void ssl_platform_ssl_conf_dbg(ssl_platform_ssl_config_t *conf,
+                               void (*f_dbg)(void *, int, const char *, int, const char *),
+                               void *p_dbg);
+
+/**
+ * \brief          Set connection ID for DTLS
+ *
+ * \param ssl      SSL context
+ * \param enable   Whether to enable CID
+ * \param own_cid  Own connection ID (can be NULL)
+ * \param own_cid_len Length of own connection ID
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_set_cid(ssl_platform_ssl_context_t *ssl,
+                             int enable,
+                             unsigned char const *own_cid,
+                             size_t own_cid_len);
+
+/**
+ * \brief          Get current SSL session
+ *
+ * \param ssl      SSL context
+ * \param session  Session structure to fill
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_get_session(const ssl_platform_ssl_context_t *ssl,
+                                 void *session);
+
+/**
+ * \brief          Set SSL session for resumption
+ *
+ * \param ssl      SSL context
+ * \param session  Session structure to use
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_set_session(ssl_platform_ssl_context_t *ssl,
+                                 const void *session);
+
+/**
+ * \brief          Save SSL context to buffer
+ *
+ * \param ssl      SSL context
+ * \param buf      Buffer to save to
+ * \param buf_len  Buffer length
+ * \param olen     Actual length written
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_context_save(ssl_platform_ssl_context_t *ssl,
+                                  unsigned char *buf,
+                                  size_t buf_len,
+                                  size_t *olen);
+
+/**
+ * \brief          Load SSL context from buffer
+ *
+ * \param ssl      SSL context
+ * \param buf      Buffer to load from
+ * \param len      Buffer length
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_context_load(ssl_platform_ssl_context_t *ssl,
+                                  const unsigned char *buf,
+                                  size_t len);
+
+/**
+ * \brief          Initiate SSL renegotiation
+ *
+ * \param ssl      SSL context
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_renegotiate(ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Set maximum fragment length
+ *
+ * \param conf     SSL configuration context
+ * \param mfl_code Maximum fragment length code
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ssl_conf_max_frag_len(ssl_platform_ssl_config_t *conf,
+                                       unsigned char mfl_code);
+
+/* SSL/TLS constants */
+#define SSL_PLATFORM_SSL_IS_CLIENT                  0
+#define SSL_PLATFORM_SSL_IS_SERVER                  1
+
+#define SSL_PLATFORM_SSL_TRANSPORT_STREAM           0
+#define SSL_PLATFORM_SSL_TRANSPORT_DATAGRAM         1
+
+#define SSL_PLATFORM_SSL_PRESET_DEFAULT             0
+
+#define SSL_PLATFORM_SSL_VERIFY_NONE                0
+#define SSL_PLATFORM_SSL_VERIFY_OPTIONAL            1
+#define SSL_PLATFORM_SSL_VERIFY_REQUIRED            2
+
+
+
 /* =============================================================================
  * MULTI-PRECISION INTEGER (MPI) OPERATIONS
  * =============================================================================
  */
-
-typedef struct ssl_platform_mpi ssl_platform_mpi_t;
 
 /**
  * \brief          Initialize an MPI context
@@ -968,12 +1386,90 @@ int ssl_platform_mpi_write_binary(const ssl_platform_mpi_t *X, unsigned char *bu
  */
 int ssl_platform_mpi_read_binary(ssl_platform_mpi_t *X, const unsigned char *buf, size_t buflen);
 
+/**
+ * \brief          Export X into a hexadecimal string
+ *
+ * \param X        Source MPI
+ * \param radix    Output radix (only 16 is supported)
+ * \param buf      Output buffer
+ * \param buflen   Size of output buffer
+ * \param olen     The number of bytes written to buf
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_mpi_write_string(const ssl_platform_mpi_t *X, int radix,
+                                   char *buf, size_t buflen, size_t *olen);
+
+/**
+ * \brief          Import X from a hexadecimal string
+ *
+ * \param X        Destination MPI
+ * \param radix    Input radix (only 16 is supported)
+ * \param s        Input string
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_mpi_read_string(ssl_platform_mpi_t *X, int radix, const char *s);
+
+/**
+ * \brief          Compare signed values
+ *
+ * \param X        Left-hand side MPI
+ * \param Y        Right-hand side MPI
+ *
+ * \return         1 if X is greater than Y,
+ *                -1 if X is lesser than Y or
+ *                 0 if X is equal to Y
+ */
+int ssl_platform_mpi_cmp_mpi(const ssl_platform_mpi_t *X, const ssl_platform_mpi_t *Y);
+
+/**
+ * \brief          Compare signed values
+ *
+ * \param X        Left-hand side MPI
+ * \param z        Right-hand side int
+ *
+ * \return         1 if X is greater than z,
+ *                -1 if X is lesser than z or
+ *                 0 if X is equal to z
+ */
+int ssl_platform_mpi_cmp_int(const ssl_platform_mpi_t *X, int z);
+
+/**
+ * \brief          Copy the contents of Y into X
+ *
+ * \param X        Destination MPI
+ * \param Y        Source MPI
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_mpi_copy(ssl_platform_mpi_t *X, const ssl_platform_mpi_t *Y);
+
+/**
+ * \brief          Set bit to a specific value
+ *
+ * \param X        MPI to use
+ * \param pos      Zero-based index of the bit to modify
+ * \param val      Desired value of the bit (0 or 1)
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_mpi_set_bit(ssl_platform_mpi_t *X, size_t pos, unsigned char val);
+
+/**
+ * \brief          Get a specific bit from X
+ *
+ * \param X        MPI to use
+ * \param pos      Zero-based index of the bit to query
+ *
+ * \return         0 or 1 on success, negative on error
+ */
+int ssl_platform_mpi_get_bit(const ssl_platform_mpi_t *X, size_t pos);
+
 /* =============================================================================
  * ECC GROUP OPERATIONS
  * =============================================================================
  */
-
-typedef struct ssl_platform_ecp_group ssl_platform_ecp_group_t;
 
 /**
  * \brief          Initialize an ECP group context
@@ -1005,11 +1501,6 @@ int ssl_platform_ecp_group_load(ssl_platform_ecp_group_t *grp, ssl_platform_ecp_
  * ECC POINT OPERATIONS
  * =============================================================================
  */
-
-typedef struct ssl_platform_ecp_point ssl_platform_ecp_point_t;
-
-#define SSL_PLATFORM_ECP_PF_UNCOMPRESSED    0    /**< Uncompressed point format */
-#define SSL_PLATFORM_ECP_PF_COMPRESSED      1    /**< Compressed point format */
 
 /**
  * \brief          Initialize an ECP point context
@@ -1063,8 +1554,6 @@ int ssl_platform_ecp_point_read_binary(const ssl_platform_ecp_group_t *grp,
  * =============================================================================
  */
 
-typedef struct ssl_platform_ecp_keypair ssl_platform_ecp_keypair_t;
-
 /**
  * \brief          Get ECC keypair from PK context
  *
@@ -1072,7 +1561,7 @@ typedef struct ssl_platform_ecp_keypair ssl_platform_ecp_keypair_t;
  *
  * \return         Pointer to keypair or NULL on error
  */
-ssl_platform_ecp_keypair_t *ssl_platform_pk_get_ecp_keypair(ssl_platform_pk_context_t *ctx);
+void *ssl_platform_pk_get_ecp_keypair(ssl_platform_pk_context_t *ctx);
 
 /**
  * \brief          Get group from ECC keypair
@@ -1081,7 +1570,7 @@ ssl_platform_ecp_keypair_t *ssl_platform_pk_get_ecp_keypair(ssl_platform_pk_cont
  *
  * \return         Pointer to group or NULL on error
  */
-ssl_platform_ecp_group_t *ssl_platform_ecp_keypair_get_group(ssl_platform_ecp_keypair_t *keypair);
+void *ssl_platform_ecp_keypair_get_group(ssl_platform_ecp_keypair_t *keypair);
 
 /**
  * \brief          Get public point from ECC keypair
@@ -1101,6 +1590,78 @@ ssl_platform_ecp_point_t *ssl_platform_ecp_keypair_get_point(ssl_platform_ecp_ke
  */
 ssl_platform_mpi_t *ssl_platform_ecp_keypair_get_private(ssl_platform_ecp_keypair_t *keypair);
 
+/**
+ * \brief          Initialize ECC keypair context
+ *
+ * \param keypair  ECC keypair to initialize
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ecp_keypair_init(ssl_platform_ecp_keypair_t *keypair);
+
+/**
+ * \brief          Free the components of an ECC keypair
+ *
+ * \param keypair  ECC keypair to free
+ */
+void ssl_platform_ecp_keypair_free(ssl_platform_ecp_keypair_t *keypair);
+
+/**
+ * \brief          Generate ECC keypair
+ *
+ * \param grp_id   ECC group identifier
+ * \param keypair  Destination keypair
+ * \param f_rng    RNG function
+ * \param p_rng    RNG parameter
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ecp_gen_key(ssl_platform_ecp_group_id_t grp_id,
+                             ssl_platform_ecp_keypair_t *keypair,
+                             int (*f_rng)(void *, unsigned char *, size_t),
+                             void *p_rng);
+
+/**
+ * \brief          Check that a private key is valid for this curve
+ *
+ * \param grp      ECC group
+ * \param d        Private key (MPI)
+ *
+ * \return         SSL_PLATFORM_SUCCESS if valid
+ */
+int ssl_platform_ecp_check_privkey(const ssl_platform_ecp_group_t *grp,
+                                   const ssl_platform_mpi_t *d);
+
+/**
+ * \brief          Check that a point is valid as a public key
+ *
+ * \param grp      ECC group
+ * \param pt       Point to check
+ *
+ * \return         SSL_PLATFORM_SUCCESS if valid
+ */
+int ssl_platform_ecp_check_pubkey(const ssl_platform_ecp_group_t *grp,
+                                  const ssl_platform_ecp_point_t *pt);
+
+/**
+ * \brief          Compute shared secret using ECDH
+ *
+ * \param grp      ECC group
+ * \param z        Destination MPI (shared secret)
+ * \param Q        Peer's public key point
+ * \param d        Our private key
+ * \param f_rng    RNG function
+ * \param p_rng    RNG parameter
+ *
+ * \return         SSL_PLATFORM_SUCCESS on success
+ */
+int ssl_platform_ecdh_compute_shared(const ssl_platform_ecp_group_t *grp,
+                                     ssl_platform_mpi_t *z,
+                                     const ssl_platform_ecp_point_t *Q,
+                                     const ssl_platform_mpi_t *d,
+                                     int (*f_rng)(void *, unsigned char *, size_t),
+                                     void *p_rng);
+
 /* =============================================================================
  * ENHANCED PK OPERATIONS
  * =============================================================================
@@ -1109,7 +1670,8 @@ ssl_platform_mpi_t *ssl_platform_ecp_keypair_get_private(ssl_platform_ecp_keypai
 typedef enum {
     SSL_PLATFORM_PK_ECKEY,
     SSL_PLATFORM_PK_ECDSA,
-    SSL_PLATFORM_PK_RSA
+    SSL_PLATFORM_PK_RSA,
+    SSL_PLATFORM_PK_DSA
 } ssl_platform_pk_type_t;
 
 /**
@@ -1132,64 +1694,15 @@ const void *ssl_platform_pk_info_from_type(ssl_platform_pk_type_t type);
 int ssl_platform_pk_setup_info(ssl_platform_pk_context_t *ctx, const void *info);
 
 /* =============================================================================
- * BACKEND-SPECIFIC INCLUDES
+ * ASN.1 WRITING/ENCODING FUNCTIONS
  * =============================================================================
  */
-
-#if SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_MBEDTLS
-#include "ssl_platform_mbedtls.h"
-#elif SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_OPENSSL
-#include "ssl_platform_openssl.h"
-#else
-#error "Unknown SSL platform backend"
-#endif
-
-// Forward declarations and type definitions for ASN.1 operations
-#if SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_MBEDTLS
-typedef mbedtls_mpi ssl_platform_mpi;
-typedef mbedtls_asn1_buf ssl_platform_asn1_buf;
-typedef mbedtls_asn1_sequence ssl_platform_asn1_sequence;
-typedef mbedtls_x509_buf ssl_platform_x509_buf;
-typedef mbedtls_md_type_t ssl_platform_md_type_t;
-typedef mbedtls_ecp_group_id ssl_platform_ecp_group_id;
-typedef mbedtls_asn1_named_data ssl_platform_asn1_named_data;
-#elif SSL_PLATFORM_BACKEND == SSL_PLATFORM_BACKEND_OPENSSL
-typedef BIGNUM ssl_platform_mpi;
-typedef struct {
-    unsigned char *p;
-    size_t len;
-} ssl_platform_asn1_buf;
-typedef struct ssl_platform_asn1_sequence {
-    ssl_platform_asn1_buf buf;
-    struct ssl_platform_asn1_sequence *next;
-} ssl_platform_asn1_sequence;
-typedef ssl_platform_asn1_buf ssl_platform_x509_buf;
-typedef enum {
-    SSL_PLATFORM_MD_NONE = 0,
-    SSL_PLATFORM_MD_MD5,
-    SSL_PLATFORM_MD_SHA1,
-    SSL_PLATFORM_MD_SHA256,
-    SSL_PLATFORM_MD_SHA384,
-    SSL_PLATFORM_MD_SHA512,
-} ssl_platform_md_type_t;
-typedef enum {
-    SSL_PLATFORM_ECP_DP_NONE = 0,
-    SSL_PLATFORM_ECP_DP_SECP256R1,
-    SSL_PLATFORM_ECP_DP_SECP384R1,
-    SSL_PLATFORM_ECP_DP_SECP521R1,
-} ssl_platform_ecp_group_id;
-typedef struct ssl_platform_asn1_named_data {
-    ssl_platform_asn1_buf oid;
-    ssl_platform_asn1_buf val;
-    struct ssl_platform_asn1_named_data *next;
-} ssl_platform_asn1_named_data;
-#endif
 
 // ASN.1 Writing/Encoding Functions
 int ssl_platform_asn1_write_len(unsigned char **p, unsigned char *start, size_t len);
 int ssl_platform_asn1_write_tag(unsigned char **p, unsigned char *start, unsigned char tag);
 int ssl_platform_asn1_write_int(unsigned char **p, unsigned char *start, int val);
-int ssl_platform_asn1_write_mpi(unsigned char **p, unsigned char *start, const ssl_platform_mpi *X);
+int ssl_platform_asn1_write_mpi(unsigned char **p, unsigned char *start, const ssl_platform_mpi_t *X);
 int ssl_platform_asn1_write_null(unsigned char **p, unsigned char *start);
 int ssl_platform_asn1_write_oid(unsigned char **p, unsigned char *start, 
                                 const char *oid, size_t oid_len);
@@ -1230,9 +1743,9 @@ int ssl_platform_oid_get_oid_by_pk_alg(ssl_platform_pk_type_t pk_alg,
                                        const char **oid, size_t *oid_len);
 int ssl_platform_oid_get_oid_by_md(ssl_platform_md_type_t md_alg,
                                    const char **oid, size_t *oid_len);
-int ssl_platform_oid_get_oid_by_ec_grp(ssl_platform_ecp_group_id grp_id,
+int ssl_platform_oid_get_oid_by_ec_grp(ssl_platform_ecp_group_id_t grp_id,
                                        const char **oid, size_t *oid_len);
-int ssl_platform_oid_get_ec_grp(const ssl_platform_asn1_buf *oid, ssl_platform_ecp_group_id *grp_id);
+int ssl_platform_oid_get_ec_grp(const ssl_platform_asn1_buf *oid, ssl_platform_ecp_group_id_t *grp_id);
 
 // ASN.1 Sequence and Named Data Functions
 void ssl_platform_asn1_sequence_free(ssl_platform_asn1_sequence *seq);
@@ -1246,6 +1759,110 @@ void ssl_platform_asn1_named_data_free(ssl_platform_asn1_named_data *entry);
 ssl_platform_asn1_named_data *ssl_platform_asn1_store_named_data(ssl_platform_asn1_named_data **head,
                                                                  const char *oid, size_t oid_len,
                                                                  const unsigned char *val, size_t val_len);
+
+/**
+ * \brief          Get the ECC keypair from a PK context
+ *
+ * \param ctx      SSL platform PK context
+ *
+ * \return         Pointer to the underlying ECC keypair, or NULL on error
+ */
+void *ssl_platform_pk_get_ecp_keypair(ssl_platform_pk_context_t *ctx);
+
+/**
+ * \brief          Get the private key MPI from an ECC keypair
+ *
+ * \param keypair  SSL platform ECC keypair
+ *
+ * \return         Pointer to the private key MPI, or NULL on error
+ */
+void *ssl_platform_ecp_keypair_get_private_key(ssl_platform_ecp_keypair_t *keypair);
+
+/**
+ * \brief          Get the public key point from an ECC keypair
+ *
+ * \param keypair  SSL platform ECC keypair
+ *
+ * \return         Pointer to the public key point, or NULL on error
+ */
+void *ssl_platform_ecp_keypair_get_public_key(ssl_platform_ecp_keypair_t *keypair);
+
+/**
+ * \brief          Get the group from an ECC keypair
+ *
+ * \param keypair  SSL platform ECC keypair
+ *
+ * \return         Pointer to the ECC group, or NULL on error
+ */
+void *ssl_platform_ecp_keypair_get_group(ssl_platform_ecp_keypair_t *keypair);
+
+/**
+ * \brief          Get the group ID from an ECC group
+ *
+ * \param group    SSL platform ECC group
+ *
+ * \return         The group ID, or 0 on error
+ */
+int ssl_platform_ecp_group_get_id(ssl_platform_ecp_group_t *group);
+
+/**
+ * \brief          Get the underlying MPI backend context
+ *
+ * \param mpi      SSL platform MPI context
+ *
+ * \return         Pointer to the underlying MPI backend context, or NULL on error
+ */
+void *ssl_platform_mpi_get_backend_context(ssl_platform_mpi_t *mpi);
+
+/**
+ * \brief          Get SSL context state
+ *
+ * \param ssl      SSL context
+ *
+ * \return         Current SSL state, or -1 on error
+ */
+int ssl_platform_ssl_get_state(const ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Check if SSL handshake is complete
+ *
+ * \param ssl      SSL context
+ *
+ * \return         true if handshake is complete, false otherwise
+ */
+bool ssl_platform_ssl_handshake_is_over(const ssl_platform_ssl_context_t *ssl);
+
+/**
+ * \brief          Save SSL session for resumption
+ *
+ * \param ssl      SSL context
+ * \param buf      Buffer to save session data
+ * \param buf_len  Buffer length
+ * \param olen     Actual length of saved session data
+ *
+ * \return         0 if successful, or error code
+ */
+int ssl_platform_ssl_session_save(const ssl_platform_ssl_context_t *ssl, unsigned char *buf, size_t buf_len, size_t *olen);
+
+/**
+ * \brief          Load SSL session for resumption
+ *
+ * \param ssl      SSL context
+ * \param buf      Buffer containing session data
+ * \param len      Length of session data
+ *
+ * \return         0 if successful, or error code
+ */
+int ssl_platform_ssl_session_load(ssl_platform_ssl_context_t *ssl, const unsigned char *buf, size_t len);
+
+// Additional error codes for better handshake debugging
+#define SSL_PLATFORM_ERROR_CONNECTION_CLOSED   -19
+#define SSL_PLATFORM_ERROR_CONNECTION_RESET    -20
+#define SSL_PLATFORM_ERROR_HANDSHAKE_FAILED    -21
+#define SSL_PLATFORM_ERROR_CERTIFICATE_VERIFY_FAILED -22
+#define SSL_PLATFORM_ERROR_UNKNOWN             -23
+#define SSL_PLATFORM_ERROR_BUFFER_TOO_SMALL    -24
+#define SSL_PLATFORM_ERROR_FEATURE_UNAVAILABLE -25
 
 #ifdef __cplusplus
 }

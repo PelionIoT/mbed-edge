@@ -37,6 +37,7 @@ endif()
 set(SSL_PLATFORM_COMMON_SOURCES
     ssl_platform.h
     ssl_platform_compat.h
+    ssl_platform_mpi_ext.h
 )
 
 # Backend-specific source files and dependencies
@@ -48,6 +49,8 @@ if(SSL_PLATFORM_BACKEND EQUAL 1)
         ${SSL_PLATFORM_COMMON_SOURCES}
         ssl_platform_mbedtls.h
         ssl_platform_mbedtls.c
+        ssl_platform_mpi_ext.h
+        ssl_platform_mpi_ext.c
     )
     
     # mbed-TLS include directories
@@ -68,6 +71,8 @@ elseif(SSL_PLATFORM_BACKEND EQUAL 2)
         ${SSL_PLATFORM_COMMON_SOURCES}
         ssl_platform_openssl.h
         ssl_platform_openssl.c
+        ssl_platform_mpi_ext.h
+        ssl_platform_mpi_ext.c
     )
     
     # OpenSSL include directories
@@ -110,6 +115,7 @@ install(TARGETS ssl-platform
 install(FILES
     ssl_platform.h
     ssl_platform_compat.h
+    ssl_platform_mpi_ext.h
     DESTINATION include/ssl-platform
 )
 
@@ -153,6 +159,10 @@ if(SSL_PLATFORM_BUILD_TESTS)
     add_executable(test_ccm test_ccm.c)
     target_link_libraries(test_ccm ssl-platform)
     
+    # SNI test
+    add_executable(test_sni test_sni.c)
+    target_link_libraries(test_sni ssl-platform)
+    
     # Add tests to CTest if enabled
     if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         include(CTest)
@@ -162,10 +172,11 @@ if(SSL_PLATFORM_BUILD_TESTS)
             add_test(NAME test_ecc_mpi COMMAND test_ecc_mpi)
             add_test(NAME test_cmac COMMAND test_cmac)
             add_test(NAME test_ccm COMMAND test_ccm)
+            add_test(NAME test_sni COMMAND test_sni)
         endif()
     endif()
     
-    message(STATUS "SSL Platform tests will be built: test_aes_ctr, test_x509_functions, test_ecc_mpi, test_cmac, test_ccm")
+    message(STATUS "SSL Platform tests will be built: test_aes_ctr, test_x509_functions, test_ecc_mpi, test_cmac, test_ccm, test_sni")
 endif()
 
 # Optional: Add test subdirectory if it exists
