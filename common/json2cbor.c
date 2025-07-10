@@ -52,9 +52,11 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
     cbor_encoder_create_map(arr, &map, map_size);
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+    tr_info("Encoding key/cert file content %s into kcm", name);
     CHECK_CBOR(cbor_encode_text_stringz(&map, "Data"), "encoding 'Data' key");
     CHECK_CBOR(cbor_encode_byte_string(&map, data, len), "encoding 'Data' value");
 #else
+    tr_info("Encoding key/cert external file path %s into kcm", name);
     cbor_encode_text_stringz(&map, "Data");
     cbor_encode_text_stringz(&map, path);
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
