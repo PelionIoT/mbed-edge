@@ -16,6 +16,12 @@ COPY . .
 RUN pip3 install --upgrade pip
 RUN pip3 install manifest-tool
 
+# Use existing test data for update certificates if the target file doesn't exist
+RUN if [ ! -f lib/mbed-cloud-client/source/update_default_resources.c ]; then \
+        echo "Using test data for update certificates..." && \
+        cp edge-tool/test_data/update_default_resources.c lib/mbed-cloud-client/source/update_default_resources.c; \
+    fi
+
 RUN mkdir -p build && \
     cd build  &&  \
     cmake -DDEVELOPER_MODE=ON -DFIRMWARE_UPDATE=ON .. && \
