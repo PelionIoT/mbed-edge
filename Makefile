@@ -59,7 +59,7 @@ run-edge-core-resetting-storage:
 	./build/bin/edge-core -p 22225 -o 8080 --reset-storage
 
 # SBOM generation targets
-build-with-sbom: lib/mbed-cloud-client/source/update_default_resources.c generate-cli-parsers
+build-with-sbom: generate-cli-parsers
 	docker build -t edge-core:sbom-latest .
 
 extract-sbom: build-with-sbom

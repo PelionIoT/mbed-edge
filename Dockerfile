@@ -16,11 +16,12 @@ COPY . .
 RUN pip3 install --upgrade pip
 RUN pip3 install manifest-tool
 
-# Use existing test data for update certificates if the target file doesn't exist
-RUN if [ ! -f lib/mbed-cloud-client/source/update_default_resources.c ]; then \
-        echo "Using test data for update certificates..." && \
-        cp edge-tool/test_data/update_default_resources.c lib/mbed-cloud-client/source/update_default_resources.c; \
-    fi
+# Copy test certificate files to required locations
+RUN echo "Setting up test certificates..." && \
+    mkdir -p config && \
+    cp edge-tool/test_data/update_default_resources.c lib/mbed-cloud-client/source/update_default_resources.c && \
+    cp edge-tool/test_data/mbed_cloud_dev_credentials.c config/mbed_cloud_dev_credentials.c && \
+    echo "Test certificates configured"
 
 RUN mkdir -p build && \
     cd build  &&  \
