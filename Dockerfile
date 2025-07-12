@@ -27,7 +27,7 @@ FROM ubuntu:22.04 AS sbom-generator
 # Install tools needed for binary analysis and SBOM generation
 RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata && \
-    apt-get install -y curl wget file binutils dpkg-dev readelf objdump && \
+    apt-get install -y curl wget file binutils dpkg-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Syft for SBOM generation
