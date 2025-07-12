@@ -63,17 +63,47 @@ build-with-sbom: lib/mbed-cloud-client/source/update_default_resources.c generat
 	docker build -t edge-core:sbom-latest .
 
 extract-sbom: build-with-sbom
-	@echo "Extracting SBOM files from Docker image..."
+	@echo "Extracting SBOM files and analysis from Docker image..."
 	@docker create --name temp-sbom-container edge-core:sbom-latest
-	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom.spdx.json ./sbom.spdx.json
-	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom.spdx.txt ./sbom.spdx.txt
-	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom.cyclonedx.json ./sbom.cyclonedx.json
-	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/edge-core-dependencies.txt ./edge-core-dependencies.txt
+	@echo "Extracting full SBOM files..."
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-full.spdx.json ./sbom-full.spdx.json
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-full.spdx.txt ./sbom-full.spdx.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-full.cyclonedx.json ./sbom-full.cyclonedx.json
+	@echo "Extracting application-only SBOM files..."
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-app-only.spdx.json ./sbom-app-only.spdx.json
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-app-only.spdx.txt ./sbom-app-only.spdx.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-app-only.cyclonedx.json ./sbom-app-only.cyclonedx.json
+	@echo "Extracting analysis files..."
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/edge-core-dynamic-deps.txt ./edge-core-dynamic-deps.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/edge-core-readelf.txt ./edge-core-readelf.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/edge-core-package-mapping.txt ./edge-core-package-mapping.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/edge-core-license-analysis.txt ./edge-core-license-analysis.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom-analysis-report.md ./sbom-analysis-report.md
 	@docker rm temp-sbom-container
-	@echo "SBOM files extracted to current directory:"
-	@echo "  - sbom.spdx.json"
-	@echo "  - sbom.spdx.txt" 
-	@echo "  - sbom.cyclonedx.json"
-	@echo "  - edge-core-dependencies.txt"
+	@echo ""
+	@echo "SBOM files and analysis extracted to current directory:"
+	@echo ""
+	@echo "📋 FULL SBOM FILES (includes all dependencies):"
+	@echo "  - sbom-full.spdx.json"
+	@echo "  - sbom-full.spdx.txt"
+	@echo "  - sbom-full.cyclonedx.json"
+	@echo ""
+	@echo "📦 APPLICATION-ONLY SBOM FILES (excludes system libraries):"
+	@echo "  - sbom-app-only.spdx.json"
+	@echo "  - sbom-app-only.spdx.txt"
+	@echo "  - sbom-app-only.cyclonedx.json"
+	@echo ""
+	@echo "🔍 ANALYSIS FILES:"
+	@echo "  - edge-core-dynamic-deps.txt (ldd output)"
+	@echo "  - edge-core-readelf.txt (static/dynamic analysis)"
+	@echo "  - edge-core-package-mapping.txt (lib to package mapping)"
+	@echo "  - edge-core-license-analysis.txt (license information)"
+	@echo "  - sbom-analysis-report.md (comprehensive report)"
+	@echo ""
+	@echo "📖 Next steps:"
+	@echo "  1. Review sbom-analysis-report.md for overview"
+	@echo "  2. Check edge-core-license-analysis.txt for GPL dependencies"
+	@echo "  3. Use sbom-app-only.* for distribution SBOM"
+	@echo "  4. Use sbom-full.* for complete dependency tracking"
 
 all: build-byoc build-doc
