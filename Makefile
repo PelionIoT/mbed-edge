@@ -3,7 +3,8 @@ JOBS:=$(shell nproc)
 .PHONY: clean build-developer build-developer-debug \
 	build-byoc build-byoc-debug build-factory \
 	generate-cli-parsers run-edge-core all \
-	run-edge-core-resetting-storage build-doc
+	run-edge-core-resetting-storage build-doc \
+	build-with-sbom extract-sbom
 
 clean:
 	rm -rf build build-doc build-nondebug config/edge_version_info.h
@@ -56,5 +57,23 @@ run-edge-core:
 
 run-edge-core-resetting-storage:
 	./build/bin/edge-core -p 22225 -o 8080 --reset-storage
+
+# SBOM generation targets
+build-with-sbom: lib/mbed-cloud-client/source/update_default_resources.c generate-cli-parsers
+	docker build -t edge-core:sbom-latest .
+
+extract-sbom: build-with-sbom
+	@echo "Extracting SBOM files from Docker image..."
+	@docker create --name temp-sbom-container edge-core:sbom-latest
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom.spdx.json ./sbom.spdx.json
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom.spdx.txt ./sbom.spdx.txt
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/sbom.cyclonedx.json ./sbom.cyclonedx.json
+	@docker cp temp-sbom-container:/usr/src/app/mbed-edge/edge-core-dependencies.txt ./edge-core-dependencies.txt
+	@docker rm temp-sbom-container
+	@echo "SBOM files extracted to current directory:"
+	@echo "  - sbom.spdx.json"
+	@echo "  - sbom.spdx.txt" 
+	@echo "  - sbom.cyclonedx.json"
+	@echo "  - edge-core-dependencies.txt"
 
 all: build-byoc build-doc
