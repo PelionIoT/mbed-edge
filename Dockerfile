@@ -196,6 +196,8 @@ COPY --from=sbom-generator /sbom-workspace/sbom-app-only.spdx.json ./sbom-app-on
 COPY --from=sbom-generator /sbom-workspace/sbom-app-only.spdx.txt ./sbom-app-only.spdx.txt
 COPY --from=sbom-generator /sbom-workspace/sbom-app-only.cyclonedx.json ./sbom-app-only.cyclonedx.json
 COPY --from=sbom-generator /sbom-workspace/edge-core-dynamic-deps.txt ./edge-core-dynamic-deps.txt
+COPY --from=sbom-generator /sbom-workspace/edge-core-readelf.txt ./edge-core-readelf.txt
+COPY --from=sbom-generator /sbom-workspace/edge-core-package-mapping.txt ./edge-core-package-mapping.txt
 COPY --from=sbom-generator /sbom-workspace/edge-core-license-analysis.txt ./edge-core-license-analysis.txt
 COPY --from=sbom-generator /sbom-workspace/sbom-analysis-report.md ./sbom-analysis-report.md
 
