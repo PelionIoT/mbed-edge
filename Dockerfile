@@ -56,8 +56,8 @@ RUN cat > analyze_binary.sh << 'EOF'
 set -e
 
 echo "=== EDGE-CORE BINARY ANALYSIS ==="
-echo "Binary: $(file ./edge-core)"
-echo "Size: $(stat -c%s ./edge-core) bytes"
+echo "Binary: \$(file ./edge-core)"
+echo "Size: \$(stat -c%s ./edge-core) bytes"
 echo ""
 
 echo "=== DYNAMIC DEPENDENCIES (ldd) ==="
@@ -86,11 +86,11 @@ echo "Mapping dynamic libraries to system packages..."
 > edge-core-package-mapping.txt
 if [ -s edge-core-dynamic-deps.txt ]; then
     while IFS= read -r line; do
-        if [[ $line =~ .*=>.*\(.*\) ]]; then
-            lib_path=$(echo "$line" | awk '{print $3}')
-            if [ "$lib_path" != "(0x" ] && [ -f "$lib_path" ]; then
-                package=$(dpkg -S "$lib_path" 2>/dev/null | cut -d: -f1 || echo "unknown")
-                echo "$lib_path -> $package" >> edge-core-package-mapping.txt
+        if [[ \$line =~ .*=>.*\(.*\) ]]; then
+            lib_path=\$(echo "\$line" | awk '{print \$3}')
+            if [ "\$lib_path" != "(0x" ] && [ -f "\$lib_path" ]; then
+                package=\$(dpkg -S "\$lib_path" 2>/dev/null | cut -d: -f1 || echo "unknown")
+                echo "\$lib_path -> \$package" >> edge-core-package-mapping.txt
             fi
         fi
     done < edge-core-dynamic-deps.txt
@@ -102,10 +102,10 @@ echo "Analyzing licenses of dependencies..."
 > edge-core-license-analysis.txt
 if [ -s edge-core-package-mapping.txt ]; then
     while IFS= read -r line; do
-        package=$(echo "$line" | cut -d' ' -f3)
-        if [ "$package" != "unknown" ] && [ "$package" != "" ]; then
-            license=$(dpkg-query -W -f='${Package}: ${License}\n' "$package" 2>/dev/null || echo "$package: License info not available")
-            echo "$license" >> edge-core-license-analysis.txt
+        package=\$(echo "\$line" | cut -d' ' -f3)
+        if [ "\$package" != "unknown" ] && [ "\$package" != "" ]; then
+            license=\$(dpkg-query -W -f='\${Package}: \${License}\n' "\$package" 2>/dev/null || echo "\$package: License info not available")
+            echo "\$license" >> edge-core-license-analysis.txt
         fi
     done < edge-core-package-mapping.txt
 fi
