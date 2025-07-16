@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+      - name: Remove lib directory
+        run: rm -rf lib/
       - name: Misspell
         uses: PelionIoT/actions/.github/actions/misspell@main
         with:
