@@ -37,9 +37,9 @@ typedef struct {
     int reset_storage;
     int version;
     /* options with arguments */
+    char *bind;
     char *cbor_conf;
     char *edge_pt_domain_socket;
-    char *http_address;
     char *http_port;
     /* special */
     const char *usage_pattern;
@@ -302,6 +302,9 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             args->reset_storage = option->value;
         } else if (!strcmp(option->olong, "--version")) {
             args->version = option->value;
+        } else if (!strcmp(option->olong, "--bind")) {
+            if (option->argument)
+                args->bind = option->argument;
         } else if (!strcmp(option->olong, "--cbor-conf")) {
             if (option->argument)
                 args->cbor_conf = option->argument;
@@ -311,9 +314,6 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
         } else if (!strcmp(option->olong, "--http-port")) {
             if (option->argument)
                 args->http_port = option->argument;
-        } else if (!strcmp(option->olong, "--bind")) {
-            if (option->argument)
-                args->http_address = option->argument;
         }
     }
     /* commands */
@@ -334,7 +334,8 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
     DocoptArgs args = {
-        0, 0, 0, 0, NULL, (char*) "/tmp/edge.sock", (char*) "127.0.0.1", (char*) "8080",
+        0, 0, 0, 0, (char*) "127.0.0.1", NULL, (char*) "/tmp/edge.sock", (char*)
+        "8080",
         usage_pattern, help_message
     };
     Tokens ts;
@@ -347,9 +348,9 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-h", "--help", 0, 0, NULL},
         {"-r", "--reset-storage", 0, 0, NULL},
         {"-v", "--version", 0, 0, NULL},
+        {"-b", "--bind", 1, 0, NULL},
         {"-c", "--cbor-conf", 1, 0, NULL},
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
-        {"-b", "--bind", 1, 0, NULL},
         {"-o", "--http-port", 1, 0, NULL}
     };
     Elements elements = {0, 0, 8, commands, arguments, options};

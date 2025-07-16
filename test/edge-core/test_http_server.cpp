@@ -75,7 +75,7 @@ TEST(http_server_group, test_http_server_init_when_everything_succeeds)
     struct evhttp *http = (struct evhttp *) calloc(1, sizeof(struct evhttp));
     struct evhttp_bound_socket *socket = (struct evhttp_bound_socket *) calloc(1, sizeof(struct evhttp_bound_socket));
     test_http_server_init_succeeds_expectations(http, socket, "127.0.0.1", 22500);
-    bool init_succeeds = http_server_init(&ctx, 22500);
+    bool init_succeeds = http_server_init(&ctx, 22500, (char*)"127.0.0.1");
     CHECK_EQUAL(true, init_succeeds);
     free(http);
     free(socket);
@@ -89,7 +89,7 @@ TEST(http_server_group, test_http_server_create_set_cb_fails)
     mock().expectOneCall("evhttp_new").andReturnValue((void *) http);
     mock().expectOneCall("evhttp_set_cb").andReturnValue(1);
     mock().expectOneCall("evhttp_free");
-    bool init_succeeds = http_server_init(&ctx, 22500);
+    bool init_succeeds = http_server_init(&ctx, 22500, (char*)"127.0.0.1");
     CHECK_EQUAL(false, init_succeeds);
     mock().checkExpectations();
     free(http);
@@ -105,7 +105,7 @@ TEST(http_server_group, test_http_server_create_bind_socket_fails)
         .withStringParameter("address", "127.0.0.1")
         .withIntParameter("port", 22500).andReturnValue((void *) NULL);
     mock().expectOneCall("evhttp_free");
-    bool init_succeeds = http_server_init(&ctx, 22500);
+    bool init_succeeds = http_server_init(&ctx, 22500, (char*)"127.0.0.1");
     CHECK_EQUAL(false, init_succeeds);
     mock().checkExpectations();
     free(http);
@@ -114,7 +114,7 @@ TEST(http_server_group, test_http_server_create_bind_socket_fails)
 TEST(http_server_group, test_http_server_create_evhttp_fails)
 {
     mock().expectOneCall("evhttp_new").andReturnValue((void *) NULL);
-    bool init_succeeds = http_server_init(&ctx, 22500);
+    bool init_succeeds = http_server_init(&ctx, 22500, (char*)"0.0.0.0");
     CHECK_EQUAL(false, init_succeeds);
     mock().checkExpectations();
 }
