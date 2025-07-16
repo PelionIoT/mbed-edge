@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euxo pipefail
 
-echo "Verfiying firmware update"
+echo "Verifying firmware update"
 # Perform firmware update verification
 echo "Success"
 
