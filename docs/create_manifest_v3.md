@@ -78,7 +78,7 @@ component: ${COMPONENT}
 
 This will create a manifest in v3 format. Please ensure that the device supports this version of the manifest by compiling edge-core with the `FOTA_ENABLE` flag, see `${WORKSPACE}/mbed-edge/Dockerfile.debian.*` for a compilation example.
 
-Perform firwmare update by [uploading the manifest](https://developer.izumanetworks.com/docs/device-management/current/updating-firmware/uploading-the-manifest.html) and [creating a campaign](https://developer.izumanetworks.com/docs/device-management/current/updating-firmware/configuring-initiating-and-monitoring-an-update-campaign.html).
+Perform firmware update by [uploading the manifest](https://developer.izumanetworks.com/docs/device-management/current/updating-firmware/uploading-the-manifest.html) and [creating a campaign](https://developer.izumanetworks.com/docs/device-management/current/updating-firmware/configuring-initiating-and-monitoring-an-update-campaign.html).
 
 6. To update other component, prepare the manifest using the same update certificate and following steps 2-5. Update the macro `COMPONENT=<COMPONENT_NAME>` in the manifest config with the component name.
 

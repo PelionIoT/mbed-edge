@@ -669,7 +669,7 @@ int testable_main(int argc, char **argv)
         ns_list_init(&ctx_data->registered_translators);
         ns_list_init(&ctx_data->not_accepted_translators);
 
-        if (!create_server_event_loop(g_program_context, http_port, args.http_address)) {
+        if (!create_server_event_loop(g_program_context, http_port, args.bind)) {
             tr_err("Could not create http server.");
             rc = 1;
             break;

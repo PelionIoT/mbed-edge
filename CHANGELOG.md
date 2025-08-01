@@ -5,7 +5,7 @@
 ### New Features
 
 * Register a default component COMP_1 when FOTA is enabled using flags `-DFOTA_ENABLE=ON -DFIRMWARE_UPDATE=ON -DFOTA_COMBINED_IMAGE_SUPPORT=ON`.
-* Added default firmware install `fota_update_activate.sh` and verify `fota_update_verify.sh` scripts to demonstarted edge-core FOTA feature.
+* Added default firmware install `fota_update_activate.sh` and verify `fota_update_verify.sh` scripts to demonstrated edge-core FOTA feature.
 * Added documentation `./docs/create_manifest_v3.md` and `./docs/prepare_fota_component_update.md`.
 * Updated `Dockerfile.debian.byoc` to enabled FOTA feature.
 * Docker Support: Added new Dockerfiles to build a lightweight, Debian-based `edge-core` Docker image for different modes:

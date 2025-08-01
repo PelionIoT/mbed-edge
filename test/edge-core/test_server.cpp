@@ -68,7 +68,7 @@ static void create_event_loop(struct context *context, struct evhttp *http, stru
         evbase_mock_delete(base);
     }
 
-    bool creation_succeeds = create_server_event_loop(context, http_port);
+    bool creation_succeeds = create_server_event_loop(context, http_port, (char*)"127.0.0.1");
     bool expected_succeeds = true;
     if (!base || !http) {
         expected_succeeds = false;
