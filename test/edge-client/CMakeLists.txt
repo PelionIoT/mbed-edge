@@ -12,6 +12,6 @@ include_directories (../cpputest-custom-types)
 target_include_directories (edge-client-test PUBLIC ${CPPUTEST_HOME}/include)
 target_include_directories (edge-client-test PUBLIC ${ROOT_HOME}/test/test-lib)
 target_include_directories (edge-client-test PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/unittests/stub)
-target_link_libraries (edge-client-test edge-server-mock-lib pal-mock-lib test-lib edge-client CppUTest CppUTestExt mbedTrace libservice pthread curl)
+target_link_libraries (edge-client-test edge-server-mock-lib pal-mock-lib test-lib edge-client CppUTest CppUTestExt mbedTrace nanostacklibservice pthread curl)
 
 add_definitions(-DTEST_DATA_DIR="${TEST_DATA_DIR}")

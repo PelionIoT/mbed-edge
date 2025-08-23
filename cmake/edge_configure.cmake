@@ -323,11 +323,3 @@ SET (MBED_CONF_MBED_CLIENT_DNS_THREAD_STACK_SIZE 131072)
 SET (SA_PV_PLAT_PC 1)
 SET (RESOURCE_ATTRIBUTES_LIST 1)
 
-#Following is needed for tests
-FILE (GLOB LIBSERVICE_SOURCE
-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/nanostack-libservice/source/libBits/common_functions.c"
-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/nanostack-libservice/source/libList/*.c"
-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/nanostack-libservice/source/nsdynmemLIB/*.c"
-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/nanostack-libservice/source/libip6string/ip6tos.c"
-  )
-CREATE_LIBRARY(libservice "${LIBSERVICE_SOURCE}" "")

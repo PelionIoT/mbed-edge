@@ -82,8 +82,6 @@ else ()
 endif ()
 
 add_subdirectory (common)
-add_subdirectory (nano-stack)
-add_subdirectory (mbed-trace-edge)
 add_subdirectory (edge-client)
 add_subdirectory (lib)
 add_subdirectory (edge-core)
