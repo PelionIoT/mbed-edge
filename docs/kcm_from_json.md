@@ -12,6 +12,7 @@ The JSON file passed via `--json-conf` must follow this structure:
 
 ```json
 {
+  "RoTFilePath": "/path/to/RoT.bin",
   "Certificates": [ ... ],
   "Keys": [ ... ],
   "ConfigParams": [ ... ],
@@ -21,7 +22,20 @@ The JSON file passed via `--json-conf` must follow this structure:
 
 ### Sections
 
-#### 1. `Certificates`
+#### 1. `RoTFilePath`
+
+Specifies the path to the Root of Trust (RoT) file containing device credentials. This is required when `PAL_USE_ROT_FROM_FILE` is enabled. By default, `PAL_USE_ROT_FROM_FILE` is enabled in `./config/sotp_fs_linux.h`.
+
+The RoT file should be a binary file containing a 16-byte key. For example, you can create it using:
+
+```bash
+# Create a 16-byte random key
+dd if=/dev/urandom of=RoT.bin bs=16 count=1
+```
+
+> Note: The RoT file must be readable by the edge-core process and should be stored securely. The file path is stored in rollback-protected storage and cannot be changed after initial provisioning.
+
+#### 2. `Certificates`
 
 Used to specify DER-encoded X.509 certificates for Bootstrap, LwM2M, and Update services.
 
@@ -43,7 +57,7 @@ Supported certificate names include:
 
 where, `mbed.BootstrapServerCACert` is Izuma Device Management bootstrap server CA, which is used to sign the bootstrap server certificate. You can retrieve this from the Portal -> Device Identity -> Server -> CA certificate for bootstrap server. Similarly, `mbed.LwM2MServerCACert` is Izuma Device Management LwM2M server CA, which is used to sign the device management server certificate. You can retrieve this from the Portal -> Device Identity -> Server -> CA certificate for LwM2M server.
 
-#### 2. `Keys`
+#### 3. `Keys`
 
 Used to define associated private keys for the device.
 
@@ -63,7 +77,7 @@ Supported key names include:
 
 > All certificates and keys must currently be in **DER** format and passed via a **file path**.
 
-#### 3. `ConfigParams`
+#### 4. `ConfigParams`
 
 Used to configure logical settings and metadata, including device identity and LwM2M parameters.
 
