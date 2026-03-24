@@ -15,7 +15,9 @@ add_definitions ("-DJANSSON_INSTALL=OFF")
 
 set (ENABLE_TESTING OFF CACHE BOOL "Disable mbedTLS tests")
 set (ENABLE_PROGRAMS OFF CACHE BOOL "Disable mbedTLS programs.")
-add_subdirectory(mbedtls)
+if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
+  add_subdirectory(mbedtls)
+endif ()
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../platform/linux")
 

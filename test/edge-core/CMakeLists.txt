@@ -1,4 +1,9 @@
-file (GLOB SOURCES ./*.cpp ${ROOT_HOME}/edge-rpc/rpc_timeout_api.c ${ROOT_HOME}/edge-client/edge_client_format_values.c ${ROOT_HOME}/lib/mbedtls/crypto/library/base64.c ../test-lib/msg_api_test_helper.cpp)
+if(NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
+    file (GLOB SOURCES ./*.cpp ${ROOT_HOME}/edge-rpc/rpc_timeout_api.c ${ROOT_HOME}/edge-client/edge_client_format_values.c ${ROOT_HOME}/lib/mbedtls/crypto/library/base64.c ../test-lib/msg_api_test_helper.cpp)
+else()
+    file (GLOB SOURCES ./*.cpp ${ROOT_HOME}/edge-rpc/rpc_timeout_api.c ${ROOT_HOME}/edge-client/edge_client_format_values.c ../test-lib/msg_api_test_helper.cpp)
+endif()
+
 enable_language(C)
 enable_language(CXX)
 

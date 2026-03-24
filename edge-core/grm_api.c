@@ -34,7 +34,9 @@
 #include "edge-core/server.h"
 #include "edge-core/edge_server.h"
 #include "edge-core/srv_comm.h"
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
 #include "mbedtls/base64.h"
+#endif
 #include "common/pt_api_error_parser.h"
 
 #include "ns_list.h"
@@ -632,11 +634,23 @@ int write_to_grm(edgeclient_request_context_t *request_ctx)
 
     tr_debug("write_value_to_grm - base64 encoding the value to json object");
     size_t out_size = 0;
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
     int32_t ret_val = mbedtls_base64_encode(NULL, 0, &out_size, request_ctx->value, request_ctx->value_len);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
+#else
+    // OpenSSL: Calculate the base64 encoded length
+    // Formula: 4 * ((input_length + 2) / 3)
+    out_size = 4 * ((request_ctx->value_len + 2) / 3);
+    // OpenSSL EVP_EncodeBlock adds a null terminator, but we will handle that in allocation.
+    if (request_ctx->value == NULL && request_ctx->value_len != 0) {
+        tr_error("cannot estimate the size of encoded value - value is NULL but length is not zero");
+        return 1;
+    }
+    int32_t ret_val = 0;
+#endif
     unsigned char *json_value = NULL;
     if (out_size == 0) {
         // Allocate just an empty string. This signifies no data.
@@ -648,6 +662,7 @@ int write_to_grm(edgeclient_request_context_t *request_ctx)
         tr_error("allocating value base64 buffer failed");
         return 1;
     }
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
     if (out_size != 0) {
         if (0 != mbedtls_base64_encode(json_value, out_size, &out_size, request_ctx->value, request_ctx->value_len)) {
             tr_error("Could not encode value to base64.");
@@ -655,6 +670,20 @@ int write_to_grm(edgeclient_request_context_t *request_ctx)
             goto write_value_to_grm_cleanup;
         }
     }
+#else
+    if (out_size != 0) {
+        // OpenSSL EVP_EncodeBlock expects output buffer to be at least 4 * ((input_length + 2) / 3) + 1 bytes
+        // and returns the length of the encoded data (not including null terminator).
+        int encoded_len = EVP_EncodeBlock(json_value, request_ctx->value, request_ctx->value_len);
+        if (encoded_len < 0) {
+            tr_error("Could not encode value to base64 using OpenSSL.");
+            ret_val = 1;
+            goto write_value_to_grm_cleanup;
+        }
+        // EVP_EncodeBlock does not write a null terminator, but we allocated with calloc so it's safe.
+        // Optionally, you could set json_value[encoded_len] = '\0'; but it's already zeroed.
+    }
+#endif
     if (json_object_set_new(params, "value", json_string((const char *) json_value))) {
         tr_error("Could not write value to json object");
         ret_val = 1;

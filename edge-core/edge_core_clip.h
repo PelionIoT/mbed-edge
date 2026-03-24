@@ -39,6 +39,9 @@ typedef struct {
     /* options with arguments */
     char *bind;
     char *cbor_conf;
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+    char *json_conf;
+#endif
     char *edge_pt_domain_socket;
     char *http_port;
     /* special */
@@ -64,6 +67,10 @@ const char help_message[] =
 "  -r --reset-storage                   Before starting the server, clean the old Device Management Client\n"
 "                                       configuration.\n"
 "  -c --cbor-conf <cbor>                The CBOR configuration file path.\n"
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+"  -j --json-conf <cbor>                The JSON configuration file path.\n"
+"                                       The CBOR or JSON configuration option is mandatory for the first\n"
+#endif
 "                                       The CBOR configuration option is mandatory for the first\n"
 "                                       start of the Edge Core when it is built with BYOC_MODE.\n"
 "                                       This option cannot be used if built with DEVELOPER_MODE or FACTORY_MODE.\n"
@@ -308,6 +315,11 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
         } else if (!strcmp(option->olong, "--cbor-conf")) {
             if (option->argument)
                 args->cbor_conf = option->argument;
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+        } else if (!strcmp(option->olong, "--json-conf")) {
+            if (option->argument)
+                args->json_conf = option->argument;
+#endif
         } else if (!strcmp(option->olong, "--edge-pt-domain-socket")) {
             if (option->argument)
                 args->edge_pt_domain_socket = option->argument;
@@ -333,11 +345,18 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
  */
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+    DocoptArgs args = {
+        0, 0, 0, 0, NULL, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
+        usage_pattern, help_message
+    };
+#else
     DocoptArgs args = {
         0, 0, 0, 0, (char*) "127.0.0.1", NULL, (char*) "/tmp/edge.sock", (char*)
         "8080",
         usage_pattern, help_message
     };
+#endif
     Tokens ts;
     Command commands[] = {
     };
@@ -349,11 +368,20 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-r", "--reset-storage", 0, 0, NULL},
         {"-v", "--version", 0, 0, NULL},
         {"-b", "--bind", 1, 0, NULL},
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
         {"-c", "--cbor-conf", 1, 0, NULL},
+#endif
+        {"-j", "--json-conf", 1, 0, NULL},
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
         {"-o", "--http-port", 1, 0, NULL}
     };
     Elements elements = {0, 0, 8, commands, arguments, options};
+
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+    Elements elements = {0, 0, 8, commands, arguments, options};
+#else
+    Elements elements = {0, 0, 7, commands, arguments, options};
+#endif
 
     ts = tokens_new(argc, argv);
     if (parse_args(&ts, &elements))
