@@ -228,6 +228,7 @@ docker build -t edge-core:byoc-latest -f ./Dockerfile.debian.byoc .
 ```bash
 docker run -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config \
 -v $PWD/edge_configuration:/tmp/edge_configuration \
+--name edge-core-byoc-latest \
 edge-core:byoc-latest \
 --json-conf /tmp/edge_configuration/config.json
 ```

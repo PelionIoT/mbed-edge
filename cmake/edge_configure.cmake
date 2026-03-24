@@ -238,14 +238,23 @@ if (${FIRMWARE_UPDATE})
 
 endif()
 
-# mbedtls is supported
-# Custom mbedtls configuration header file can be given with argument -DMBEDTLS_CONFIG
-SET (TLS_LIBRARY "mbedTLS")
-if (NOT DEFINED MBEDTLS_CONFIG)
-  SET (MBEDTLS_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/mbed-client-pal/Configs/mbedTLS/mbedTLSConfig_Linux.h")
-  MESSAGE ("Using default client library mbedtls config: ${MBEDTLS_CONFIG}")
+# mbedtls and openssl is supported=
+if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
+  # Custom mbedtls configuration header file can be given with argument -DMBEDTLS_CONFIG
+  SET (TLS_LIBRARY "mbedTLS")
+  if (NOT DEFINED MBEDTLS_CONFIG)
+    SET (MBEDTLS_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/mbed-client-pal/Configs/mbedTLS/mbedTLSConfig_Linux.h")
+    MESSAGE ("Using default client library mbedtls config: ${MBEDTLS_CONFIG}")
+  endif()
+  add_definitions ("-DMBEDTLS_CONFIG_FILE=\"${MBEDTLS_CONFIG}\"")
+  # Set PAL_USE_SECURE_TIME to 1 for mbedTLS
+  add_definitions(-DPAL_USE_SECURE_TIME=1)
+else()
+  SET (TLS_LIBRARY "OpenSSL")
+  add_definitions(-DMBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL=1)
+  # Set PAL_USE_SECURE_TIME to 0 for OpenSSL
+  add_definitions(-DPAL_USE_SECURE_TIME=0)
 endif()
-add_definitions ("-DMBEDTLS_CONFIG_FILE=\"${MBEDTLS_CONFIG}\"")
 
 # Select Device Management Client configuration header
 # Custom configuration header file can be given with argument -DCLOUD_CLIENT_CONFIG

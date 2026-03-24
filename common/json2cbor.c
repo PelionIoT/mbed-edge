@@ -33,7 +33,7 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
 
     if (load_der_file(path, &data, &len) != 0)
     {
-        tr_err("Failed to load DER key file: %s\n", path);
+        tr_err("Failed to load DER file: %s\n", path);
         return;
     }
 
