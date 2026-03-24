@@ -46,7 +46,11 @@ extern "C" {
 }
 #include "edge-client/edge_client_impl.h"
 #include "edge-client/edge_client_internal.h"
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+#include "edge-client/edge_client_byoc_with_json.h"
+#else
 #include "edge-client/edge_client_byoc.h"
+#endif
 #include "edge-client/edge_core_cb.h"
 #include "edge-client/async_cb_params.h"
 #include "edge-client/async_cb_params_base.h"

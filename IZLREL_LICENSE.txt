@@ -1,0 +1,29 @@
+Limited Revocable Evaluation License
+
+This Limited Revocable Evaluation License ("License") is granted by Izuma Networks Inc ("Licensor") to Johnson Controls Inc ("Licensee") for the exclusive purpose of evaluating the provided software and source code ("Software").
+
+1. License Grant:
+Licensor hereby grants Licensee a limited, non-exclusive, revocable, non-transferable license to use the Software solely for internal evaluation purposes related to the Licensee's project.
+
+2. Ownership:
+Licensor retains all intellectual property rights, title, and interest in and to the Software. No rights or licenses are granted except those expressly set forth herein.
+
+3. Restrictions:
+Licensee may not distribute, sublicense, sell, modify, reverse engineer, or otherwise commercially exploit the Software without express written permission from the Licensor.
+
+4. Revocability:
+This License is granted on a revocable basis. Licensor reserves the unconditional right to revoke this License at any time, at Licensor's sole discretion, upon written notice.
+
+5. Termination:
+Upon termination or revocation of this License, Licensee shall immediately cease all use of the Software and destroy or return all copies and derivatives thereof.
+
+6. No Warranty:
+The Software is provided "as is" without warranties of any kind. Licensor expressly disclaims all warranties, express or implied, including, but not limited to, warranties of merchantability, fitness for a particular purpose, and non-infringement.
+
+7. Liability:
+In no event shall Licensor be liable for any direct, indirect, incidental, special, consequential, or exemplary damages arising out of or in connection with this License or the use or inability to use the Software.
+
+8. Governing Law:
+This License shall be governed by and construed under the laws of Texas, without regard to its conflict of laws principles.
+
+By accepting and using the Software, the Licensee acknowledges and agrees to the terms of this License.
