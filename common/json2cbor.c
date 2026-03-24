@@ -35,18 +35,18 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
         return;
     }
 
+    if (len == 0)
+    {
+        tr_err("Failed to load DER file\n");
+        return;
+    }
+
     const char *format = json_string_value(json_object_get(item, "Format"));
     const char *name = json_string_value(json_object_get(item, "Name"));
     const char *type = is_key ? json_string_value(json_object_get(item, "Type")) : NULL;
 
     size_t map_size = is_key ? 4 : 3;
     cbor_encoder_create_map(arr, &map, map_size);
-
-    if (len == 0)
-    {
-        tr_err("Failed to load DER file\n");
-        return;
-    }
 
     CHECK_CBOR(cbor_encode_text_stringz(&map, "Data"), "encoding 'Data' key");
     CHECK_CBOR(cbor_encode_byte_string(&map, data, len), "encoding 'Data' value");
@@ -111,45 +111,70 @@ void _encode_config_param(CborEncoder *arr, json_t *item)
 
 size_t _create_cbor_data(json_t *root, uint8_t *out_buf, size_t buf_size)
 {
-    CborEncoder encoder, map, certs, keys, config;
-
-    cbor_encoder_init(&encoder, out_buf, buf_size, 0);
-    cbor_encoder_create_map(&encoder, &map, 4);
-
-    cbor_encode_text_stringz(&map, "Certificates");
-    cbor_encoder_create_array(&map, &certs, CborIndefiniteLength);
-    json_t *cert_array = json_object_get(root, "Certificates");
+    size_t map_size = 0;
+    const char *key;
+    json_t *value;
     size_t i;
     json_t *item;
-    json_array_foreach(cert_array, i, item)
-    {
-        _encode_cert_or_key(&certs, item, 0);
-    }
-    cbor_encoder_close_container(&map, &certs);
+    CborEncoder encoder, map, certs, keys, config;
 
-    cbor_encode_text_stringz(&map, "Keys");
-    cbor_encoder_create_array(&map, &keys, CborIndefiniteLength);
+    // Count number of top-level keys in JSON for map size
+    json_object_foreach(root, key, value) {
+        map_size++;
+    }
+
+    cbor_encoder_init(&encoder, out_buf, buf_size, 0);
+    cbor_encoder_create_map(&encoder, &map, map_size);
+
+    json_t *rot_file_path = json_object_get(root, "RoTFilePath");
+    if (rot_file_path) {
+        cbor_encode_text_stringz(&map, "RoTFilePath");
+        const char *rot_file_path_str = json_string_value(rot_file_path);
+        cbor_encode_text_stringz(&map, rot_file_path_str);
+        cbor_encoder_close_container(&encoder, &map);
+    }
+
+    json_t *cert_array = json_object_get(root, "Certificates");
+    if (cert_array) {
+        cbor_encode_text_stringz(&map, "Certificates");
+        cbor_encoder_create_array(&map, &certs, CborIndefiniteLength);
+        json_array_foreach(cert_array, i, item)
+        {
+            _encode_cert_or_key(&certs, item, 0);
+        }
+        cbor_encoder_close_container(&map, &certs);
+    }
+
     json_t *key_array = json_object_get(root, "Keys");
-    json_array_foreach(key_array, i, item)
-    {
-        _encode_cert_or_key(&keys, item, 1);
+    if (key_array) {
+        cbor_encode_text_stringz(&map, "Keys");
+        cbor_encoder_create_array(&map, &keys, CborIndefiniteLength);
+        json_array_foreach(key_array, i, item)
+        {
+            _encode_cert_or_key(&keys, item, 1);
+        }
+        cbor_encoder_close_container(&map, &keys);
     }
-    cbor_encoder_close_container(&map, &keys);
 
-    cbor_encode_text_stringz(&map, "ConfigParams");
-    cbor_encoder_create_array(&map, &config, CborIndefiniteLength);
     json_t *cfg_array = json_object_get(root, "ConfigParams");
-    json_array_foreach(cfg_array, i, item)
-    {
-        _encode_config_param(&config, item);
+    if (cfg_array) {
+        cbor_encode_text_stringz(&map, "ConfigParams");
+        cbor_encoder_create_array(&map, &config, CborIndefiniteLength);
+        json_array_foreach(cfg_array, i, item)
+        {
+            _encode_config_param(&config, item);
+        }
+        cbor_encoder_close_container(&map, &config);
     }
-    cbor_encoder_close_container(&map, &config);
 
-    cbor_encode_text_stringz(&map, "SchemeVersion");
-    const char *ver = json_string_value(json_object_get(root, "SchemeVersion"));
-    cbor_encode_text_stringz(&map, ver);
+    json_t *scheme_version = json_object_get(root, "SchemeVersion");
+    if (scheme_version) {
+        cbor_encode_text_stringz(&map, "SchemeVersion");
+        const char *ver = json_string_value(scheme_version);
+        cbor_encode_text_stringz(&map, ver);
+        cbor_encoder_close_container(&encoder, &map);
+    }
 
-    cbor_encoder_close_container(&encoder, &map);
     return cbor_encoder_get_buffer_size(&encoder, out_buf);
 }
 
