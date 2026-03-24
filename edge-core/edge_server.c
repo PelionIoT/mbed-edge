@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/resource.h>
 #include "libwebsockets.h"
 #include <event2/event_struct.h>
 #include <event2/event.h>
@@ -60,6 +61,29 @@
 #define SERVER_PT_WEBSOCKET_VERSION_PATH "/1/pt"
 #define SERVER_MGMT_WEBSOCKET_VERSION_PATH "/1/mgmt"
 #define SERVER_GRM_WEBSOCKET_VERSION_PATH "/1/grm"
+
+/*
+ * libwebsockets uses sysconf(_SC_OPEN_MAX) for the default fd budget, which on
+ * some Linux images (e.g. high nr_open / cgroup limits) is ~1e9 and makes
+ * lws_create_context() try to allocate a pollfd map that fails. Edge Core only
+ * needs a modest limit for the PT Unix-socket server; cap per thread and still
+ * respect a low process soft limit when set.
+ */
+#define EDGE_LWS_FD_LIMIT_PER_THREAD_CAP 65536u
+
+EDGE_LOCAL unsigned int edge_lws_fd_limit_per_thread(void)
+{
+    struct rlimit rl;
+    rlim_t cur = EDGE_LWS_FD_LIMIT_PER_THREAD_CAP;
+
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY) {
+        cur = rl.rlim_cur;
+    }
+    if (cur == 0 || cur > (rlim_t) EDGE_LWS_FD_LIMIT_PER_THREAD_CAP) {
+        cur = EDGE_LWS_FD_LIMIT_PER_THREAD_CAP;
+    }
+    return (unsigned int) cur;
+}
 
 
 EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
@@ -609,6 +633,7 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
     info.gid = -1;
     info.uid = -1;
     info.max_http_header_pool = 1;
+    info.fd_limit_per_thread = edge_lws_fd_limit_per_thread();
     info.options = opts | LWS_SERVER_OPTION_LIBEVENT | LWS_SERVER_OPTION_UNIX_SOCK;
     foreign_loops[0] = ev_base;
     info.foreign_loops = foreign_loops;
