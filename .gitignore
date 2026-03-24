@@ -5,6 +5,7 @@ pal
 
 # build dir
 build
+.build-cache
 
 # test build dirs
 build-test
