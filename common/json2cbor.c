@@ -26,6 +26,8 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
 {
     CborEncoder map;
     const char *path = json_string_value(json_object_get(item, "Data"));
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
     uint8_t *data = NULL;
     size_t len = 0;
 
@@ -40,6 +42,7 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
         tr_err("Failed to load DER file\n");
         return;
     }
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 
     const char *format = json_string_value(json_object_get(item, "Format"));
     const char *name = json_string_value(json_object_get(item, "Name"));
@@ -48,8 +51,13 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
     size_t map_size = is_key ? 4 : 3;
     cbor_encoder_create_map(arr, &map, map_size);
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
     CHECK_CBOR(cbor_encode_text_stringz(&map, "Data"), "encoding 'Data' key");
     CHECK_CBOR(cbor_encode_byte_string(&map, data, len), "encoding 'Data' value");
+#else
+    cbor_encode_text_stringz(&map, "Data");
+    cbor_encode_text_stringz(&map, path);
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 
     cbor_encode_text_stringz(&map, "Format");
     cbor_encode_text_stringz(&map, format);
@@ -64,7 +72,9 @@ void _encode_cert_or_key(CborEncoder *arr, json_t *item, int is_key)
 
     cbor_encoder_close_container(arr, &map);
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
     free(data);
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 }
 
 void _encode_config_param(CborEncoder *arr, json_t *item)

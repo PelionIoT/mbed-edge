@@ -239,3 +239,52 @@ where,
 * `--json-conf /tmp/edge_configuration/config.json`: Passes the path to the mounted JSON configuration file as a CLI argument to edge-core.
 
 Ensure that all file paths referenced in the JSON are accessible and has read permissions.
+
+
+## External Certificate Store
+
+The edge client supports loading certificates and keys from an external path on the filesystem (external certificate/key store). This feature allows you to keep sensitive cryptographic aterial separate from the application binary, enhancing security by reducing the risk of exposure. Additionally, this feature enables customers to reuse their existing device certificates, educing the overhead of maintaining different certificates on the device.
+
+### How it works
+
+- **Disabled (default)**: Certificates and keys are loaded from DER files and embedded as byte strings in the KCM
+- **Enabled**: File paths to certificates and keys are stored as text strings in the KCM, and the actual files are read at runtime from the filesystem
+
+### Enabling External Certificate Store
+
+To enable external certificate store support, add the following flag to your CMake command:
+
+```bash
+mkdir build
+cd build
+cmake -D[MODE] -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+make
+```
+
+### Configuration Examples
+
+**Developer mode with external certificate store:**
+```bash
+cmake -DDEVELOPER_MODE=ON -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+```
+
+**BYOC mode with external certificate store:**
+```bash
+cmake -DBYOC_MODE=ON -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+```
+
+**Factory mode with external certificate store:**
+```bash
+cmake -DFACTORY_MODE=ON -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+```
+
+### Docker Build
+
+When building with Docker, you can enable external certificate store by adding the flag to the Dockerfile:
+
+```dockerfile
+cmake -DBYOC_MODE=ON \
+      -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON \
+      -DFIRMWARE_UPDATE=ON \
+      # ... other flags
+```
