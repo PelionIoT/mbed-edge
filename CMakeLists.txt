@@ -13,13 +13,19 @@ if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/lib/libwebsockets/libwebsockets/CMakeL
 endif()
 
 if (NOT DEFINED TARGET_TOOLCHAIN)
-    SET (TARGET_TOOLCHAIN "mcc-linux-x86")
+    if (CMAKE_HOST_WIN32)
+        SET (TARGET_TOOLCHAIN "mcc-windows-x64")
+    else ()
+        SET (TARGET_TOOLCHAIN "mcc-linux-x86")
+    endif ()
 endif()
 # Yocto build defines CMAKE_TOOLCHAIN_FILE to set the tool chain.
 # We must not override it.
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     if (DEFINED TARGET_CONFIG_ROOT)
         SET(CMAKE_TOOLCHAIN_FILE "${TARGET_CONFIG_ROOT}/toolchain.cmake")
+    elseif (TARGET_TOOLCHAIN STREQUAL "mcc-windows-x64")
+        SET(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/toolchains/mcc-windows-x64.cmake")
     else ()
         SET(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/toolchains/mcc-linux-x86.cmake")
     endif()
@@ -46,11 +52,15 @@ include (cmake/edge_configure.cmake)
 # Edge include directories
 include (cmake/edge_include_directories.cmake)
 
-set(LIBEVENT_LIBRARIES
+if (WIN32)
+  set(LIBEVENT_LIBRARIES event)
+else ()
+  set(LIBEVENT_LIBRARIES
   "${CMAKE_BINARY_DIR}/lib/libevent/libevent/lib/libevent.so"
   "${CMAKE_BINARY_DIR}/lib/libevent/libevent/lib/libevent_core.so"
   "${CMAKE_BINARY_DIR}/lib/libevent/libevent/lib/libevent_pthreads.so"
-)
+  )
+endif ()
 
 if (BUILD_TARGET STREQUAL test)
   SET (TARGET_GROUP test)
@@ -91,7 +101,7 @@ add_subdirectory (edge-rpc)
 add_subdirectory (pt-client)
 add_subdirectory (pt-client-2)
 
-if (NOT (CMAKE_BUILD_TYPE STREQUAL Release) AND (NOT (_FORTIFY_SOURCE GREATER 0)))
+if (NOT WIN32 AND NOT (CMAKE_BUILD_TYPE STREQUAL Release) AND (NOT (_FORTIFY_SOURCE GREATER 0)))
     SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
     SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 endif ()

@@ -16,6 +16,14 @@ function(WRITE_CONFIG_HEADER)
   file(APPEND ${NEW_CONFIG} "#define VERSION_STRING RELEASE_VERSION\"-\"GIT_BRANCH\"-\"GIT_COMMIT\n")
   file(APPEND ${NEW_CONFIG} "#endif\n")
 
+  if (WIN32)
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${NEW_CONFIG}" "${TARGET_CONFIG}"
+                    RESULT_VARIABLE COPY_RESULT)
+    if (NOT COPY_RESULT EQUAL 0)
+      message(FATAL_ERROR "Could not update the Edge version header")
+    endif ()
+    file(REMOVE "${NEW_CONFIG}")
+  else ()
   exec_program(
     "diff"
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -27,6 +35,7 @@ function(WRITE_CONFIG_HEADER)
   else()
     file (REMOVE ${NEW_CONFIG})
   endif()
+  endif ()
 endfunction()
 
 function(CHECK_GIT_ROOT)
