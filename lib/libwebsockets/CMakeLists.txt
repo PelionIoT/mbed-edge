@@ -1,4 +1,5 @@
 if (WIN32)
+  set (LWS_WITH_EXPORT_LWSTARGETS OFF CACHE BOOL "Use bundled libevent targets within Edge" FORCE)
   set (LWS_UNIX_SOCK OFF CACHE BOOL "Windows uses local TCP sockets" FORCE)
   set (LWS_LIBEVENT_INCLUDE_DIRS "${ROOT_HOME}/lib/libevent/libevent/include")
   set (LWS_LIBEVENT_LIBRARIES event)
