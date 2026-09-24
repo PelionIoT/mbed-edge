@@ -1,11 +1,17 @@
 # Build tools run on the developer machine; the application remains native Win32.
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Edge')]
 param(
     [string]$BuildDirectory = (Join-Path $PSScriptRoot 'build/windows-x64'),
     [ValidateSet('Debug', 'Release', 'RelWithDebInfo')]
     [string]$Configuration = 'Debug',
     [string]$CMakePath,
     [switch]$ConfigureOnly,
+    [Parameter(ParameterSetName = 'PalTests')]
+    [switch]$PalTests,
+    [Parameter(ParameterSetName = 'PalBuild')]
+    [switch]$PalOnly,
+    [ValidateRange(1, 64)]
+    [int]$Jobs = 1,
     [string[]]$CMakeArgument = @()
 )
 
@@ -31,19 +37,39 @@ function Invoke-EdgeCMake {
     # Some launchers supply both Path and PATH. Normalize these before MSBuild
     # constructs its case-insensitive environment dictionary. Only the child
     # environment is changed; the user's machine environment is untouched.
-    & $CMakePath -E env --unset=Path --unset=PATH "Path=$env:PATH" $CMakePath @Arguments
+    & $CMakePath -E env --unset=Path --unset=PATH "Path=$env:PATH" MSBUILDDISABLENODEREUSE=1 $CMakePath @Arguments
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
+$sourceDirectory = $PSScriptRoot
+$buildTargets = @('edge-core')
+$profileArguments = @(
+    '-DTARGET_TOOLCHAIN=mcc-windows-x64', '-DBYOC_MODE=ON', '-DDEVELOPER_MODE=OFF',
+    '-DFIRMWARE_UPDATE=OFF', '-DFOTA_ENABLE=OFF', '-DBUILD_DOCUMENTATION=OFF'
+)
+if ($PalOnly) {
+    $buildTargets = @('palRTOS', 'palFilesystem', 'palNetworking', 'palDRBG')
+}
+if ($PalTests) {
+    $sourceDirectory = Join-Path $PSScriptRoot 'test/windows-pal'
+    $buildTargets = @('windows-pal-tests')
+    $profileArguments = @()
+    if (-not $PSBoundParameters.ContainsKey('BuildDirectory')) {
+        $BuildDirectory = Join-Path $PSScriptRoot 'build/windows-pal'
+    }
+}
 $configureArguments = @(
-    '-S', $PSScriptRoot, '-B', $BuildDirectory,
-    '-G', 'Visual Studio 17 2022', '-A', 'x64',
-    '-DTARGET_TOOLCHAIN=mcc-windows-x64',
-    '-DBYOC_MODE=ON', '-DDEVELOPER_MODE=OFF',
-    '-DFIRMWARE_UPDATE=OFF', '-DFOTA_ENABLE=OFF',
-    '-DBUILD_DOCUMENTATION=OFF'
-) + $CMakeArgument
+    '-S', $sourceDirectory, '-B', $BuildDirectory,
+    '-G', 'Visual Studio 17 2022', '-A', 'x64'
+) + $profileArguments + $CMakeArgument
 Invoke-EdgeCMake -Arguments $configureArguments
 if (-not $ConfigureOnly) {
-    Invoke-EdgeCMake -Arguments @('--build', $BuildDirectory, '--config', $Configuration, '--target', 'edge-core', '--parallel')
+    $buildArguments = @('--build', $BuildDirectory, '--config', $Configuration, '--target') +
+        $buildTargets + @('--parallel', "$Jobs")
+    Invoke-EdgeCMake -Arguments $buildArguments
+    if ($PalTests) {
+        $ctestPath = Join-Path (Split-Path -Parent $CMakePath) 'ctest.exe'
+        & $ctestPath --test-dir $BuildDirectory -C $Configuration --output-on-failure
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
 }
