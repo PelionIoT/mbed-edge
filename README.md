@@ -532,6 +532,23 @@ Solutions:
 - Remove that other program using that same port.
 - Start mbed-edge to a different port than 8080 (`bin/mbed-edge --http-port <int>``).
 
+### edge-core fails to start / OOM on ARM64 or other high file-descriptor-limit systems
+
+```
+$ bin/edge-core
+2026-03-24 18:29:41.123 tid: 1 [ERR ][serv]: Failed to create libwebsocket context
+```
+
+On some systems the default open-file-descriptor limit (`ulimit -n`, `_SC_OPEN_MAX`) is set to a very large theoretical value (e.g. `1073741816`, seen on some ARM64 platforms). `libwebsockets` uses this value to size an internal per-thread pollfd array, and allocating an array of that size causes edge-core to run out of memory and fail to start.
+
+To avoid this, explicitly cap the file descriptor limit for the edge-core process to a reasonable value, such as 65536, which provides sufficient headroom for medium-sized workloads:
+
+```sh
+docker run --ulimit nofile=65536:65536 -v $PWD/mcc_config:/usr/src/app/mbed-edge/mcc_config -v /tmp:/tmp edge-core:prod-latest
+```
+
+If you are not running edge-core in Docker, set the limit for the shell/service that launches edge-core, for example with `ulimit -n 65536` before starting the process, or via `/etc/security/limits.conf` / your service manager's `LimitNOFILE` setting.
+
 ### Connectivity issues
 
 ```sh
