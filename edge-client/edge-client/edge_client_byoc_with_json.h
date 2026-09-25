@@ -1,6 +1,5 @@
 /*
- * ----------------------------------------------------------------------------
- * Copyright 2018 ARM Ltd.
+ * Copyright (c) 2025 Izuma Networks Inc
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -15,20 +14,23 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * ----------------------------------------------------------------------------
  */
-#ifndef PAL_HEADER_SOTP_FS_LINUX
-#define PAL_HEADER_SOTP_FS_LINUX
 
-#define PAL_USE_HW_ROT 0
-#define PAL_USE_HW_RTC 0
-#define PAL_USE_HW_TRNG 1
-#define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
-#define PAL_USE_SECURE_TIME 1
-#define PAL_SIMULATOR_TEST_ENABLE 1
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
 
-#define PAL_USE_ROT_FROM_FILE 1
+#ifndef EDGE_CLIENT_BYOC_H_
+#define EDGE_CLIENT_BYOC_H_
 
-#include "Linux_default.h"
+typedef struct
+{
+    const char *cbor_file;
+    const char *json_file;
+} byoc_data_t;
 
-#endif //PAL_HEADER_SOTP_FS_LINUX
+byoc_data_t *edgeclient_create_byoc_data(char *cbor_file, char *json_file);
+void edgeclient_destroy_byoc_data(byoc_data_t *byoc_data);
+int edgeclient_inject_byoc(byoc_data_t *byoc_data);
+
+#endif /* EDGE_CLIENT_BYOC_H_ */
+
+#endif // MBED_EDGE_ENABLE_BYOC_JSON

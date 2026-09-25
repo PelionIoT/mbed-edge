@@ -1,5 +1,7 @@
 .git
-build/
 *.o
 *.log
+*.swp
+*.tmp
 edge-tool-c
+__pycache__/

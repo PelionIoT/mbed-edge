@@ -30,7 +30,11 @@ extern "C" {
 #include <stddef.h>
 #include "common/constants.h"
 #include "common/pt_api_error_codes.h"
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+#include "edge-client/edge_client_byoc_with_json.h"
+#else
 #include "edge-client/edge_client_byoc.h"
+#endif
 #include "edge-client/request_context.h"
 #include "sn_coap_header.h"
 #include "mbed-client/coap_response.h"

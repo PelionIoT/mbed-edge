@@ -11,6 +11,7 @@ RUN apt-get update && \
     DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
     tzdata build-essential libc6-dev cmake libcurl4-openssl-dev libssl-dev \
     python3 python3-pip pkg-config git && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy source files after dependencies are installed

@@ -18,6 +18,8 @@
  * ----------------------------------------------------------------------------
  */
 
+#ifndef MBED_EDGE_ENABLE_BYOC_JSON
+
 #ifndef EDGE_CLIENT_BYOC_H_
 #define EDGE_CLIENT_BYOC_H_
 
@@ -30,3 +32,5 @@ void edgeclient_destroy_byoc_data(byoc_data_t *byoc_data);
 int edgeclient_inject_byoc(byoc_data_t *byoc_data);
 
 #endif /* EDGE_CLIENT_BYOC_H_ */
+
+#endif // MBED_EDGE_ENABLE_BYOC_JSON
