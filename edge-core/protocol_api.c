@@ -23,6 +23,9 @@
 #include <stdint.h>
 #include <jansson.h>
 #include <assert.h>
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL != 0)
+#include <openssl/evp.h>
+#endif
 
 #include "edge-core/protocol_api.h"
 #include "edge-core/protocol_crypto_api.h"
@@ -35,7 +38,9 @@
 #include "edge-core/server.h"
 #include "edge-core/edge_server.h"
 #include "edge-core/srv_comm.h"
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
 #include "mbedtls/base64.h"
+#endif
 #include "common/pt_api_error_parser.h"
 
 #include "ns_list.h"
@@ -1002,11 +1007,21 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
 
     tr_debug("write_to_pt - base64 encoding the value to json object");
     size_t out_size = 0;
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
     int32_t ret_val = mbedtls_base64_encode(NULL, 0, &out_size, request_ctx->value, request_ctx->value_len);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
+#else
+    // OpenSSL: Calculate the base64 encoded length
+    out_size = 4 * ((request_ctx->value_len + 2) / 3);
+    if (request_ctx->value == NULL && request_ctx->value_len != 0) {
+        tr_error("cannot estimate the size of encoded value - value is NULL but length is not zero");
+        return 1;
+    }
+    int32_t ret_val = 0;
+#endif
     unsigned char *json_value = NULL;
     if (out_size == 0) {
         // Allocate just an empty string. This signifies no data.
@@ -1018,6 +1033,7 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
         tr_error("allocating value base64 buffer failed");
         return 1;
     }
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
     if (out_size != 0) {
         if (0 != mbedtls_base64_encode(json_value, out_size, &out_size, request_ctx->value, request_ctx->value_len)) {
             tr_error("Could not encode value to base64.");
@@ -1025,6 +1041,17 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
             goto write_to_pt_cleanup;
         }
     }
+#else
+    if (out_size != 0) {
+        int encoded_len = EVP_EncodeBlock(json_value, request_ctx->value, request_ctx->value_len);
+        if (encoded_len < 0) {
+            tr_error("Could not encode value to base64 using OpenSSL.");
+            ret_val = 1;
+            goto write_to_pt_cleanup;
+        }
+        // EVP_EncodeBlock does not write a null terminator, but we allocated with calloc so it's safe.
+    }
+#endif
     if (json_object_set_new(params, "value", json_string((const char *) json_value))) {
         tr_error("Could not write value to json object");
         ret_val = 1;
@@ -1117,46 +1144,47 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
     size_t vendor_size = 0;
     size_t class_size = 0;
     size_t version_size = 0;
-
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
     ret_val = mbedtls_base64_encode(NULL, 0, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
-
     ret_val = mbedtls_base64_encode(NULL, 0, &class_size, manifest_class_id, CLASS_ID_SIZE);
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
-
     ret_val = mbedtls_base64_encode(NULL, 0, &version_size, new_version, strlen(new_version));
     if (0 != ret_val && MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL != ret_val) {
         tr_error("cannot estimate the size of encoded value - %d", ret_val);
         return 1;
     }
-
+#else
+    vendor_size = 4 * ((VENDOR_ID_SIZE + 2) / 3);
+    class_size = 4 * ((CLASS_ID_SIZE + 2) / 3);
+    version_size = 4 * ((strlen(new_version) + 2) / 3);
+    ret_val = 0;
+#endif
     unsigned char* vendor_id = NULL;
     unsigned char* class_id = NULL;
     unsigned char* fw_version = NULL;
-
     vendor_id = (unsigned char *) calloc((vendor_size+1), sizeof(unsigned char));
     if (!vendor_id) {
         tr_error("allocating vendor id base64 buffer failed");
         goto write_to_pt_fota_cleanup;
     }
-
     class_id = (unsigned char *) calloc((class_size+1), sizeof(unsigned char));
     if (!class_id) {
         tr_error("allocating classid base64 buffer failed");
         goto write_to_pt_fota_cleanup;
     }
-
     fw_version = (unsigned char *) calloc((version_size+1), sizeof(unsigned char));
     if (!fw_version) {
         tr_error("allocating classid base64 buffer failed");
         goto write_to_pt_fota_cleanup;
     }
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
     if (vendor_size != 0) {
         if (0 != mbedtls_base64_encode(vendor_id, vendor_size, &vendor_size, manifest_vendor_id, VENDOR_ID_SIZE)) {
             tr_error("Could not encode vendor_id to base64.");
@@ -1164,7 +1192,6 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
             goto write_to_pt_fota_cleanup;
         }
     }
-
     if (class_size != 0) {
         if (0 != mbedtls_base64_encode(class_id, class_size, &class_size, manifest_class_id, CLASS_ID_SIZE)) {
             tr_error("Could not encode class_id to base64.");
@@ -1172,7 +1199,6 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
             goto write_to_pt_fota_cleanup;
         }
     }
-
     if (version_size != 0) {
         if (0 != mbedtls_base64_encode(fw_version, version_size, &version_size, new_version, strlen(new_version))) {
             tr_error("Could not encode class_id to base64.");
@@ -1180,7 +1206,32 @@ int write_to_pt_fota(edgeclient_request_context_t *request_ctx, void *userdata) 
             goto write_to_pt_fota_cleanup;
         }
     }
-
+#else
+    if (vendor_size != 0) {
+        int encoded_len = EVP_EncodeBlock(vendor_id, manifest_vendor_id, VENDOR_ID_SIZE);
+        if (encoded_len < 0) {
+            tr_error("Could not encode vendor_id to base64 using OpenSSL.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+    if (class_size != 0) {
+        int encoded_len = EVP_EncodeBlock(class_id, manifest_class_id, CLASS_ID_SIZE);
+        if (encoded_len < 0) {
+            tr_error("Could not encode class_id to base64 using OpenSSL.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+    if (version_size != 0) {
+        int encoded_len = EVP_EncodeBlock(fw_version, (const unsigned char *)new_version, strlen(new_version));
+        if (encoded_len < 0) {
+            tr_error("Could not encode fw_version to base64 using OpenSSL.");
+            ret_val = 1;
+            goto write_to_pt_fota_cleanup;
+        }
+    }
+#endif
     if (json_object_set_new(params, "vendorid", json_string((const char *) vendor_id))) {
         tr_error("Can not write vendor id to json object");
         ret_val = 1;
