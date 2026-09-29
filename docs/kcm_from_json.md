@@ -12,6 +12,7 @@ The JSON file passed via `--json-conf` must follow this structure:
 
 ```json
 {
+  "RoTFilePath": "/path/to/RoT.bin",
   "Certificates": [ ... ],
   "Keys": [ ... ],
   "ConfigParams": [ ... ],
@@ -21,7 +22,20 @@ The JSON file passed via `--json-conf` must follow this structure:
 
 ### Sections
 
-#### 1. `Certificates`
+#### 1. `RoTFilePath`
+
+Specifies the path to the Root of Trust (RoT) file containing device credentials. This is required when `PAL_USE_ROT_FROM_FILE` is enabled. By default, `PAL_USE_ROT_FROM_FILE` is enabled in `./config/sotp_fs_linux.h`.
+
+The RoT file should be a binary file containing a 16-byte key. For example, you can create it using:
+
+```bash
+# Create a 16-byte random key
+dd if=/dev/urandom of=RoT.bin bs=16 count=1
+```
+
+> Note: The RoT file must be readable by the edge-core process and should be stored securely. The file path is stored in rollback-protected storage and cannot be changed after initial provisioning.
+
+#### 2. `Certificates`
 
 Used to specify DER-encoded X.509 certificates for Bootstrap, LwM2M, and Update services.
 
@@ -43,7 +57,7 @@ Supported certificate names include:
 
 where, `mbed.BootstrapServerCACert` is Izuma Device Management bootstrap server CA, which is used to sign the bootstrap server certificate. You can retrieve this from the Portal -> Device Identity -> Server -> CA certificate for bootstrap server. Similarly, `mbed.LwM2MServerCACert` is Izuma Device Management LwM2M server CA, which is used to sign the device management server certificate. You can retrieve this from the Portal -> Device Identity -> Server -> CA certificate for LwM2M server.
 
-#### 2. `Keys`
+#### 3. `Keys`
 
 Used to define associated private keys for the device.
 
@@ -63,7 +77,7 @@ Supported key names include:
 
 > All certificates and keys must currently be in **DER** format and passed via a **file path**.
 
-#### 3. `ConfigParams`
+#### 4. `ConfigParams`
 
 Used to configure logical settings and metadata, including device identity and LwM2M parameters.
 
@@ -225,3 +239,52 @@ where,
 * `--json-conf /tmp/edge_configuration/config.json`: Passes the path to the mounted JSON configuration file as a CLI argument to edge-core.
 
 Ensure that all file paths referenced in the JSON are accessible and has read permissions.
+
+
+## External Certificate Store
+
+The edge client supports loading certificates and keys from an external path on the filesystem (external certificate/key store). This feature allows you to keep sensitive cryptographic aterial separate from the application binary, enhancing security by reducing the risk of exposure. Additionally, this feature enables customers to reuse their existing device certificates, educing the overhead of maintaining different certificates on the device.
+
+### How it works
+
+- **Disabled (default)**: Certificates and keys are loaded from DER files and embedded as byte strings in the KCM
+- **Enabled**: File paths to certificates and keys are stored as text strings in the KCM, and the actual files are read at runtime from the filesystem
+
+### Enabling External Certificate Store
+
+To enable external certificate store support, add the following flag to your CMake command:
+
+```bash
+mkdir build
+cd build
+cmake -D[MODE] -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+make
+```
+
+### Configuration Examples
+
+**Developer mode with external certificate store:**
+```bash
+cmake -DDEVELOPER_MODE=ON -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+```
+
+**BYOC mode with external certificate store:**
+```bash
+cmake -DBYOC_MODE=ON -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+```
+
+**Factory mode with external certificate store:**
+```bash
+cmake -DFACTORY_MODE=ON -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON ..
+```
+
+### Docker Build
+
+When building with Docker, you can enable external certificate store by adding the flag to the Dockerfile:
+
+```dockerfile
+cmake -DBYOC_MODE=ON \
+      -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON \
+      -DFIRMWARE_UPDATE=ON \
+      # ... other flags
+```

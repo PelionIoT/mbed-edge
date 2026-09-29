@@ -36,6 +36,11 @@ endif()
 add_definitions ("-DRESOURCE_ATTRIBUTES_LIST=1")
 add_definitions ("-DENABLE_ASYNC_REST_RESPONSE")
 
+# External crypto store support
+if (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT)
+    add_definitions ("-DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT")
+endif()
+
 # Setting JSON RPC request time-outs
 
 # Edge Core
