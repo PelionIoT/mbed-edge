@@ -8,6 +8,7 @@
 * Added default firmware install `fota_update_activate.sh` and verify `fota_update_verify.sh` scripts to demonstrated edge-core FOTA feature.
 * Added documentation `./docs/create_manifest_v3.md` and `./docs/prepare_fota_component_update.md`.
 * Updated `Dockerfile.debian.byoc` to enabled FOTA feature.
+* KCM from JSON: Added support for building the KCM from a JSON file. A new CLI option `--json-conf <path>` has been added to specify the path to the JSON configuration file. For detailed documentation [`./docs/kcm_from_json.md`](./docs/kcm_from_json.md)
 * Docker Support: Added new Dockerfiles to build a lightweight, Debian-based `edge-core` Docker image for different modes:
   * Dockerfile.debian.dev: DEVELOPER_MODE
   * Dockerfile.debian.byoc: BYOC_MODE (Bring Your Own Certificate/Configuration)
@@ -59,7 +60,7 @@
 * Updated to [Pelion Device Management Client (PDMC) library version 4.11.1](https://github.com/PelionIoT/mbed-cloud-client/blob/master/CHANGELOG.md#release-4111-11102021)
 * Updated to [Mbed TLS version 2.27](https://github.com/ARMmbed/mbedtls/releases/tag/v2.27.0)
 * Updated parsec-se-driver version from 0.5.0 to 0.6.0 (in `lib/pal-platform.json`).
-* Ported subdevice FOTA support to be compatible with new FOTA framework library. This feature is no longer supported with UC Hub library. 
+* Ported subdevice FOTA support to be compatible with new FOTA framework library. This feature is no longer supported with UC Hub library.
 * Implemented callbacks to support combined update feature of Device Management Update Client introduced in PDMC 4.11.0.
 * Install edge_tool.py and cbor_converter.py scripts with `edge-tool/setup.py`.
 * Setting the default value of `MBED_CONF_MBED_CLIENT_MAX_RECONNECT_TIMEOUT` to 10 mins.
