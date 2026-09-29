@@ -154,6 +154,8 @@ With the `BYOC_MODE` it is possible to inject the Device Management Client confi
 
 Other build flags can also be set with this method.
 
+For information about building Edge Core with OpenSSL instead of MbedTLS, see [Building with OpenSSL](docs/build_with_openssl.md).
+
 ### Enabling firmware update
 
 To use the firmware update functionality, you must generate a `update_default_resources.c` file.

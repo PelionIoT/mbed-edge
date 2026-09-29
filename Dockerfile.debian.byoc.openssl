@@ -1,0 +1,112 @@
+# Stage 1: Build the application
+FROM debian:bookworm-slim AS builder
+
+# Set the working directory
+WORKDIR /usr/src/app/mbed-edge
+
+# Install dependencies in a single step to reduce layers
+RUN apt-get update && \
+    DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
+    tzdata build-essential libc6-dev cmake libcurl4-openssl-dev libssl-dev \
+    python3 python3-pip pkg-config git \
+    wget \
+    perl \
+    make \
+    gcc \
+    g++ && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Build OpenSSL 3.0.9 with FIPS support
+RUN cd /tmp && \
+    wget https://www.openssl.org/source/openssl-3.0.9.tar.gz && \
+    tar -xzf openssl-3.0.9.tar.gz && \
+    cd openssl-3.0.9 && \
+    ./config --prefix=/usr/local/openssl-3.0.9 --openssldir=/usr/local/openssl-3.0.9 enable-fips && \
+    make -j$(nproc) && \
+    make install && \
+    cd /tmp && \
+    rm -rf openssl-3.0.9 openssl-3.0.9.tar.gz
+
+# Build OpenSSL 3.0.2 for libssl and libcrypto
+RUN cd /tmp && \
+    wget https://www.openssl.org/source/openssl-3.0.2.tar.gz && \
+    tar -xzf openssl-3.0.2.tar.gz && \
+    cd openssl-3.0.2 && \
+    ./config --prefix=/usr/local/openssl-3.0.2 --openssldir=/usr/local/openssl-3.0.2 && \
+    make -j$(nproc) && \
+    make install && \
+    cd /tmp && \
+    rm -rf openssl-3.0.2 openssl-3.0.2.tar.gz
+
+# Copy source files after dependencies are installed
+COPY . .
+
+# Return to main project and ensure it links with libbsd
+WORKDIR /usr/src/app/mbed-edge
+RUN mkdir -p build && cd build && \
+    cmake -DBYOC_MODE=ON \
+          -DFIRMWARE_UPDATE=ON \
+          -DTRACE_LEVEL=DEBUG \
+          -DFOTA_ENABLE=ON \
+          -DMBED_CLOUD_CLIENT_USE_OPENSSL=ON \
+          -DFOTA_COMBINED_IMAGE_SUPPORT=ON \
+          -DPLATFORM_TARGET=x86_x64_NativeLinux_openssl \
+          -DFOTA_SCRIPT_DIR=\"/opt/izuma\" \
+          -DFOTA_INSTALL_SCRIPT=\"fota_update_activate.sh\" \
+          -DFOTA_VERIFY_SCRIPT=\"fota_update_verify.sh\" \
+          .. && \
+    make -j$(nproc)
+
+# Stage 2: Create a minimal runtime image
+FROM debian:bookworm-slim
+
+# Set working directory
+WORKDIR /usr/src/app/mbed-edge
+
+# Install only the required runtime dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
+    tzdata libc6 libcurl4 \
+    vim \
+    iptables \
+    iputils-ping \
+    net-tools \
+    dnsutils \
+    traceroute \
+    curl \
+    wget \
+    tcpdump \
+    socat \
+    telnet \
+    nmap \
+    gdb \
+    libc6-dbg \
+    coreutils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/izuma
+
+# Copy only the built binary from the builder stage
+COPY --from=builder /usr/src/app/mbed-edge/build/ /usr/src/app/mbed-edge/build/
+COPY --from=builder /usr/src/app/mbed-edge/fota/MAIN /opt/izuma/MAIN
+COPY --from=builder /usr/src/app/mbed-edge/fota/COMP_1 /opt/izuma/COMP_1
+COPY --from=builder /usr/src/app/mbed-edge/start_with_openssl.sh /start_with_openssl.sh
+RUN chmod +x /start_with_openssl.sh
+
+# Copy OpenSSL binary and libraries
+RUN mkdir -p /usr/local/lib/openssl
+RUN mkdir -p /usr/local/bin
+RUN mkdir -p /usr/local/ssl
+COPY --from=builder /usr/local/openssl-3.0.2/bin/openssl /usr/local/bin/openssl
+COPY --from=builder /usr/local/openssl-3.0.2/lib64/engines-3 /usr/local/lib/openssl/engines-3
+COPY --from=builder /usr/local/openssl-3.0.2/lib64/libcrypto.so.3 /usr/local/lib/openssl/libcrypto.so.3
+COPY --from=builder /usr/local/openssl-3.0.2/lib64/libssl.so.3 /usr/local/lib/openssl/libssl.so.3
+COPY --from=builder /usr/local/openssl-3.0.2/lib64/ossl-modules/legacy.so /usr/local/lib/openssl/ossl-modules/legacy.so
+COPY --from=builder /usr/local/openssl-3.0.9/lib64/ossl-modules/fips.so /usr/local/lib/openssl/ossl-modules/fips.so
+COPY --from=builder /usr/local/openssl-3.0.9/fipsmodule.cnf /usr/local/ssl/fipsmodule.cnf
+COPY --from=builder /usr/src/app/mbed-edge/config/openssl-3.0.2/openssl-fips.cnf /usr/local/ssl/openssl-fips.cnf
+
+ENTRYPOINT ["/start_with_openssl.sh"]
+CMD []

@@ -30,6 +30,7 @@ RUN mkdir -p build && cd build && \
           -DFOTA_SCRIPT_DIR=\"/opt/izuma\" \
           -DFOTA_INSTALL_SCRIPT=\"fota_update_activate.sh\" \
           -DFOTA_VERIFY_SCRIPT=\"fota_update_verify.sh\" \
+          -DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT=ON \
           .. && \
     make -j$(nproc)
 

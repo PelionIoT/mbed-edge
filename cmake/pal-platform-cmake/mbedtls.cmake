@@ -16,22 +16,22 @@
 #  limitations under the License.
 #################################################################################
 
+if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
+    SET(TLS_LIBRARY mbedTLS)
+    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer")
+    SET(ENABLE_PROGRAMS OFF CACHE STRING "Avoid compiling mbedtls programs" )
+    SET(ENABLE_TESTING OFF CACHE STRING "Avoid compiling mbedtls tests")
 
-SET(TLS_LIBRARY mbedTLS)
-SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer")
-SET(ENABLE_PROGRAMS OFF CACHE STRING "Avoid compiling mbedtls programs" )
-SET(ENABLE_TESTING OFF CACHE STRING "Avoid compiling mbedtls tests")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include/mbedtls")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/port/ksdk")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include/psa")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include/mbedtls")
+    include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/library")
 
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls")
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include")
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include/mbedtls")
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/port/ksdk")
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include/psa")
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/include/mbedtls")
-include_directories ("${CMAKE_SOURCE_DIR}/lib/mbedtls/library")
+    message(status "device = ${PAL_TARGET_DEVICE}")
+    set (EXTRA_CMAKE_DIRS ${EXTRA_CMAKE_DIRS} "${CMAKE_SOURCE_DIR}/lib/mbedtls")
 
-message(status "device = ${PAL_TARGET_DEVICE}")
-set (EXTRA_CMAKE_DIRS ${EXTRA_CMAKE_DIRS} "${CMAKE_SOURCE_DIR}/lib/mbedtls")
-
-list (APPEND SRC_LIBS mbedtls mbedcrypto mbedx509)
-
+    list (APPEND SRC_LIBS mbedtls mbedcrypto mbedx509)
+endif()

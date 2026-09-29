@@ -1,4 +1,23 @@
 {
+  "x86_x64_NativeLinux_openssl": {
+    "device": {
+      "name": "x86_x64"
+    },
+    "os": {
+      "name": "Linux_Native"
+    },
+    "middleware": {
+      "curl": {
+        "version": "8.5.0",
+        "from": {
+          "protocol": "git",
+          "location": "https://github.com/curl/curl.git",
+          "tag": "curl-8_5_0"
+        },
+        "to": "Middleware/curl/curl"
+      }
+    }
+  },
   "x86_x64_NativeLinux_mbedtls": {
     "device": {
       "name": "x86_x64"
