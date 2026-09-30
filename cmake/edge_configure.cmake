@@ -13,6 +13,7 @@ option (FIRMWARE_UPDATE "Enable firware update" ON)
 option (DEVELOPER_MODE "Developer mode" OFF)
 option (BYOC_MODE "Bring your own certificate" OFF)
 option (FACTORY_MODE "Factory provisioning" OFF)
+option (ROT_FROM_FILE "Read the Root of Trust from the file given by RoTFilePath in the provisioning configuration" OFF)
 
 # Note - CUSTOM_PORT enables also port alternation,
 # if errors occur 443 and both 5684 are tried alternatively.
@@ -35,6 +36,11 @@ endif()
 # Mandatory definitions for Device Management Client
 add_definitions ("-DRESOURCE_ATTRIBUTES_LIST=1")
 add_definitions ("-DENABLE_ASYNC_REST_RESPONSE")
+
+if (${ROT_FROM_FILE})
+  MESSAGE ("Root of Trust is read from file (RoTFilePath).")
+  add_definitions ("-DPAL_USE_ROT_FROM_FILE=1")
+endif()
 
 # External crypto store support
 if (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT)

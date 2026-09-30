@@ -30,7 +30,12 @@
 
 #define PAL_SIMULATOR_TEST_ENABLE 1
 
-#define PAL_USE_ROT_FROM_FILE 1
+// Read the RoT from the file given by RoTFilePath in the provisioning
+// configuration. Opt-in with -DROT_FROM_FILE=ON; requires provisioning via
+// the FCC bundle (e.g. BYOC JSON/CBOR config), as nothing else sets the path.
+#ifndef PAL_USE_ROT_FROM_FILE
+#define PAL_USE_ROT_FROM_FILE 0
+#endif
 
 #include "Linux_default.h"
 
