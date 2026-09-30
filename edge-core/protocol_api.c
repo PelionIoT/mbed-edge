@@ -177,10 +177,10 @@ typedef enum {
     PT_UPDATE_FLAGS_FAIL_IF_DEVICE_EXISTS = 0x01 // Abort hte operation if the devices already exists
 } pt_update_device_values_flags_e;
 
-static int update_device_values_from_json(json_t *structure,
-                                          struct connection *connection,
-                                          const char **error_detail,
-                                          pt_update_device_values_flags_e flags);
+static pt_api_result_code_e update_device_values_from_json(json_t *structure,
+                                                           struct connection *connection,
+                                                           const char **error_detail,
+                                                           pt_update_device_values_flags_e flags);
 static void certificate_list_clear(client_data_t *client_data);
 static const char *map_ce_status_to_string(ce_status_e status);
 
