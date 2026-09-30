@@ -375,7 +375,6 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
         {"-o", "--http-port", 1, 0, NULL}
     };
-    Elements elements = {0, 0, 8, commands, arguments, options};
 
 #ifdef MBED_EDGE_ENABLE_BYOC_JSON
     Elements elements = {0, 0, 8, commands, arguments, options};
