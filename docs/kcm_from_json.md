@@ -24,7 +24,9 @@ The JSON file passed via `--json-conf` must follow this structure:
 
 #### 1. `RoTFilePath`
 
-Specifies the path to the Root of Trust (RoT) file containing device credentials. This is required when `PAL_USE_ROT_FROM_FILE` is enabled. By default, `PAL_USE_ROT_FROM_FILE` is enabled in `./config/sotp_fs_linux.h`.
+Specifies the path to the Root of Trust (RoT) file containing device credentials. This is required when edge-core is built with `-DROT_FROM_FILE=ON`, which sets `PAL_USE_ROT_FROM_FILE`. The option is disabled by default, in which case the RoT is generated and kept in SOTP storage and `RoTFilePath` is not needed. The BYOC Dockerfiles enable it.
+
+> Note: Only provisioning through the configuration file sets the RoT file path. Do not enable `ROT_FROM_FILE` for `DEVELOPER_MODE` builds; edge-core will fail to start because no RoT can be read.
 
 The RoT file should be a binary file containing a 16-byte key. For example, you can create it using:
 

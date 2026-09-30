@@ -21,6 +21,7 @@ COPY . .
 WORKDIR /usr/src/app/mbed-edge
 RUN mkdir -p build && cd build && \
     cmake -DBYOC_MODE=ON \
+          -DROT_FROM_FILE=ON \
           -DFIRMWARE_UPDATE=ON \
           -DTRACE_LEVEL=DEBUG \
           -DFOTA_ENABLE=ON \
