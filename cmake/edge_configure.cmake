@@ -257,6 +257,9 @@ if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
   add_definitions(-DPAL_USE_SECURE_TIME=1)
 else()
   SET (TLS_LIBRARY "OpenSSL")
+  # Found here rather than in edge-client so the OpenSSL:: imported targets
+  # are visible to every subdirectory (edge-client, edge-core tests).
+  find_package(OpenSSL REQUIRED)
   add_definitions(-DMBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL=1)
   # Set PAL_USE_SECURE_TIME to 0 for OpenSSL
   add_definitions(-DPAL_USE_SECURE_TIME=0)

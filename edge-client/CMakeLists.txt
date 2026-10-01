@@ -1,6 +1,5 @@
 project(edge-client)
 set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
-find_package(OpenSSL REQUIRED)
 
 if (TARGET_GROUP STREQUAL test)
 add_definitions(-DBUILD_TYPE_TEST)
