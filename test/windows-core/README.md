@@ -27,6 +27,7 @@ The tests verify:
   nanostack scheduler and Windows PAL, including the bootstrap stagger timer.
 - A five-second registration timer against an independent performance clock,
   including a 1.5-second callback stall, to detect scheduler clock drift.
+- Windows service option validation and isolation of explicit state directories.
 - Fresh BYOC startup: storage initializes and the timestamp logger prints a
   missing-configuration error, then the process exits normally with code 1.
   This catches startup crashes and missing DLLs without cloud credentials.
@@ -44,7 +45,8 @@ ctest --test-dir build/windows-x64 -C Debug --output-on-failure
 ```
 
 These checks do not validate a connected protocol translator, JSON RPC
-registration, real cloud provisioning or the eventual Windows service. Run
+registration or real cloud provisioning. The elevated service tests below
+validate the native Windows service separately. Run
 the [PAL/common suite](../windows-pal/README.md) separately and follow the
 [cloud connectivity plan](../../basic-connectivity-test-win10.md) for a real
 developer-certificate test.
@@ -58,7 +60,7 @@ To build that developer profile with the downloaded C credential:
 ```
 
 The helper checks the expected credential fields without printing their values,
-builds with the shared OpenSSL backend, and runs the four CLI/transport/timer tests.
+builds with the shared OpenSSL backend, and runs the five CLI/options/transport/timer tests.
 It disables firmware updates, file-based RoT and CoAP payload dumps. It does
 not start the cloud client automatically. The executable includes the developer
 private key; keep the build output and identity storage private and out of Git.
@@ -105,3 +107,25 @@ fresh cloud read during the block to demonstrate loss of the device response,
 then verify automatic recovery, the original Device ID, and a fresh successful
 read after restoration. Continue with C6's 15-minute stability check. Two
 clients must use distinct identity stores and local listener ports.
+
+## Native service and boot qualification
+
+`test-service.ps1` uses the production SCM adapter in a credential-free fixture
+to check restricted identity, ACLs, state locking, clean stop/start, recovery,
+failure codes, and bounded hung shutdown. `-RealCloud` checks real service
+registration and retained identity. `-OfflineStartup` additionally blocks only
+the installed test executable and verifies local startup and clean stop without
+cloud reachability. It requires `-RealCloud` and enabled firewall profiles.
+
+```powershell
+.\test\windows-core\test-service.ps1 `
+    -BinaryDirectory D:\work\mbed-edge\build\windows-main-merge\bin\Release `
+    -OutputDirectory D:\work\mbed-edge\build\service-test-1 `
+    -RealCloud -OfflineStartup
+```
+
+Run elevated and choose a new output directory. Services are removed on exit;
+logs and state are retained. Actual reboot qualification uses
+`test-service-boot.ps1`, which prepares both configurations and a protected
+SYSTEM startup observer. It does not reboot the host. Follow the
+[boot preparation and cleanup instructions](../../docs/windows-build.md#native-windows-service-and-restricted-identity).

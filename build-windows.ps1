@@ -56,7 +56,7 @@ if ($PalOnly) {
 }
 if ($CoreTests) {
     $profileArguments += '-DEDGE_WINDOWS_TESTS=ON'
-    $buildTargets = @('edge-core', 'windows-websocket-tests', 'windows-client-timer-tests')
+    $buildTargets = @('edge-core', 'windows-websocket-tests', 'windows-client-timer-tests', 'windows-service-probe')
 }
 if ($PalTests) {
     $sourceDirectory = Join-Path $PSScriptRoot 'test/windows-pal'

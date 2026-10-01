@@ -5,8 +5,9 @@ and Release. Windows selects the same OpenSSL crypto and TLS sources as
 upstream, with the existing PAL interfaces for operating-system services.
 The developer cloud flow passes bootstrap, registration, fresh resource reads,
 identity persistence, network recovery and stability checks on Windows 10 Pro.
-This remains an incomplete production port: translator integration, Windows
-service lifecycle and installation still need validation or development.
+The native SCM adapter and restricted-service setup are described below.
+Translator integration, release packaging and broader Windows qualification
+remain incomplete.
 
 ## Source baseline
 
@@ -196,8 +197,8 @@ existing build profile. Linux regression validation has not run on this host.
 Edge uses PAL mutexes/semaphores and monotonic ticks on Windows. Its joinable
 factory-reset worker uses `_beginthreadex` because PAL threads are detached.
 The libevent loop uses Windows thread support, and Ctrl+C/Ctrl+Break queue
-shutdown on that loop. This is console lifecycle handling; SCM support is
-still required for running as a Windows service.
+shutdown on that loop. Console mode remains available alongside the native
+SCM adapter described below.
 
 The protocol API listens on IPv4 loopback. Use
 `--edge-pt-address 127.0.0.1:<port>` (default `127.0.0.1:7681`), with the
@@ -285,8 +286,186 @@ without storage resets or manual restarts. A 901-second stability check and
 fresh final reads passed, followed by clean stops with exit code 0. Both the
 normal firewall cleanup and its independent watchdog verified rule removal.
 
-The next production work is SCM lifecycle handling, a
-restricted service identity, Windows/file logging and offline/headless
-installer packaging. Firmware updating and privileged reboot handling remain
-later work. Windows 11, Server Core and other required editions still need
-their own build/runtime validation.
+Production Event Viewer/rotating-file logging and offline/headless release
+packaging remain follow-up work. Firmware updating and privileged reboot
+handling remain later work. Windows 11, Server Core and other required editions
+still need their own build/runtime validation.
+
+## Native Windows service and restricted identity
+
+Windows builds use `edge-core/windows/edge_service.c` for the SCM dispatcher.
+Normal invocation retains console behavior. `--service` runs a single native
+service process and requires an existing absolute local `--data-dir`. The
+optional `--service-name` defaults to `EdgeCore`; `--service-log` selects an
+absolute append-only diagnostic log (default: `<data-dir>/service.log`). Paths
+with spaces and Unicode are passed through native wide-character APIs.
+
+The adapter reports START_PENDING checkpoints after real initialization steps,
+then RUNNING after the local event loop and listeners are ready. Cloud
+registration remains asynchronous, so loss of internet does not prevent the
+service from starting. STOP, SHUTDOWN and PRESHUTDOWN queue the existing graceful stop on
+the libevent thread. Cloud replies are given up to ten seconds before local
+teardown proceeds. A twenty-second outer deadline reports failure and terminates
+the service process if teardown hangs. Startup/application errors are reported
+to SCM, including existing provisioning paths that call `exit(1)`.
+The installer sets a per-service preshutdown timeout of 25 seconds, allowing
+the 20-second application deadline to finish before normal OS shutdown. It
+does not change the machine-wide shutdown timeout. See
+[Microsoft's preshutdown behavior](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_preshutdown_info).
+
+Service mode verifies its actual process token before opening state: it must
+run as `NT AUTHORITY\LocalService`, contain its own enabled and restricted
+service SID, and have no privileges beyond `SeChangeNotifyPrivilege`. An
+accidentally elevated or unrestricted service fails with access denied.
+Console mode does not impose that service-token requirement.
+
+An exclusive `edge-core.lock` in the selected data directory prevents two
+processes from using the same persisted identity. Existing PAL filesystem
+implementations are reused: relative mount paths resolve beneath the explicit
+state directory instead of SCM's working directory. Keep the standard Windows
+relative PAL mount configuration when building this profile. Writable data
+directories are excluded from subsequent DLL searches.
+Console runs without `--data-dir` also lock their existing working directory.
+
+`windows/install-service.ps1` is an offline service-registration/setup helper,
+not an MSI or a completed upgrade installer. Run it from elevated Windows
+PowerShell 5.1+ after building and staging the runtime dependencies:
+
+```powershell
+.\windows\install-service.ps1 `
+    -BinaryDirectory .\build\windows-main-merge\bin\Release
+Start-Service EdgeCore
+Stop-Service EdgeCore
+.\windows\install-service.ps1 -Action Uninstall
+```
+
+The defaults install to `%ProgramFiles%\Izuma\EdgeCore` and store data in
+`%ProgramData%\Izuma\EdgeCore`. Installation uses LocalService, a restricted
+per-service SID, a minimal privilege allowlist, delayed automatic startup and
+SCM recovery (two restart attempts, then no further action until reset). Only
+SYSTEM and Administrators get full control. The service SID gets read/execute
+access to binaries and configuration and Modify access to `state` and `logs`.
+Ordinary users and other LocalService services receive no data ACL grant.
+Inherited OWNER RIGHTS entries also suppress implicit owner permission to
+change ACLs on files created by the shared LocalService account, following
+[Microsoft's owner-rights semantics](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/81d92bba-d22b-4a8c-908a-554ab29148ab).
+Provisioning files may be supplied with `-ProvisioningFile <absolute .cbor/.json>`;
+the corresponding BYOC build feature must be enabled. No credentials are
+downloaded by this helper. Runtime certificate provisioning is still a separate
+qualification task; a developer build remains a development-only artifact.
+
+Use `-StartupType Manual` to suppress automatic startup for laboratory tests.
+Use `-ServiceName`, `-InstallDirectory`, `-DataDirectory`, `-HttpPort` and
+`-ProtocolPort` for distinct installations. Installation requires an empty,
+dedicated binary directory and separate dedicated data directory; it rejects
+reparse points. Uninstall stops/removes the service but retains all binaries,
+configuration, logs and persisted identity. Existing state can be secured and
+reused by a later installation of the same service name. Staged upgrades and
+rollback are not implemented yet.
+
+For reproducible integration tests, build with `-CoreTests`, then run the
+following in an elevated PowerShell prompt. It creates uniquely named test
+services, exercises the production SCM adapter with a native fixture, and
+removes its services even on failure. The output directory must not yet exist.
+
+```powershell
+.\test\windows-core\test-service.ps1 `
+    -BinaryDirectory .\build\windows-main-merge\bin\Release `
+    -OutputDirectory D:\work\mbed-edge\build\service-test-release `
+    -RealCloud
+```
+
+`-RealCloud` additionally tests real Edge cloud registration and identity
+persistence under the restricted service account; use a developer build with
+private credentials kept outside Git. Omit it for the credential-free SCM/ACL
+fixture. The fixture tests protected binary/configuration writes, configuration
+reads, own-state writes, denied foreign-state access, concurrent state locking,
+clean restart, crash recovery, rejection of LocalSystem, startup error status,
+bounded hung shutdown, and retention on uninstall. It deliberately terminates
+only its own verified test process for crash recovery. It never reboots the host.
+This does not qualify machine reboot/shutdown or the untested Windows editions.
+Add `-OfflineStartup` with `-RealCloud` to test local SCM readiness and clean
+stop while that executable's outbound cloud traffic is blocked. The existing
+firewall helper and independent cleanup watchdog remove only the test's own
+per-program rule; firewall profiles must already be enabled.
+
+For actual machine reboot qualification, use the elevated boot helper after
+building both developer configurations with the same private credentials:
+
+```powershell
+.\test\windows-core\test-service-boot.ps1 -Action Prepare `
+    -BuildDirectory D:\work\mbed-edge\build\windows-main-merge `
+    -EvidenceDirectory D:\work\mbed-edge\build\boot-test-1
+```
+
+Prepare installs uniquely named Release and Debug services with delayed
+automatic startup, verifies initial cloud registration, and snapshots their
+identity and log offsets. It copies the observer and installer into an
+Administrators/SYSTEM-only directory under
+`%ProgramData%\Izuma\EdgeCoreBootTests`. A startup task runs that protected
+observer as SYSTEM without a user login. Prepare exercises the exact task on
+the current boot and requires an `awaiting-reboot` preflight result. The helper
+never calls a reboot/shutdown command. A coordinated restart is a separate step.
+
+After a different boot, the observer waits up to five minutes for SCM to start
+the services automatically; it never starts them itself. It requires the prior
+boot's PRESHUTDOWN control (15), clean exit within 20 seconds, a subsequent
+service start, and cloud registration with the same identity. It then removes
+only its matching test services and startup task, retaining state and logs.
+The sanitized `boot-results.json` in the evidence directory records pass/fail
+and cleanup; `prepared.json` records the protected manifest path. To cancel
+before reboot, run:
+
+```powershell
+.\test\windows-core\test-service-boot.ps1 -Action Cleanup `
+    -Manifest <manifest-path-from-prepared.json>
+```
+
+One reboot does not qualify Fast Startup power-off/power-on, abrupt power loss,
+or disconnected-network boot. Those are additional machine tests. The current
+developer binaries contain a private test key and remain development artifacts.
+
+Validation on 2026-10-01: native developer Debug and Release builds each pass
+all five console/timer/WebSocket/options tests. The BYOC Release build passes
+all six tests, including unprovisioned startup and state paths containing spaces
+and Unicode. Service mode outside SCM is rejected before creating state files.
+
+The elevated service integration matrix passes in both Release and Debug on
+Windows 10 Pro 22H2 x64, build 19045.6466, using Windows PowerShell 5.1 and
+shared OpenSSL 3.5.9. Each configuration passes the restricted LocalService
+token, service SID, privilege allowlist, state writes, configuration reads,
+denied binary/configuration writes, denied foreign-state reads, and inherited
+owner-rights ACL checks. Explicit-directory and working-directory concurrent
+access both fail with sharing error 32. SCM clean stop/start and crash recovery
+preserve state. LocalSystem is rejected with access denied; startup failure
+propagates service-specific code 42. A deliberately hung shutdown is bounded
+at 20 seconds and reports `ERROR_TIMEOUT` (1460) through SCM.
+
+Real Edge registers with the cloud as restricted LocalService, stops with
+application exit code 0, and reconnects after SCM restart with the same persisted
+identity in both configurations. Uninstall retains identity and logs. All
+temporary test services are removed. Ignored evidence directories are
+`build/windows-service-verified-release-20261001-170058-e17b3f` and
+`build/windows-service-verified-debug-20261001-170058-e17b3f`; each contains
+`results.json`, `progress.log`, and copied probe/cloud logs.
+
+This clears the service lifecycle and restricted identity milestone on the
+tested Windows 10 host. Machine reboot/shutdown, delayed automatic startup
+after boot, runtime CBOR/JSON provisioning, and Windows 11/Server/Server Core
+qualification remain pending.
+
+The subsequent startup/shutdown extension adds PRESHUTDOWN handling, a
+25-second per-service SCM timeout, offline-startup testing, and the protected
+boot observer. Updated Developer Debug/Release builds pass all five application
+tests each; updated BYOC Release passes all six. The new elevated matrix and
+observer preflight have not run because both UAC launch attempts were canceled.
+No boot-test services or tasks have been installed, and no reboot has occurred.
+The service matrix results above describe the preceding implementation.
+The SCM configuration wrapper also compiles and successfully queries an
+existing service under Windows PowerShell 5.1.19041.6456; changing a test
+service's preshutdown timeout still needs the elevated matrix.
+
+The service log currently captures appended console diagnostics without
+rotation or an Event Viewer provider. The local loopback protocol API also
+remains unauthenticated: restricted service identity does not authenticate
+translator/admin callers. Those are separate production gaps.

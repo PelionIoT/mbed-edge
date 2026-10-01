@@ -23,6 +23,9 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <process.h>
+#ifndef BUILD_TYPE_TEST
+#include "windows/edge_service.h"
+#endif
 #else
 #include <unistd.h>
 #endif
@@ -77,6 +80,7 @@ EDGE_LOCAL struct context *g_program_context = NULL;
 #ifdef _WIN32
 static struct event *console_shutdown_event;
 static SRWLOCK console_shutdown_lock = SRWLOCK_INIT;
+static LONG windows_shutdown_requested;
 #else
 EDGE_LOCAL struct event ev_sigint = {0};
 EDGE_LOCAL struct event ev_sigterm = {0};
@@ -395,6 +399,14 @@ EDGE_LOCAL void shutdown_handler(evutil_socket_t s, short x, void * args)
 {
     tr_info("shutdown_handler signal: %d", x);
     tr_info("edgeclient status when shutting down: %s", cloud_connection_status_in_string(g_program_context));
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+    if (edge_windows_service_mode()) {
+        /* A cloud registration/reply may be pending while offline. Bound that
+         * wait, then finish local client/PAL teardown before SCM's deadline. */
+        const struct timeval deadline = {10, 0};
+        event_base_loopexit(g_program_context->ev_base, &deadline);
+    }
+#endif
     edgeclient_stop();
 }
 
@@ -460,29 +472,41 @@ EDGE_LOCAL bool setup_signal_handler(struct event *event,
 
 #ifndef BUILD_TYPE_TEST
 #ifdef _WIN32
-static BOOL WINAPI console_control_handler(DWORD control)
+bool edge_core_request_stop(void)
 {
-    if (control != CTRL_C_EVENT && control != CTRL_BREAK_EVENT) return FALSE;
-    BOOL handled = FALSE;
+    bool handled;
     AcquireSRWLockShared(&console_shutdown_lock);
-    if (console_shutdown_event) {
-        /* Dispatch shutdown on Edge's event loop, never on the console thread. */
+    if (console_shutdown_event &&
+        InterlockedCompareExchange(&windows_shutdown_requested, 1, 0) == 0) {
+        /* libevent's Windows thread support wakes the event loop safely. */
         event_active(console_shutdown_event, EV_TIMEOUT, 0);
-        handled = TRUE;
     }
+    handled = console_shutdown_event != NULL;
     ReleaseSRWLockShared(&console_shutdown_lock);
     return handled;
 }
 
+static BOOL WINAPI console_control_handler(DWORD control)
+{
+    if (control != CTRL_C_EVENT && control != CTRL_BREAK_EVENT) return FALSE;
+    return edge_core_request_stop();
+}
+
 EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
 {
+    AcquireSRWLockExclusive(&console_shutdown_lock);
     console_shutdown_event = event_new(ev_base, -1, EV_PERSIST, shutdown_handler, NULL);
-    if (!console_shutdown_event) return false;
-    if (!SetConsoleCtrlHandler(console_control_handler, TRUE)) {
-        event_free(console_shutdown_event);
-        console_shutdown_event = NULL;
+    if (!console_shutdown_event) {
+        ReleaseSRWLockExclusive(&console_shutdown_lock);
         return false;
     }
+    if (!edge_windows_service_mode() && !SetConsoleCtrlHandler(console_control_handler, TRUE)) {
+        event_free(console_shutdown_event);
+        console_shutdown_event = NULL;
+        ReleaseSRWLockExclusive(&console_shutdown_lock);
+        return false;
+    }
+    ReleaseSRWLockExclusive(&console_shutdown_lock);
     return true;
 }
 #else
@@ -523,7 +547,7 @@ EDGE_LOCAL void clean(struct context *ctx)
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
     AcquireSRWLockExclusive(&console_shutdown_lock);
     if (console_shutdown_event) {
-        SetConsoleCtrlHandler(console_control_handler, FALSE);
+        if (!edge_windows_service_mode()) SetConsoleCtrlHandler(console_control_handler, FALSE);
         event_free(console_shutdown_event);
         console_shutdown_event = NULL;
     }
@@ -716,7 +740,9 @@ EDGE_LOCAL void clean_resources(struct lws_context *lwsc, const char *edge_pt_so
     rpc_deinit();
 }
 
-#ifndef BUILD_TYPE_TEST
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+int edge_core_run(int argc, char **argv)
+#elif !defined(BUILD_TYPE_TEST)
 int main(int argc, char **argv)
 #else
 int testable_main(int argc, char **argv)
@@ -748,6 +774,9 @@ int testable_main(int argc, char **argv)
     for (counter = 0; counter < 1; counter ++) {
         // Initialize trace and trace mutex
         edge_trace_init(args.color_log);
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+        edge_windows_service_checkpoint();
+#endif
 #ifdef _WIN32
         tr_info("Edge Core starting... pid: %d", _getpid());
 #else
@@ -764,12 +793,18 @@ int testable_main(int argc, char **argv)
             break;
         }
 
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+        edge_windows_service_checkpoint();
+#endif
         timeout_handler = rpc_request_timeout_api_start(g_program_context->ev_base,
                                                         SERVER_TIMEOUT_CHECK_INTERVAL_MS,
                                                         SERVER_REQUEST_TIMEOUT_THRESHOLD_MS);
 
         if (!timeout_handler) {
             // error message already printed.
+#ifdef _WIN32
+            rc = 1;
+#endif
             break;
         }
         // Create client
@@ -813,6 +848,9 @@ int testable_main(int argc, char **argv)
 #endif
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+        edge_windows_service_checkpoint();
+#endif
         rfs_add_factory_reset_resource();
 
         // Connect client
@@ -835,6 +873,13 @@ int testable_main(int argc, char **argv)
                                                &lock_fd);
 #ifdef _WIN32
         if (!lwsc) {
+            rc = 1;
+            break;
+        }
+#endif
+        /* Readiness is local initialization; cloud reachability is asynchronous. */
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+        if (!edge_windows_service_ready()) {
             rc = 1;
             break;
         }

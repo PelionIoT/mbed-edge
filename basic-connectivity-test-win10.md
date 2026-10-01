@@ -382,6 +382,28 @@ Basic connectivity is complete only when G0 and C1-C6 pass in Debug and Release
 on Windows 10 Pro x64, with matching client/cloud evidence. Record blocked and
 unexecuted cases explicitly. Service/installer readiness is a separate milestone.
 
+The service lifecycle and restricted identity milestone passed on October 1,
+2026 in Release and Debug on Windows 10 Pro 22H2 x64 (19045.6466). The elevated
+`test/windows-core/test-service.ps1 -RealCloud` run verified restricted
+LocalService with a restricted service SID and minimal privileges, protected
+file access, concurrent state locking, SCM stop/start and crash recovery,
+failure status reporting, bounded hung shutdown, and identity retention on
+uninstall. Real Edge registered with the cloud and reconnected after SCM
+restart with the same persisted identity; both configurations stopped cleanly.
+The native fixture uses the production SCM adapter for the failure cases.
+All temporary services were removed; logs and identity stores were retained.
+Evidence is under the ignored
+`build/windows-service-verified-{release,debug}-20261001-170058-e17b3f` directories.
+This service test checks registration and identity persistence; the live-read,
+network-outage and soak passes above were performed in console mode. Actual
+machine reboot/shutdown, automatic startup after boot, runtime CBOR/JSON
+provisioning and the other target Windows editions still require qualification.
+The subsequent PRESHUTDOWN and boot-test extension builds successfully, but its
+new offline service checks and protected SYSTEM observer preflight are pending
+an elevated run. The UAC attempts were canceled; no reboot-test services/tasks
+were installed and no host restart occurred. Follow the preparation and cleanup
+instructions in [the Windows build guide](docs/windows-build.md#native-windows-service-and-restricted-identity).
+
 After execution, stop the test client, remove its temporary firewall rule and
 retain or retire the dedicated cloud device/certificate according to the account
 owner's decision. Storage resets apply only to this isolated run directory.
