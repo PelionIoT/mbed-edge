@@ -21,7 +21,7 @@ The seven incoming Edge commits are retained in merge history:
 
 | Commit | Change | Windows integration |
 | --- | --- | --- |
-| `9d61e6a` | JSON provisioning generates KCM | Shared sources retained; full application validation remains. |
+| `9d61e6a` | JSON provisioning generates KCM | Shared FCC/KCM schema retained; Windows uses a PAL-based JSON adapter with relative DER paths. |
 | `f9c49f8` | File-based Root of Trust | Uses Windows PAL file APIs for UTF-8 paths. |
 | `98ac0fd` | OpenSSL crypto and TLS support | Windows defaults to this shared backend. |
 | `76f359a` | File descriptor limit documentation | Retained. |
@@ -256,9 +256,10 @@ this GCM suite with server trust validation and mutual authentication.
 [OpenSSL security levels](https://docs.openssl.org/3.5/man3/SSL_CTX_set_security_level/)
 document the minimum security requirements.
 
-All five PAL/common tests and all four developer application tests pass in
-Debug and Release on this Windows 10 host. The earlier BYOC milestone also
-passed its four console tests, including fresh unprovisioned startup. A
+The PAL/common suite has passed all five tests in Debug and Release on this
+Windows 10 host. Current application builds pass all five developer tests
+and all seven BYOC tests in each configuration. The BYOC suite includes fresh
+unprovisioned startup and credential-free JSON/PAL regression checks. A
 connected translator remains untested. Historical failed build logs remain
 under `build/windows-main-merge-full.log`, `build/windows-pal-full-build.log`
 and `build/windows-msbuild-diagnostic.log`.
@@ -290,6 +291,97 @@ Production Event Viewer/rotating-file logging and offline/headless release
 packaging remain follow-up work. Firmware updating and privileged reboot
 handling remain later work. Windows 11, Server Core and other required editions
 still need their own build/runtime validation.
+
+## Runtime CBOR and JSON provisioning
+
+The default Windows BYOC build accepts the existing `--cbor-conf` and
+`--json-conf` formats and imports them through the shared cloud-client FCC/KCM
+path. It uses the same OpenSSL TLS/crypto backend as the developer build.
+No developer certificate or private key is compiled into the BYOC executable.
+Keep firmware updates disabled for this connectivity profile.
+
+Windows binary input uses the existing PAL filesystem implementation, including
+UTF-8 paths and binary reads. The Windows-specific JSON adapter accepts scheme
+`0.0.1`, resolves relative DER references against the JSON file's directory,
+and checks encoding errors. It supports `Certificates`, `Keys`, `ConfigParams`
+and the existing optional `RoTFilePath` field. Malformed/duplicate JSON,
+unsupported fields and missing/empty DER files fail before credential import.
+The JSON input limit is 1 MiB and the converted bundle limit is 16 MiB.
+Supplying both provisioning options is rejected before storage initialization.
+Linux retains its existing JSON converter.
+
+For a developer-cloud parity test, `windows/convert-developer-provisioning.py`
+uses the existing `edge-tool` schema/key mapping to prepare CBOR and a JSON
+bundle with relative DER sidecars. It checks that the EC certificate and key
+match. Run it on the build/provisioning host using the Python dependencies in
+`edge-tool/requirements.txt`; target machines need no Python. Create an empty
+output directory and restrict its ACL to its provisioning operator,
+Administrators and SYSTEM before conversion:
+
+```powershell
+python .\windows\convert-developer-provisioning.py `
+    --credential-file .\build\windows-cloud-connectivity\credentials\mbed_cloud_dev_credentials.c `
+    --output-directory D:\factory\private-bundle
+```
+
+The output contains private key material: `provisioning.cbor`,
+`provisioning.json` and three DER files. `conversion.json` contains provenance
+and hashes only. The converter neither prints key values nor creates firmware
+update credentials. Keep these test artifacts outside Git and protect retained
+FCC/KCM state. This helper creates a developer test bundle, not a production
+certificate-enrollment system.
+
+Install a self-contained bundle from local media with the BYOC Release build:
+
+```powershell
+.\windows\install-service.ps1 `
+    -BinaryDirectory .\build\windows-x64\bin\Release `
+    -ProvisioningFile D:\factory\private-bundle\provisioning.json -Start
+```
+
+The installer copies CBOR directly. For JSON it validates local DER source
+paths, copies the referenced files to protected `config`, and writes UTF-8 JSON
+with relative references to those installed copies. Initial bootstrap requires
+outbound cloud connectivity; installation itself makes no network requests.
+After successful import, ordinary restarts reuse stored credentials even when
+the original provisioning input is unavailable. Do not use `--reset-storage`
+on an existing identity to test that behavior.
+
+Build both BYOC configurations with `-CoreTests`, then run the four-case matrix
+from elevated Windows PowerShell 5.1 with a new evidence directory:
+
+```powershell
+.\test\windows-core\test-runtime-provisioning.ps1 `
+    -BuildDirectory D:\work\mbed-edge\build\windows-x64 `
+    -CredentialDirectory D:\factory\private-bundle `
+    -OutputDirectory D:\work\mbed-edge\build\runtime-test-1 `
+    -OfflineStartup
+```
+
+This checks CBOR and JSON in Release and Debug under restricted LocalService,
+then withholds each installed provisioning input and requires the same cloud
+identity after restart. It also reruns SCM/ACL/failure tests; optional
+`-OfflineStartup` checks local readiness and clean stop without cloud traffic.
+It never reboots the host. Services and temporary firewall rules are removed;
+protected configuration, state and evidence are retained.
+
+Qualified on 2026-10-01 on Windows 10 Pro 22H2 x64 (19045.6466), Windows
+PowerShell 5.1 and shared OpenSSL 3.5.9. Both CBOR and JSON pass in Release and
+Debug with developer mode off. Each case bootstraps/registers under restricted
+LocalService, starts and stops while outbound traffic is blocked, then
+reconnects with the same stored identity while its provisioning input is
+withheld. JSON registration uses the installer's staged DER files. Clean
+stops report application exit code 0. The matrix also passes the SCM fixture,
+including the configured 25-second per-service preshutdown timeout.
+
+Evidence is retained under the ignored
+`build/windows-runtime-provisioning/service-matrix-20261001-183022` directory:
+overall and per-case `results.json`, progress, copied logs and firewall cleanup
+records. Temporary services and rules are removed; credentials and identity
+files remain protected. This qualifies runtime bootstrap and persistence on
+the tested host. Portal live reads, network recovery while the same process
+continues running, renewal and soak were previously qualified with the developer
+console profile; those extended cases have not been repeated with BYOC.
 
 ## Native Windows service and restricted identity
 
@@ -350,9 +442,9 @@ Inherited OWNER RIGHTS entries also suppress implicit owner permission to
 change ACLs on files created by the shared LocalService account, following
 [Microsoft's owner-rights semantics](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/81d92bba-d22b-4a8c-908a-554ab29148ab).
 Provisioning files may be supplied with `-ProvisioningFile <absolute .cbor/.json>`;
-the corresponding BYOC build feature must be enabled. No credentials are
-downloaded by this helper. Runtime certificate provisioning is still a separate
-qualification task; a developer build remains a development-only artifact.
+the corresponding BYOC build feature must be enabled. JSON sidecars are staged
+as described above. No credentials are downloaded by this helper. A developer
+build remains a development-only artifact.
 
 Use `-StartupType Manual` to suppress automatic startup for laboratory tests.
 Use `-ServiceName`, `-InstallDirectory`, `-DataDirectory`, `-HttpPort` and
@@ -376,8 +468,10 @@ removes its services even on failure. The output directory must not yet exist.
 ```
 
 `-RealCloud` additionally tests real Edge cloud registration and identity
-persistence under the restricted service account; use a developer build with
-private credentials kept outside Git. Omit it for the credential-free SCM/ACL
+persistence under the restricted service account; use either a developer build
+or a BYOC build with `-ProvisioningFile`. Runtime provisioning tests withhold the
+installed input after registration to verify persisted credentials on restart.
+Keep private credentials outside Git. Omit `-RealCloud` for the credential-free SCM/ACL
 fixture. The fixture tests protected binary/configuration writes, configuration
 reads, own-state writes, denied foreign-state access, concurrent state locking,
 clean restart, crash recovery, rejection of LocalSystem, startup error status,
@@ -426,8 +520,8 @@ or disconnected-network boot. Those are additional machine tests. The current
 developer binaries contain a private test key and remain development artifacts.
 
 Validation on 2026-10-01: native developer Debug and Release builds each pass
-all five console/timer/WebSocket/options tests. The BYOC Release build passes
-all six tests, including unprovisioned startup and state paths containing spaces
+all five console/timer/WebSocket/options tests. BYOC Debug and Release pass
+all seven tests, including JSON conversion, unprovisioned startup and state paths containing spaces
 and Unicode. Service mode outside SCM is rejected before creating state files.
 
 The elevated service integration matrix passes in both Release and Debug on
@@ -451,19 +545,14 @@ temporary test services are removed. Ignored evidence directories are
 
 This clears the service lifecycle and restricted identity milestone on the
 tested Windows 10 host. Machine reboot/shutdown, delayed automatic startup
-after boot, runtime CBOR/JSON provisioning, and Windows 11/Server/Server Core
+after boot and Windows 11/Server/Server Core
 qualification remain pending.
 
-The subsequent startup/shutdown extension adds PRESHUTDOWN handling, a
-25-second per-service SCM timeout, offline-startup testing, and the protected
-boot observer. Updated Developer Debug/Release builds pass all five application
-tests each; updated BYOC Release passes all six. The new elevated matrix and
-observer preflight have not run because both UAC launch attempts were canceled.
-No boot-test services or tasks have been installed, and no reboot has occurred.
-The service matrix results above describe the preceding implementation.
-The SCM configuration wrapper also compiles and successfully queries an
-existing service under Windows PowerShell 5.1.19041.6456; changing a test
-service's preshutdown timeout still needs the elevated matrix.
+The current runtime provisioning matrix above also qualifies configuration of
+the 25-second preshutdown timeout and offline service startup/stop in all four
+BYOC cases. Actual OS delivery of PRESHUTDOWN, the protected SYSTEM observer
+preflight and startup after a different boot still need qualification. No
+boot-test services or tasks have been installed, and no reboot has occurred.
 
 The service log currently captures appended console diagnostics without
 rotation or an Event Viewer provider. The local loopback protocol API also

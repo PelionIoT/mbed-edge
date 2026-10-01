@@ -353,7 +353,7 @@ stopped with Ctrl+C and exit code 0. This clears C6.
 | Registration renewal | Passed in Debug and Release after the timer fix: successful `ACK CHANGED` at the configured 45-minute update interval for a 3600-second lifetime, followed by fresh reads. |
 | Controlled negative trust test | Use a separate disposable build/storage fixture with an incorrect server CA; authentication fails and no successful registration occurs. Retain verification checks. Do not blacklist the shared account certificate as a test shortcut. |
 | Missing/invalid credentials | Missing developer C file fails the build clearly; malformed credentials cannot produce a cloud connectivity pass. Use isolated fixtures. |
-| Runtime CBOR/JSON parity | Repeat with BYOC and the existing runtime provisioning formats. The current `edge-tool` requires `--update-resource` even for certificate conversion; resolve that tool prerequisite explicitly before promising a conversion command. Keep updates disabled for connectivity testing. |
+| Runtime CBOR/JSON parity | Use the Windows host conversion helper with the downloaded developer C credential, then run the four-case BYOC/OpenSSL service matrix. It reuses `edge-tool` schema/key mapping without requiring update credentials; keep updates disabled. See [runtime provisioning](docs/windows-build.md#runtime-cbor-and-json-provisioning). |
 | Other Windows targets | Repeat on Windows 11 Pro and Server 2019/2022/2025, including Server Core. Windows IoT LTSC 2021 follows later. |
 
 ## Evidence, triage and completion
@@ -362,7 +362,7 @@ Retain a sanitized result record alongside the ignored test output:
 
 | Case | Debug | Release | Evidence / elapsed time / defect |
 | --- | --- | --- | --- |
-| G0 native application ready | Passed | Passed | Developer builds; credential injection; five PAL and four application tests per configuration |
+| G0 native application ready | Passed | Passed | Developer builds; credential injection; native PAL and application smoke suites per configuration |
 | C1 first bootstrap + registration | Passed | Passed | Shared OpenSSL 3.5.9; native Windows PAL; developer flow; separate baseline directories |
 | C2 correct cloud account/device | Passed | Passed | Portal shows registered gateways with the dedicated test certificate |
 | C3 live resource read | Passed | Passed | `/3/0/1`; portal value and matching CoAP GET/CONTENT in client logs |
@@ -396,13 +396,34 @@ Evidence is under the ignored
 `build/windows-service-verified-{release,debug}-20261001-170058-e17b3f` directories.
 This service test checks registration and identity persistence; the live-read,
 network-outage and soak passes above were performed in console mode. Actual
-machine reboot/shutdown, automatic startup after boot, runtime CBOR/JSON
-provisioning and the other target Windows editions still require qualification.
-The subsequent PRESHUTDOWN and boot-test extension builds successfully, but its
-new offline service checks and protected SYSTEM observer preflight are pending
-an elevated run. The UAC attempts were canceled; no reboot-test services/tasks
-were installed and no host restart occurred. Follow the preparation and cleanup
+machine reboot/shutdown, automatic startup after boot and the other target
+Windows editions still require qualification. The protected SYSTEM observer
+preflight is also pending; no reboot-test services/tasks were installed and no
+host restart occurred. Follow the preparation and cleanup
 instructions in [the Windows build guide](docs/windows-build.md#native-windows-service-and-restricted-identity).
+
+Runtime provisioning parity passed on the same Windows 10 host on October 1,
+2026 with shared OpenSSL 3.5.9 and developer mode disabled:
+
+| Runtime case | Debug | Release |
+| --- | --- | --- |
+| CBOR bootstrap/registration as restricted LocalService | Passed | Passed |
+| JSON bootstrap/registration using staged relative DER files | Passed | Passed |
+| Restart with provisioning input withheld; same stored cloud identity | Passed, both formats | Passed, both formats |
+| Local service startup/clean stop during scoped outbound block | Passed, both formats | Passed, both formats |
+
+All four cases also passed the SCM/ACL/failure fixture and configured/query-checked
+the 25-second per-service preshutdown timeout. Stops report application exit
+code 0. The matrix removed all test services and verified temporary firewall
+rule cleanup. Retained evidence is under the ignored
+`build/windows-runtime-provisioning/service-matrix-20261001-183022` directory.
+The existing developer-certificate schema/key mapping was reused by the Windows
+host converter; no update credentials or Python runtime are needed on the
+target. Private bundles and imported identities remain protected and outside Git.
+Current builds pass seven BYOC and five developer application tests per
+configuration. The BYOC matrix covers initial registration and stored identity;
+C3 portal reads, uninterrupted network recovery, renewal and soak have not yet
+been repeated for the runtime provisioning profile.
 
 After execution, stop the test client, remove its temporary firewall rule and
 retain or retire the dedicated cloud device/certificate according to the account

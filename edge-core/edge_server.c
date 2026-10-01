@@ -757,6 +757,12 @@ int testable_main(int argc, char **argv)
     struct lws_context *lwsc = NULL;
     memset(&edgeclient_create_params, 0, sizeof(edgeclient_create_parameters_t));
     DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ VERSION_STRING);
+#if defined(_WIN32) && defined(MBED_EDGE_ENABLE_BYOC_JSON)
+    if (args.cbor_conf && args.json_conf) {
+        fprintf(stderr, "Specify only one runtime provisioning file: CBOR or JSON.\n");
+        return EXIT_FAILURE;
+    }
+#endif
 #ifdef _WIN32
     WSADATA winsock;
     if (WSAStartup(MAKEWORD(2, 2), &winsock) != 0) return EXIT_FAILURE;
@@ -845,6 +851,12 @@ int testable_main(int argc, char **argv)
         }
         #endif
         byoc_data_t *byoc_data = edgeclient_create_byoc_data(args.cbor_conf, args.json_conf);
+#endif
+#ifdef _WIN32
+        if (!byoc_data) {
+            rc = 1;
+            break;
+        }
 #endif
 
         edgeclient_create(&edgeclient_create_params, byoc_data);

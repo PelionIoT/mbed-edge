@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory=$true)][string]$BinaryDirectory,
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
     [switch]$RealCloud,
-    [switch]$OfflineStartup
+    [switch]$OfflineStartup,
+    [string]$ProvisioningFile
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -13,13 +14,14 @@ $installer = Join-Path $repo 'windows/install-service.ps1'
 . (Join-Path $repo 'windows/service-tools.ps1')
 $binary = (Resolve-Path -LiteralPath $BinaryDirectory).Path
 if ($OfflineStartup -and -not $RealCloud) { throw '-OfflineStartup requires -RealCloud.' }
+if ($ProvisioningFile -and -not $RealCloud) { throw '-ProvisioningFile requires -RealCloud and a BYOC binary.' }
 $out = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $out) { throw 'OutputDirectory must be new; previous test identities are retained.' }
 New-Item -ItemType Directory -Path $out | Out-Null
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0,12)
 $probeName = 'IzumaEdgeProbe_' + $suffix
 $edgeName = 'IzumaEdgeCloud_' + $suffix
-$results = [ordered]@{passed=$false; checks=@(); outputDirectory=$out; error=$null}
+$results = [ordered]@{passed=$false; checks=@(); outputDirectory=$out; cloudIdentity=$null; error=$null}
 function Record {
     param([string]$Check)
     $results.checks += $Check
@@ -199,11 +201,21 @@ try {
         $edgeInstall = Join-Path $out 'cloud installation'
         $edgeData = Join-Path $out 'cloud data'
         $http = Get-FreePort; $pt = Get-FreePort
-        & $installer -BinaryDirectory $binary -ServiceName $edgeName -InstallDirectory $edgeInstall -DataDirectory $edgeData -StartupType Manual -HttpPort $http -ProtocolPort $pt
+        $provisionArguments = @{}
+        if ($ProvisioningFile) { $provisionArguments.ProvisioningFile = $ProvisioningFile }
+        & $installer -BinaryDirectory $binary -ServiceName $edgeName -InstallDirectory $edgeInstall -DataDirectory $edgeData -StartupType Manual -HttpPort $http -ProtocolPort $pt @provisionArguments
         Start-TestService $edgeName | Out-Null
         $cloud = Wait-Cloud $http $edgeName
         if (-not $cloud.'internal-id') { throw 'Registered cloud identity missing.' }
+        $results.cloudIdentity = $cloud.'internal-id'
         Record 'Real edge-core registered with cloud under restricted LocalService'
+        if ($ProvisioningFile) {
+            $extension = [IO.Path]::GetExtension($ProvisioningFile)
+            $installedProvision = Join-Path $edgeData ('config/provisioning' + $extension)
+            $withheldProvision = $installedProvision + '.test-withheld'
+            Move-Item -LiteralPath $installedProvision -Destination $withheldProvision
+            Record 'Initial runtime provisioning accepted; installed input withheld to verify persisted credentials on restart'
+        }
         if ($OfflineStartup) {
             $networkOut = Join-Path $out 'offline-startup'
             New-Item -ItemType Directory -Path $networkOut | Out-Null
@@ -270,6 +282,9 @@ try {
     foreach ($folder in @('probe data','cloud data')) {
         $log = Join-Path $out ($folder + '/logs/edge-core.log')
         if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination (Join-Path $out ($folder.Replace(' ','-') + '.log')) }
+    }
+    if ($withheldProvision -and (Test-Path -LiteralPath $withheldProvision)) {
+        Move-Item -LiteralPath $withheldProvision -Destination $installedProvision
     }
     $results | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $out 'results.json')
 }

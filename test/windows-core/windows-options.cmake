@@ -19,6 +19,14 @@ if(NOT "${result}" STREQUAL "1" OR NOT errors MATCHES "SCM dispatcher failed: 10
     message(FATAL_ERROR "Service mode was accepted outside SCM: ${result}: ${errors}")
 endif()
 if(BYOC)
+    execute_process(COMMAND "${EDGE_EXE}" --data-dir "${root}/state with spaces-é"
+        --cbor-conf missing.cbor --json-conf missing.json
+        WORKING_DIRECTORY "${root}" TIMEOUT 5 RESULT_VARIABLE result
+        OUTPUT_VARIABLE output ERROR_VARIABLE errors)
+    if(NOT "${result}" STREQUAL "1" OR NOT errors MATCHES "Specify only one runtime provisioning file" OR
+            EXISTS "${root}/state with spaces-é/mcc_config")
+        message(FATAL_ERROR "Ambiguous provisioning was not rejected before storage initialization: ${result}: ${errors}")
+    endif()
     execute_process(COMMAND "${EDGE_EXE}" --data-dir "${root}/state with spaces-é" --http-port 0
         WORKING_DIRECTORY "${root}" TIMEOUT 15 RESULT_VARIABLE result
         OUTPUT_VARIABLE output ERROR_VARIABLE errors)

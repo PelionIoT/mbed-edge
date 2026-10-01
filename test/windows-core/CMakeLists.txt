@@ -26,9 +26,21 @@ target_compile_options(windows-service-probe PRIVATE /W4 /WX)
 add_test(NAME windows-client-timer COMMAND windows-client-timer-tests)
 set_tests_properties(windows-client-timer PROPERTIES TIMEOUT 15)
 if (BYOC_MODE AND NOT DEVELOPER_MODE)
+  add_executable(windows-provisioning-tests windows_provisioning_tests.c
+      ../../edge-core/windows/json2cbor_windows.c ../../common/read_file.c)
+  target_link_libraries(windows-provisioning-tests jansson tinycbor mbedTrace pal)
+  target_compile_options(windows-provisioning-tests PRIVATE /W4 /WX)
+  add_dependencies(windows-provisioning-tests edge-core)
+  add_test(NAME windows-core-provisioning COMMAND windows-provisioning-tests)
+  set_tests_properties(windows-core-provisioning PROPERTIES TIMEOUT 15)
   add_test(NAME windows-core-unprovisioned
     COMMAND ${CMAKE_COMMAND} "-DEDGE_EXE=$<TARGET_FILE:edge-core>"
             "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/unprovisioned-startup.cmake")
   set_tests_properties(windows-core-unprovisioned PROPERTIES TIMEOUT 20)
 endif ()
+add_custom_target(windows-core-tests DEPENDS edge-core windows-websocket-tests
+    windows-client-timer-tests windows-service-probe)
+if (TARGET windows-provisioning-tests)
+  add_dependencies(windows-core-tests windows-provisioning-tests)
+endif()

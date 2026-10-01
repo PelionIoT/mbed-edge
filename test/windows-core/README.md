@@ -31,6 +31,9 @@ The tests verify:
 - Fresh BYOC startup: storage initializes and the timestamp logger prints a
   missing-configuration error, then the process exits normally with code 1.
   This catches startup crashes and missing DLLs without cloud credentials.
+- BYOC JSON provisioning using PAL binary reads, Unicode bundle paths, relative
+  DER files, a bundle larger than 8 KiB, 64-bit values, and malformed inputs.
+  These credential-free tests check complete CBOR encoding independently.
 
 The startup check uses an ephemeral HTTP port and a new empty working directory
 for every run, preserving its logs/storage under the ignored test build tree.
@@ -45,7 +48,8 @@ ctest --test-dir build/windows-x64 -C Debug --output-on-failure
 ```
 
 These checks do not validate a connected protocol translator, JSON RPC
-registration or real cloud provisioning. The elevated service tests below
+registration or real cloud provisioning. The BYOC profile has seven tests;
+the developer profile has five. The elevated service tests below
 validate the native Windows service separately. Run
 the [PAL/common suite](../windows-pal/README.md) separately and follow the
 [cloud connectivity plan](../../basic-connectivity-test-win10.md) for a real
@@ -129,3 +133,27 @@ logs and state are retained. Actual reboot qualification uses
 `test-service-boot.ps1`, which prepares both configurations and a protected
 SYSTEM startup observer. It does not reboot the host. Follow the
 [boot preparation and cleanup instructions](../../docs/windows-build.md#native-windows-service-and-restricted-identity).
+
+## Runtime provisioning parity
+
+`test-runtime-provisioning.ps1` requires BYOC/OpenSSL builds with developer mode
+off and both Debug/Release `-CoreTests` outputs. Supply a private directory
+containing `provisioning.cbor`, `provisioning.json` and its local DER sidecars.
+The developer-certificate conversion helper and bundle staging are described
+in the [Windows build guide](../../docs/windows-build.md#runtime-cbor-and-json-provisioning).
+
+```powershell
+.\test\windows-core\test-runtime-provisioning.ps1 `
+    -BuildDirectory D:\work\mbed-edge\build\windows-x64 `
+    -CredentialDirectory D:\factory\private-bundle `
+    -OutputDirectory D:\work\mbed-edge\build\runtime-test-1 `
+    -OfflineStartup
+```
+
+Run elevated under Windows PowerShell 5.1+. The four cases register real clients
+as restricted LocalService, withhold the installed provisioning input, and
+require reconnect with the same stored identity. Each case also runs the SCM
+fixture and optionally tests startup/stop under a temporary outbound block.
+The matrix writes sanitized `results.json`; each case retains progress, logs
+and protected identity files. Temporary services/rules are removed. No host
+reboot, production identity reset or certificate revocation is performed.

@@ -6,8 +6,11 @@ if (TARGET_GROUP STREQUAL test)
 else ()
   list(APPEND SOURCES ../common/edge-mutex/edge_mutex.c)
   if (WIN32)
+    # Keep the existing Linux JSON encoder unchanged. The Windows adapter
+    # resolves DER paths against the JSON file and uses PAL file I/O.
+    list(FILTER SOURCES EXCLUDE REGEX "/common/json2cbor(_utils)?\\.c$")
     list(APPEND SOURCES ../common/edge-io-lib/edge_io_windows.c)
-    list(APPEND SOURCES windows/edge_service.c)
+    list(APPEND SOURCES windows/edge_service.c windows/json2cbor_windows.c)
   else ()
     list(APPEND SOURCES ../common/edge-io-lib/edge_io_lib.c)
   endif ()

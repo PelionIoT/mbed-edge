@@ -113,9 +113,38 @@ foreach ($pattern in @('libcrypto-3*.dll','libssl-3*.dll')) {
     if (-not (Get-ChildItem -LiteralPath $source -Filter $pattern -File)) { throw "Missing $pattern" }
 }
 $provision = $null
+$jsonProvision = $null
+$derFiles = @()
 if ($ProvisioningFile) {
     $provision = (Resolve-Path -LiteralPath $ProvisioningFile).Path
     if ([IO.Path]::GetExtension($provision) -notin @('.cbor','.json')) { throw 'Provisioning must be a .cbor or .json file.' }
+    if ([IO.Path]::GetExtension($provision) -eq '.json') {
+        try { $jsonProvision = Get-Content -LiteralPath $provision -Raw -Encoding UTF8 | ConvertFrom-Json }
+        catch { throw 'Cannot parse the provisioning JSON.' }
+        if ($jsonProvision.SchemeVersion -ne '0.0.1') { throw 'Unsupported provisioning scheme version.' }
+        $sourceFolder = [IO.Path]::GetDirectoryName($provision)
+        foreach ($group in @('Certificates','Keys')) {
+            $index = 0
+            foreach ($entry in $jsonProvision.$group) {
+                if ($entry.Data -isnot [string] -or -not $entry.Data -or $entry.Format -ne 'der') {
+                    throw 'JSON certificate/key entries require a local DER file path.'
+                }
+                $reference = $entry.Data
+                if ($reference -match '^[A-Za-z]:[\\/]') { $file = [IO.Path]::GetFullPath($reference) }
+                elseif ($reference -match '[:]' -or $reference -match '^[\\/]') { throw 'DER paths must be local absolute paths or relative bundle paths.' }
+                else { $file = [IO.Path]::GetFullPath((Join-Path $sourceFolder $reference)) }
+                Get-SafeDirectory ([IO.Path]::GetDirectoryName($file)) | Out-Null
+                $item = Get-Item -LiteralPath $file -Force
+                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -eq 0) {
+                    throw 'DER source must be a nonempty regular file.'
+                }
+                $filename = "$group-$index.der"
+                $derFiles += @{source=$file; filename=$filename}
+                $entry.Data = $filename
+                $index++
+            }
+        }
+    }
 }
 $state = Get-SafeDirectory (Join-Path $data 'state')
 $logs = Get-SafeDirectory (Join-Path $data 'logs')
@@ -177,7 +206,14 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $source 'edge-core.exe') -Destination $install
     Get-ChildItem -LiteralPath $source -Filter '*.dll' -File | Copy-Item -Destination $install
-    if ($provision) { Copy-Item -LiteralPath $provision -Destination $provisionTarget }
+    if ($jsonProvision) {
+        foreach ($file in $derFiles) {
+            Copy-Item -LiteralPath $file.source -Destination (Join-Path $config $file.filename)
+        }
+        # Self-contained UTF-8 bundle with references relative to this JSON.
+        $utf8 = New-Object Text.UTF8Encoding($false)
+        [IO.File]::WriteAllText($provisionTarget,($jsonProvision | ConvertTo-Json -Depth 30),$utf8)
+    } elseif ($provision) { Copy-Item -LiteralPath $provision -Destination $provisionTarget }
     Invoke-ServiceControl -Arguments @('failure',$ServiceName,'reset=','86400','actions=','restart/5000/restart/30000/none/0')
     Invoke-ServiceControl -Arguments @('failureflag',$ServiceName,'1')
     Invoke-ServiceControl -Arguments @('description',$ServiceName,'Native Izuma Edge Core; restricted LocalService runtime; state retained on uninstall.')

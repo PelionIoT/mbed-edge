@@ -22,6 +22,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include "mbed-trace/mbed_trace.h"
+#ifdef _WIN32
+#include "pal.h"
+#endif
 
 #define TRACE_GROUP "rf"
 #define RF_CHUNK 65536
@@ -34,11 +37,32 @@ int edge_read_file(const char* filename, uint8_t** data, size_t *read)
     }
 
 #ifdef _WIN32
-    /* CBOR and DER data must retain CR/LF and 0x1a bytes on Windows. */
-    FILE *f = fopen(filename, "rb");
+    /* Reuse the Windows PAL's binary I/O, UTF-8 paths and read sharing rules. */
+    palFileDescriptor_t file = 0;
+    uint8_t *buffer = NULL;
+    size_t used = 0, actual;
+    *data = NULL;
+    *read = 0;
+    if (pal_fsFopen(filename, PAL_FS_FLAG_READONLY, &file) != PAL_SUCCESS) return 1;
+    do {
+        if (used > SIZE_MAX - RF_CHUNK - 1) goto failed;
+        uint8_t *grown = realloc(buffer, used + RF_CHUNK + 1);
+        if (!grown) goto failed;
+        buffer = grown;
+        if (pal_fsFread(&file, buffer + used, RF_CHUNK, &actual) != PAL_SUCCESS) goto failed;
+        used += actual;
+    } while (actual != 0);
+    if (pal_fsFclose(&file) != PAL_SUCCESS) { free(buffer); return 1; }
+    buffer[used] = 0;
+    *data = buffer;
+    *read = used;
+    return 0;
+failed:
+    pal_fsFclose(&file);
+    free(buffer);
+    return 1;
 #else
     FILE *f = fopen(filename, "r");
-#endif
     if (f == NULL || ferror(f)) {
         if (f != NULL) {
             fclose(f);
@@ -101,4 +125,5 @@ int edge_read_file(const char* filename, uint8_t** data, size_t *read)
     *data = buffer;
     *read = used;
     return 0;
+#endif
 }
