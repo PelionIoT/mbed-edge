@@ -29,6 +29,7 @@
 #include <jansson.h>
 #include <assert.h>
 #include <stdio.h>
+#include "common/edge_platform.h"
 
 #include "edge-core/protocol_api_internal.h"
 #include "edge-core/protocol_crypto_api.h"

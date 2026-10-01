@@ -19,6 +19,13 @@ set (LWS_WITHOUT_TEST_CLIENT ON CACHE BOOL "Disable tests from libwebsockets.")
 set (LWS_WITHOUT_TEST_FRAGGLE ON CACHE BOOL "Disable tests from libwebsockets.")
 add_subdirectory(libwebsockets)
 
+if (MSVC)
+  include("${CMAKE_CURRENT_LIST_DIR}/windows-libevent.cmake")
+  # The bundled Windows gettimeofday helper needs Winsock's timeval before
+  # windows.h. Keep the compatibility fix outside the third-party checkout.
+  target_compile_options(websockets PRIVATE /FIwinsock2.h)
+endif ()
+
 # GCC 13+ flags the int/enum mismatch in lws_tokenize() under lws' -Werror
 include(CheckCCompilerFlag)
 check_c_compiler_flag(-Wenum-int-mismatch HAS_WENUM_INT_MISMATCH)

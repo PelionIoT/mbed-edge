@@ -33,7 +33,12 @@ int edge_read_file(const char* filename, uint8_t** data, size_t *read)
         return 1;
     }
 
+#ifdef _WIN32
+    /* CBOR and DER data must retain CR/LF and 0x1a bytes on Windows. */
+    FILE *f = fopen(filename, "rb");
+#else
     FILE *f = fopen(filename, "r");
+#endif
     if (f == NULL || ferror(f)) {
         if (f != NULL) {
             fclose(f);

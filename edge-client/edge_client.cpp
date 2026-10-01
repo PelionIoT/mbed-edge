@@ -25,7 +25,9 @@ extern "C" {
 #include "edge-core/edge_server.h"
 #include "common/msg_api.h"
 }
+#ifndef _WIN32
 #include <pthread.h>
+#endif
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -691,7 +693,9 @@ void edgeclient_create(const edgeclient_create_parameters_t *params, byoc_data_t
  * loop thread releases the semaphore that is waited on the thread
  * which set the stop flag.
  */
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #ifndef BUILD_TYPE_TEST
 #define SHUTDOWN_USECS 500000 // 500 ms
 #else
@@ -711,7 +715,11 @@ void edgeclient_destroy()
          */
         unsigned int usecs = SHUTDOWN_USECS;
         tr_warn("edgeclient_destroy: sleeping for %d ms for shutdown.", usecs / 1000);
+#ifdef _WIN32
+        pal_osDelay((usecs + 999) / 1000);
+#else
         usleep(usecs);
+#endif
     }
 }
 

@@ -10,6 +10,7 @@
 #include "pal_plat_network.h"
 #include "pal_plat_fileSystem.h"
 #include "pal_plat_entropy.h"
+#include "pal_plat_drbg.h"
 
 /* The board hook is declared locally by PAL's generic DRBG implementation. */
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *, size_t, size_t *);
@@ -162,7 +163,11 @@ static void test_files(void)
     snprintf(file, sizeof(file), "%s/caf\xc3\xa9.bin", src);
     snprintf(copy, sizeof(copy), "%s/caf\xc3\xa9.bin", dst);
     snprintf(child, sizeof(child), "%s/keep.bin", nested);
+    CHECK(pal_fsFopen(child, PAL_FS_FLAG_READONLY, &fd) == PAL_ERR_FS_NO_FILE);
+    CHECK(fd == 0);
     OK(pal_fsMkDir(root)); OK(pal_fsMkDir(src)); OK(pal_fsMkDir(dst)); OK(pal_fsMkDir(nested));
+    CHECK(pal_fsFopen(child, PAL_FS_FLAG_READONLY, &fd) == PAL_ERR_FS_NO_FILE);
+    CHECK(fd == 0);
     OK(pal_fsFopen(child, PAL_FS_FLAG_READWRITEEXCLUSIVE, &fd)); OK(pal_fsFclose(&fd));
     OK(pal_fsFopen(file, PAL_FS_FLAG_READWRITEEXCLUSIVE, &fd));
     OK(pal_fsFwrite(&fd, payload, sizeof(payload), &count)); CHECK(count == sizeof(payload));
@@ -310,7 +315,7 @@ static void test_dns_entropy(void)
     CHECK(WaitForSingleObject(done, 3000) == WAIT_OBJECT_0);
     CloseHandle(done); wait_rtos_idle();
     OK(pal_plat_getRandomBufferFromHW(a, sizeof(a), &actual)); CHECK(actual == sizeof(a));
-    OK(pal_plat_getRandomBufferFromHW(b, sizeof(b), &actual)); CHECK(actual == sizeof(b));
+    OK(pal_plat_osRandomBuffer(b, sizeof(b), &actual)); CHECK(actual == sizeof(b));
     CHECK(memcmp(a, b, sizeof(a)) != 0);
     CHECK(pal_plat_getRandomBufferFromHW(NULL, 1, &actual) == PAL_ERR_INVALID_ARGUMENT);
     CHECK(actual == 0);

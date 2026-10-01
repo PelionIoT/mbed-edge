@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "common/edge_platform.h"
 
 extern "C" {
 #include "common/integer_length.h"
@@ -115,7 +116,11 @@ edgeclient_request_context_t *edgeclient_allocate_request_context(const char *or
     /*
      * Must copy the original uri to new buffer, the strok function will modify the data
      */
+#ifdef _WIN32
+    uri = _strdup(original_uri);
+#else
     uri = strndup(original_uri, strlen(original_uri));
+#endif
     if (uri == NULL) {
         tr_err("Could not allocate copy of original uri for request context.");
         *rc_status = EDGE_RC_STATUS_CANNOT_ALLOCATE_MEMORY;

@@ -30,5 +30,6 @@ endif ()
 set(PAL_USER_DEFINED_CONFIGURATION "\"${CMAKE_CURRENT_SOURCE_DIR}/config/sotp_fs_windows.h\"")
 add_definitions(-DPAL_PLATFORM_DEFINED_CONFIGURATION="${CMAKE_CURRENT_SOURCE_DIR}/config/pal_windows.h")
 
-add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -D_WIN32_WINNT=0x0A00
+# No GDI declarations: wingdi.h's OPAQUE macro collides with M2MBase::OPAQUE.
+add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -DNOGDI -D_WIN32_WINNT=0x0A00
                 -D_CRT_SECURE_NO_WARNINGS -DTARGET_IS_PC_WINDOWS)

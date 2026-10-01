@@ -28,11 +28,11 @@ extern "C" {
 
 typedef struct x_rfs_thread_param {
     edgeclient_request_context_t *ctx;
-    pthread_t *thread;
+    edge_rfs_thread_t *thread;
 } rfs_thread_param_t;
 
 typedef struct x_rfs_thread_result {
-    pthread_t *thread;
+    edge_rfs_thread_t *thread;
     bool customer_rfs_succeeded;
     edgeclient_request_context_t *request_ctx;
 } rfs_thread_result_t;

@@ -1,9 +1,12 @@
 # Native Windows build experiment
 
-This is an incomplete port. The Windows PAL adapters now compile as native
-MSVC x64 libraries and pass focused runtime tests through the existing PAL
-interfaces. Windows selects the same OpenSSL crypto and TLS sources as upstream.
-The full application does not yet build or install as a service.
+`edge-core.exe` now builds as a native MSVC x64 console application in Debug
+and Release. Windows selects the same OpenSSL crypto and TLS sources as
+upstream, with the existing PAL interfaces for operating-system services.
+The developer cloud flow passes bootstrap, registration, fresh resource reads,
+identity persistence, network recovery and stability checks on Windows 10 Pro.
+This remains an incomplete production port: translator integration, Windows
+service lifecycle and installation still need validation or development.
 
 ## Source baseline
 
@@ -44,6 +47,7 @@ From PowerShell at the repository root:
 $openssl = 'C:/path/to/native-openssl-sdk'
 .\build-windows.ps1 -ConfigureOnly -OpenSSLRoot $openssl
 .\build-windows.ps1 -Configuration Debug -OpenSSLRoot $openssl
+.\build-windows.ps1 -CoreTests -Configuration Release -OpenSSLRoot $openssl
 ```
 
 The default output directory is `build/windows-x64`. The helper selects BYOC
@@ -52,9 +56,14 @@ attempt. These are development settings, not a reduced final feature scope.
 Custom CMake arguments can be passed with `-CMakeArgument`. OpenSSL is selected
 explicitly so an older build cache cannot silently retain the mbedTLS default.
 `-OpenSSLRoot` sets CMake's `OPENSSL_ROOT_DIR`; omit it if CMake can discover the
-SDK. Ensure the SDK's `bin` directory is on the application's process PATH when
-running a binary linked to shared OpenSSL. CTest sets this path for its OpenSSL
-tests when `-OpenSSLRoot` is supplied.
+SDK. The application's post-build step copies `event.dll`, `event_core.dll`
+and the OpenSSL 3 DLLs from the supplied SDK's `bin` directory alongside
+`bin/<Configuration>/edge-core.exe`. Keep these files together when running it.
+For an SDK installed elsewhere or discovered automatically, ensure its shared
+DLLs are available to the application's process. Debug also needs the Visual
+Studio debug runtime; Release needs the matching x64 Visual C++ runtime.
+Redistributable packaging remains installer work. CTest sets the OpenSSL
+tests' process PATH when `-OpenSSLRoot` is supplied.
 The helper defaults to one MSBuild worker. Increase this with `-Jobs` on hosts
 where parallel MSBuild works correctly. This build environment failed to
 coordinate parallel workers; a single worker produces normal compiler errors.
@@ -110,9 +119,9 @@ remaining application port with:
 ```
 
 The original standalone runtime suite passed in Debug and Release on 2026-09-24.
-On 2026-09-30 all four integrated tests passed in Debug and Release against
-OpenSSL 3.5.9. They compile the shared OpenSSL TLS and crypto sources and the
-file-based Root of Trust implementation. Run them with:
+The current suite has five tests, including Edge's Windows common utilities.
+They compile the shared OpenSSL TLS and crypto sources and the file-based
+Root of Trust implementation. Run them with:
 
 ```powershell
 .\build-windows.ps1 -PalTests -OpenSSLRoot $openssl
@@ -130,6 +139,10 @@ rejection of an untrusted certificate and PAL socket ownership. Crypto checks
 use the shared backend for SHA-256 and HMAC
 known vectors and OpenSSL random generation. File-based Root of Trust checks
 exercise UTF-8 filenames, valid/short/missing keys and metadata path bounds.
+Edge common checks cover recursive/error-checking/normal mutex behavior,
+contention, monotonic/realtime clocks, formatting/tokenization, file locking,
+and binary CBOR input. Missing-file checks include absent parent directories;
+PAL file-open returns the same not-found result ESFS expects on Linux.
 The tests use local fixtures for KCM metadata and unused legacy event/entropy
 hooks; they do not exercise full provisioning, generic DRBG state management or
 the application event loop. These are local Windows 10 checks; Server and
@@ -171,30 +184,109 @@ Current limitations:
   and changing the host clock are not supported. The reboot hook exits only
   the process; host reboot needs the later privileged updater and policy.
 
-## Remaining application build work
+## Native console milestone
 
-CMake now generates the application project. The integrated full build on
-2026-09-30 remains unsuccessful. Its log is `build/windows-main-merge-full.log`.
-Building it exposes further
-MSVC incompatibilities in cloud-client headers (GNU attributes and array
-parameter declarations) and POSIX
-dependencies in edge-core, including `pthread.h`, `unistd.h`, `sys/socket.h`,
-`sys/file.h`, and `arpa/inet.h`. Edge-client and PAL dependencies now guard Linux
-link libraries, while remaining application targets still need review.
-Historical logs from this stage are under
-`build/windows-pal-full-build.log` and `build/windows-msbuild-diagnostic.log`.
-The bundled libwebsockets/libevent adapter also emits Windows x64 socket-handle
-truncation and pointer/integer warnings that need review before translator
-runtime validation.
-Its Windows `gettimeofday.c` also fails to compile because `struct timeval`
-is undefined.
+On 2026-10-01 the application built in Debug and Release using MSVC
+19.44.35229, Windows SDK 10.0.26100.0, CMake 4.4 and OpenSSL 3.5.9.
+`dumpbin` confirms an x64 PE console executable. The Windows C++ profile uses
+C++20 for the cloud client's designated initializers; MSVC compatibility
+guards cover attributes, array parameters and C linkage. Linux retains its
+existing build profile. Linux regression validation has not run on this host.
 
-Windows branches for edge-core and translator SDK calls are the next step.
-Disabling libwebsockets' Unix-socket build option does not itself implement the
-planned authenticated local Windows transport.
+Edge uses PAL mutexes/semaphores and monotonic ticks on Windows. Its joinable
+factory-reset worker uses `_beginthreadex` because PAL threads are detached.
+The libevent loop uses Windows thread support, and Ctrl+C/Ctrl+Break queue
+shutdown on that loop. This is console lifecycle handling; SCM support is
+still required for running as a Windows service.
 
-After a working console build, add SCM lifecycle handling, the restricted
-service identity, logging, and offline/headless installer packaging. Service,
-cloud-bootstrap, provisioning, and translator runtime validation have not yet
-been performed. Firmware updating and privileged reboot handling remain later
-work.
+The protocol API listens on IPv4 loopback. Use
+`--edge-pt-address 127.0.0.1:<port>` (default `127.0.0.1:7681`), with the
+existing WebSocket/JSON RPC framing. The Linux Unix-socket option is unchanged.
+Local TCP currently has no per-user authentication. Restricted Windows IPC
+and translator SDK support remain follow-up work before production use.
+
+The bundled libwebsockets/libevent adapter is compiled from a Windows-only
+build-directory copy that uses `evutil_socket_t` for callbacks and native
+socket handles. The wrapper also supplies Winsock's `timeval` declaration.
+The third-party checkout remains unchanged. CMake checks the source patterns
+so a future libwebsockets update requires reviewing these corrections.
+
+The first startup exposed a timestamp-logging access violation: without an
+explicit `<time.h>`, MSVC implicitly declared `localtime()` and truncated its
+pointer on x64. The Windows logger now includes the header, and the application
+target rejects implicit C function declarations. Startup also sets Windows
+error mode to prevent interactive OS fault dialogs during headless runs.
+The missing `event.dll` issue is resolved by copying the concrete libevent
+shared targets rather than its interface wrapper.
+
+Run the application smoke tests with:
+
+```powershell
+.\build-windows.ps1 -CoreTests -BuildDirectory build/windows-main-merge `
+    -OpenSSLRoot $openssl -CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5'
+.\build-windows.ps1 -CoreTests -Configuration Release `
+    -BuildDirectory build/windows-main-merge -OpenSSLRoot $openssl `
+    -CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5'
+```
+
+They check the actual executable's help/version, the bundled native
+libwebsockets/libevent loop with a WebSocket handshake and masked-frame echo,
+and startup with fresh, unprovisioned storage. The latter expects exit code 1
+and `Device not configured for Device Management - exit`, without a crash or
+ESFS/factory-reset failure. It is enabled only for the BYOC profile. Test
+storage/logs remain under the ignored build directory. No cloud identity or
+connection is required. See [the console test instructions](../test/windows-core/README.md).
+
+The developer profile also builds with a private credential C input using
+`test/windows-core/build-developer.ps1`. DEBUG CoAP tracing needs a guarded
+compile-time buffer bound because MSVC C does not implement variable-length
+arrays. Actual credential injection into KCM has passed on this host.
+
+The real cloud attempt exposed an MSVC signed enum bit-field in the shared
+client timer: bootstrap timer values 8-11 arrived as -8 through -5. The MSVC
+guard preserves the full enum. A new application test sends every timer type
+with both zero and nonzero delay through the real nanostack scheduler and
+Windows PAL; it failed before the fix and passes afterward.
+
+Windows defaults to ECDHE-ECDSA-AES128-GCM-SHA256 using the same shared OpenSSL
+backend. The previous CCM8 default has a 64-bit authentication tag, below the
+backend's security level 1 minimum. The TLS fixtures now explicitly exercise
+this GCM suite with server trust validation and mutual authentication.
+[OpenSSL security levels](https://docs.openssl.org/3.5/man3/SSL_CTX_set_security_level/)
+document the minimum security requirements.
+
+All five PAL/common tests and all four developer application tests pass in
+Debug and Release on this Windows 10 host. The earlier BYOC milestone also
+passed its four console tests, including fresh unprovisioned startup. A
+connected translator remains untested. Historical failed build logs remain
+under `build/windows-main-merge-full.log`, `build/windows-pal-full-build.log`
+and `build/windows-msbuild-diagnostic.log`.
+
+Both Debug and Release developer executables successfully bootstrapped and
+registered with the actual cloud on 2026-10-01, using separate identity
+directories. The portal showed each new registered gateway and
+returned `Native Win32 x64 edge-core` for a fresh `/3/0/1` read, correlated with
+the client's CoAP GET/CONTENT trace. Ctrl+C shut down with exit code 0; a restart
+reused stored LwM2M credentials and registered with the same cloud device ID.
+Private credentials, identity storage, raw logs and portal screenshots remain
+under the ignored `build/windows-cloud-connectivity` tree.
+
+The longer cloud run exposed another Windows timer issue: counting periodic
+callbacks lost elapsed time when Windows coalesced the wakes. The Windows-only
+event clock now advances using elapsed monotonic PAL ticks. A five-second
+registration timer with a deliberate callback stall reproduced the drift, then
+passed in Debug and Release after the fix. Both cloud clients subsequently
+renewed their registrations at the intended 45-minute interval before expiry.
+
+The [developer cloud connectivity plan](../basic-connectivity-test-win10.md)
+has passed G0 and C1-C6 in Debug and Release. A temporary per-program firewall
+block exercised actual connection loss; both existing processes recovered
+without storage resets or manual restarts. A 901-second stability check and
+fresh final reads passed, followed by clean stops with exit code 0. Both the
+normal firewall cleanup and its independent watchdog verified rule removal.
+
+The next production work is SCM lifecycle handling, a
+restricted service identity, Windows/file logging and offline/headless
+installer packaging. Firmware updating and privileged reboot handling remain
+later work. Windows 11, Server Core and other required editions still need
+their own build/runtime validation.

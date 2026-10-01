@@ -36,6 +36,8 @@
 #include "edge-core/srv_comm.h"
 #if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
 #include "mbedtls/base64.h"
+#elif defined(_WIN32)
+#include <openssl/evp.h>
 #endif
 #include "common/pt_api_error_parser.h"
 

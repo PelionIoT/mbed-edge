@@ -19,7 +19,13 @@
  */
 
 #include <signal.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <assert.h>
 #include "libwebsockets.h"
@@ -68,9 +74,14 @@
 
 EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
 EDGE_LOCAL struct context *g_program_context = NULL;
+#ifdef _WIN32
+static struct event *console_shutdown_event;
+static SRWLOCK console_shutdown_lock = SRWLOCK_INIT;
+#else
 EDGE_LOCAL struct event ev_sigint = {0};
 EDGE_LOCAL struct event ev_sigterm = {0};
 EDGE_LOCAL struct event ev_sigusr2 = {0};
+#endif
 EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data);
 EDGE_LOCAL edgeclient_create_parameters_t edgeclient_create_params = {0};
 
@@ -426,6 +437,7 @@ void *edgeserver_graceful_shutdown()
     return NULL;
 }
 
+#ifndef _WIN32
 EDGE_LOCAL bool setup_signal_handler(struct event *event,
                                      struct event_base *ev_base,
                                      evutil_socket_t fd,
@@ -444,8 +456,36 @@ EDGE_LOCAL bool setup_signal_handler(struct event *event,
     }
     return true;
 }
+#endif
 
 #ifndef BUILD_TYPE_TEST
+#ifdef _WIN32
+static BOOL WINAPI console_control_handler(DWORD control)
+{
+    if (control != CTRL_C_EVENT && control != CTRL_BREAK_EVENT) return FALSE;
+    BOOL handled = FALSE;
+    AcquireSRWLockShared(&console_shutdown_lock);
+    if (console_shutdown_event) {
+        /* Dispatch shutdown on Edge's event loop, never on the console thread. */
+        event_active(console_shutdown_event, EV_TIMEOUT, 0);
+        handled = TRUE;
+    }
+    ReleaseSRWLockShared(&console_shutdown_lock);
+    return handled;
+}
+
+EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
+{
+    console_shutdown_event = event_new(ev_base, -1, EV_PERSIST, shutdown_handler, NULL);
+    if (!console_shutdown_event) return false;
+    if (!SetConsoleCtrlHandler(console_control_handler, TRUE)) {
+        event_free(console_shutdown_event);
+        console_shutdown_event = NULL;
+        return false;
+    }
+    return true;
+}
+#else
 EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
 {
     struct sigaction sa_pipe = { .sa_handler = SIG_IGN, };
@@ -476,9 +516,19 @@ EDGE_LOCAL bool setup_signals(struct event_base *ev_base)
     return true;
 }
 #endif
+#endif
 
 EDGE_LOCAL void clean(struct context *ctx)
 {
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+    AcquireSRWLockExclusive(&console_shutdown_lock);
+    if (console_shutdown_event) {
+        SetConsoleCtrlHandler(console_control_handler, FALSE);
+        event_free(console_shutdown_event);
+        console_shutdown_event = NULL;
+    }
+    ReleaseSRWLockExclusive(&console_shutdown_lock);
+#endif
     if (ctx->ev_sighup != NULL) {
         event_free(ctx->ev_sighup);
     }
@@ -585,6 +635,7 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
     struct lws_context *lwsc = NULL;
     struct lws_context_creation_info info;
 
+#ifndef _WIN32
     // If the Protocol Translator socket lock file already exists, Edge Core should not start,
     // because there's probably another Edge Core already running.
     if (!edge_io_acquire_lock_for_socket(edge_pt_socket, lock_fd)) {
@@ -602,10 +653,27 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
             return NULL;
         }
     }
+#endif
     memset(&info, 0, sizeof (struct lws_context_creation_info));
     int opts = 0;
+#ifdef _WIN32
+    /* Local RPC retains WebSocket/JSON framing on IPv4 loopback. */
+    char *end;
+    if (strncmp(edge_pt_socket, "127.0.0.1:", 10) != 0) {
+        tr_err("Protocol API address must be 127.0.0.1:<port> on Windows.");
+        return NULL;
+    }
+    unsigned long port = strtoul(edge_pt_socket + 10, &end, 10);
+    if (*end || port == 0 || port > 65535) {
+        tr_err("Invalid Protocol API port: %s", edge_pt_socket);
+        return NULL;
+    }
+    info.port = (int)port;
+    info.iface = "127.0.0.1";
+#else
     info.port = 7681;
     info.iface = edge_pt_socket;
+#endif
     info.protocols = protocols;
     info.extensions = NULL;
     info.ssl_cert_filepath = NULL;
@@ -613,7 +681,10 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
     info.gid = -1;
     info.uid = -1;
     info.max_http_header_pool = 1;
-    info.options = opts | LWS_SERVER_OPTION_LIBEVENT | LWS_SERVER_OPTION_UNIX_SOCK;
+    info.options = opts | LWS_SERVER_OPTION_LIBEVENT;
+#ifndef _WIN32
+    info.options |= LWS_SERVER_OPTION_UNIX_SOCK;
+#endif
     foreign_loops[0] = ev_base;
     info.foreign_loops = foreign_loops;
 
@@ -635,7 +706,9 @@ EDGE_LOCAL void clean_resources(struct lws_context *lwsc, const char *edge_pt_so
     // Only remove the socket and locks if we were able acquire the socket lock.
     if (lock_fd != -1) {
         edge_io_release_lock_for_socket(edge_pt_socket, lock_fd);
+#ifndef _WIN32
         edge_io_unlink(edge_pt_socket);
+#endif
     }
     clean(g_program_context);
     free_program_context_and_data();
@@ -650,10 +723,18 @@ int testable_main(int argc, char **argv)
 #endif
 {
     int rc = 0;
+#ifdef _WIN32
+    /* Headless runs must never wait for an interactive OS error dialog. */
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+#endif
     int counter;
     struct lws_context *lwsc = NULL;
     memset(&edgeclient_create_params, 0, sizeof(edgeclient_create_parameters_t));
     DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ VERSION_STRING);
+#ifdef _WIN32
+    WSADATA winsock;
+    if (WSAStartup(MAKEWORD(2, 2), &winsock) != 0) return EXIT_FAILURE;
+#endif
 
     if (args.reset_storage) {
         edgeclient_create_params.reset_storage = true;
@@ -667,7 +748,11 @@ int testable_main(int argc, char **argv)
     for (counter = 0; counter < 1; counter ++) {
         // Initialize trace and trace mutex
         edge_trace_init(args.color_log);
+#ifdef _WIN32
+        tr_info("Edge Core starting... pid: %d", _getpid());
+#else
         tr_info("Edge Core starting... pid: %d", getpid());
+#endif
         create_program_context_and_data();
         struct ctx_data *ctx_data = g_program_context->ctx_data;
         ns_list_init(&ctx_data->registered_translators);
@@ -748,6 +833,12 @@ int testable_main(int argc, char **argv)
                                                edge_pt_socket,
                                                edge_server_protocols,
                                                &lock_fd);
+#ifdef _WIN32
+        if (!lwsc) {
+            rc = 1;
+            break;
+        }
+#endif
         if (lwsc && event_base_dispatch(g_program_context->ev_base) != 0) {
             tr_err("Failed to start event loop.");
             rc = 1;
@@ -759,6 +850,9 @@ int testable_main(int argc, char **argv)
     clean_resources(lwsc, edge_pt_socket, lock_fd);
     libevent_global_shutdown();
     edge_trace_destroy();
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return rc;
 }
 

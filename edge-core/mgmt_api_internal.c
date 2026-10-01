@@ -23,6 +23,7 @@
 #endif
 
 #include <stdio.h>
+#include "common/edge_platform.h"
 #include "jansson.h"
 #include "jsonrpc/jsonrpc.h"
 

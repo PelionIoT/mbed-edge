@@ -35,6 +35,10 @@
 #include "gpiod.h"
 #endif
 #include <string.h>
+#ifdef _WIN32
+#include <process.h>
+#include <errno.h>
+#endif
 
 void rfs_finalize_reset_factory_settings()
 {
@@ -97,8 +101,13 @@ EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg)
             edgecore_async_cb_failure(request_ctx);
         }
     }
+#ifdef _WIN32
+    int join_status = WaitForSingleObject(*rfs_thread_result->thread, INFINITE) == WAIT_OBJECT_0 ? 0 : EINVAL;
+    CloseHandle(*rfs_thread_result->thread);
+#else
     void *result;
     int join_status = pthread_join(*rfs_thread_result->thread, &result);
+#endif
     free(rfs_thread_result->thread);
     if (join_status) {
         tr_err("Failed to join the RFS thread! result was %d - %s", join_status, strerror(join_status));
@@ -110,11 +119,20 @@ EDGE_LOCAL void rfs_reset_factory_settings_response_cb(void *arg)
     free(rfs_thread_result);
 }
 
+#ifdef _WIN32
+/* PAL threads are detached; factory reset requires a joinable worker. */
+static unsigned __stdcall rfs_windows_thread(void *arg)
+{
+    rfs_thread(arg);
+    return 0;
+}
+#endif
+
 // This will happen in main thread
 EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg)
 {
     tr_debug("rfs_reset_factory_settings_request_cb");
-    pthread_t *rfs_thread_p = (pthread_t *) calloc(1, sizeof(pthread_t));
+    edge_rfs_thread_t *rfs_thread_p = (edge_rfs_thread_t *) calloc(1, sizeof(edge_rfs_thread_t));
     if (rfs_thread_p == NULL) {
         tr_err("Cannot allocate memory for the rfs thread struct");
         free(arg);
@@ -132,9 +150,17 @@ EDGE_LOCAL void rfs_reset_factory_settings_request_cb(void *arg)
 
     param->thread = rfs_thread_p;
     param->ctx = (edgeclient_request_context_t *) message->request_ctx;
+#ifdef _WIN32
+    *rfs_thread_p = (HANDLE)_beginthreadex(NULL, 0, rfs_windows_thread, param, 0, NULL);
+    if (!*rfs_thread_p) {
+#else
     if (!rfs_thread_p || pthread_create(rfs_thread_p, NULL, rfs_thread, (void *) param)) {
+#endif
         tr_err("Cannot create the rfs thread");
         free(rfs_thread_p);
+#ifdef _WIN32
+        free(param);
+#endif
     }
     free(arg);
 }

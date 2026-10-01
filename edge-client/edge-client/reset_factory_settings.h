@@ -23,7 +23,13 @@
 
 #include "edge-client/edge_client.h"
 #include <event2/event.h>
+#ifdef _WIN32
+#include <windows.h>
+typedef HANDLE edge_rfs_thread_t;
+#else
 #include <pthread.h>
+typedef pthread_t edge_rfs_thread_t;
+#endif
 
 /**
  * \ingroup RESET_FACTORY_SETTINGS Reset Factory Settings API

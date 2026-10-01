@@ -138,6 +138,7 @@ static void test_tls(bool trust_certificate, bool client_auth)
     fixture.client_auth = client_auth;
     fixture.context = SSL_CTX_new(TLS_server_method()); CHECK(fixture.context != NULL);
     CHECK(SSL_CTX_set_max_proto_version(fixture.context, TLS1_2_VERSION) == 1);
+    CHECK(SSL_CTX_set_cipher_list(fixture.context, "ECDHE-ECDSA-AES128-GCM-SHA256") == 1);
     CHECK(SSL_CTX_use_certificate(fixture.context, certificate) == 1);
     CHECK(SSL_CTX_use_PrivateKey(fixture.context, key) == 1);
     if (client_auth) {
@@ -163,6 +164,9 @@ static void test_tls(bool trust_certificate, bool client_auth)
     } while ((status == PAL_ERR_SOCKET_IN_PROGRES || status == PAL_ERR_SOCKET_WOULD_BLOCK) && GetTickCount64() < deadline);
     CHECK(status == PAL_SUCCESS || status == PAL_ERR_SOCKET_ALREADY_CONNECTED);
     OK(pal_plat_initTLSConf(&configuration, PAL_TLS_MODE, PAL_TLS_IS_CLIENT));
+    _Static_assert(PAL_TLS_CIPHER_SUITE == PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE,
+        "TLS fixture must match the Windows cloud cipher default");
+    OK(pal_plat_setCipherSuites(configuration, PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256));
     OK(pal_plat_setAuthenticationMode(configuration, PAL_TLS_VERIFY_REQUIRED));
     if (trust_certificate) {
         der_length = i2d_X509(certificate, &der); CHECK(der_length > 0);

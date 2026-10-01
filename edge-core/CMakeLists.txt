@@ -5,7 +5,11 @@ if (TARGET_GROUP STREQUAL test)
   add_definitions(-DBUILD_TYPE_TEST)
 else ()
   list(APPEND SOURCES ../common/edge-mutex/edge_mutex.c)
-  list(APPEND SOURCES ../common/edge-io-lib/edge_io_lib.c)
+  if (WIN32)
+    list(APPEND SOURCES ../common/edge-io-lib/edge_io_windows.c)
+  else ()
+    list(APPEND SOURCES ../common/edge-io-lib/edge_io_lib.c)
+  endif ()
   add_executable (edge-core ${SOURCES})
 endif ()
 
@@ -44,3 +48,29 @@ if(PARSEC_TPM_SE_SUPPORT)
 endif()
 
 target_link_libraries (edge-core jansson websockets rpc edge-client)
+
+if (WIN32 AND NOT TARGET_GROUP STREQUAL test)
+  if (MSVC)
+    # An implicit C declaration can truncate returned pointers on Windows x64.
+    target_compile_options(edge-core PRIVATE /we4013)
+  endif ()
+  # Keep the native console build runnable from its output directory.
+  # libevent exposes an INTERFACE wrapper named event, with concrete shared
+  # targets underneath it. Copy both libraries used by that wrapper.
+  foreach (edge_event_target event_shared event_core_shared)
+    if (TARGET ${edge_event_target})
+      add_custom_command(TARGET edge-core POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:${edge_event_target}> $<TARGET_FILE_DIR:edge-core>)
+    endif ()
+  endforeach ()
+  if (OPENSSL_ROOT_DIR)
+    file(GLOB edge_openssl_dlls "${OPENSSL_ROOT_DIR}/bin/libcrypto-3*.dll"
+                               "${OPENSSL_ROOT_DIR}/bin/libssl-3*.dll")
+    foreach (edge_openssl_dll IN LISTS edge_openssl_dlls)
+      add_custom_command(TARGET edge-core POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${edge_openssl_dll}" $<TARGET_FILE_DIR:edge-core>)
+    endforeach ()
+  endif ()
+endif ()

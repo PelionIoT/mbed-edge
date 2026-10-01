@@ -29,6 +29,7 @@ extern "C" {
 #include "common/integer_length.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "common/edge_platform.h"
 #include "mbed-trace/mbed_trace.h"
 #include <common/test_support.h>
 #include <assert.h>

@@ -30,13 +30,16 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include "ns_list.h"
 #include <jansson.h>
 
 #include "mbed-trace/mbed_trace.h"
 #include "common/edge_time.h"
+#include "common/edge_platform.h"
 #include "common/pt_api_error_codes.h"
 
 #define TRACE_GROUP "rpc"
@@ -69,7 +72,7 @@ static message_t *_remove_message_for_connection_and_id(struct connection *conne
 
 void rpc_init()
 {
-    int32_t result = edge_mutex_init(&rpc_mutex, PTHREAD_MUTEX_ERRORCHECK);
+    int32_t result = edge_mutex_init(&rpc_mutex, EDGE_MUTEX_ERRORCHECK);
     assert(0 == result);
 }
 
@@ -176,7 +179,15 @@ struct json_message_t* alloc_json_message_t(const char* data, size_t len, struct
         tr_err("Cannot allocate msg in alloc_json_message_t");
         return NULL;
     }
+#ifdef _WIN32
+    msg->data = malloc(len + 1);
+    if (msg->data) {
+        memcpy(msg->data, data, len);
+        msg->data[len] = '\0';
+    }
+#else
     msg->data = strndup(data, len);
+#endif
     if (NULL == msg->data) {
         tr_err("Cannot allocate msg->data in allloc_json_message_t");
         free(msg);

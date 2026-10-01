@@ -61,7 +61,11 @@ const char help_message[] =
 "  -h --help                            Show this screen.\n"
 "  -v --version                         Show the version number\n"
 "  --color-log                          Use ANSI colors in log.\n"
+#ifdef _WIN32
+"  -p --edge-pt-address <string>        Protocol API loopback address [default: 127.0.0.1:7681].\n"
+#else
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
+#endif
 "  -b --bind <string>                   HTTP bind address [default: 127.0.0.1].\n"
 "  -o --http-port <int>                 HTTP port number [default: 8080].\n"
 "  -r --reset-storage                   Before starting the server, clean the old Device Management Client\n"
@@ -163,7 +167,11 @@ int parse_long(Tokens *ts, Elements *elements) {
     Option *option = NULL;
     Option *options = elements->options;
 
+#ifdef _WIN32
+    len_prefix = eq ? (int)(eq - ts->current) : (int)strlen(ts->current);
+#else
     len_prefix = (eq-(ts->current))/sizeof(char);
+#endif
     for (i=0; i < n_options; i++) {
         option = &options[i];
         if (!strncmp(ts->current, option->olong, len_prefix))
@@ -320,7 +328,11 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             if (option->argument)
                 args->json_conf = option->argument;
 #endif
+#ifdef _WIN32
+        } else if (!strcmp(option->olong, "--edge-pt-address")) {
+#else
         } else if (!strcmp(option->olong, "--edge-pt-domain-socket")) {
+#endif
             if (option->argument)
                 args->edge_pt_domain_socket = option->argument;
         } else if (!strcmp(option->olong, "--http-port")) {
@@ -345,7 +357,15 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
  */
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
-#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+#ifdef _WIN32
+    DocoptArgs args = {
+        .bind = (char*)"127.0.0.1",
+        .edge_pt_domain_socket = (char*)"127.0.0.1:7681",
+        .http_port = (char*)"8080",
+        .usage_pattern = usage_pattern,
+        .help_message = help_message
+    };
+#elif defined(MBED_EDGE_ENABLE_BYOC_JSON)
     DocoptArgs args = {
         0, 0, 0, 0, NULL, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
         usage_pattern, help_message
@@ -359,8 +379,14 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
 #endif
     Tokens ts;
     Command commands[] = {
+#ifdef _WIN32
+        {NULL, false}
+#endif
     };
     Argument arguments[] = {
+#ifdef _WIN32
+        {NULL, NULL, NULL}
+#endif
     };
     Option options[] = {
         {NULL, "--color-log", 0, 0, NULL},
@@ -368,11 +394,17 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-r", "--reset-storage", 0, 0, NULL},
         {"-v", "--version", 0, 0, NULL},
         {"-b", "--bind", 1, 0, NULL},
-#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+#if defined(_WIN32) || defined(MBED_EDGE_ENABLE_BYOC_JSON)
         {"-c", "--cbor-conf", 1, 0, NULL},
 #endif
+#if !defined(_WIN32) || defined(MBED_EDGE_ENABLE_BYOC_JSON)
         {"-j", "--json-conf", 1, 0, NULL},
+#endif
+#ifdef _WIN32
+        {"-p", "--edge-pt-address", 1, 0, NULL},
+#else
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
+#endif
         {"-o", "--http-port", 1, 0, NULL}
     };
     Elements elements = {0, 0, sizeof(options) / sizeof(options[0]), commands, arguments, options};

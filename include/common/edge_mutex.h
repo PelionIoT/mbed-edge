@@ -20,7 +20,24 @@
 #ifndef EDGE_MUTEX_H
 #define EDGE_MUTEX_H
 
+#ifdef _WIN32
+#include <windows.h>
+#include "pal.h"
+typedef struct {
+    palMutexID_t id;
+    palSemaphoreID_t semaphore;
+    volatile LONG owner;
+    uint32_t depth;
+    int32_t type;
+} edge_mutex_t;
+enum { EDGE_MUTEX_NORMAL, EDGE_MUTEX_RECURSIVE, EDGE_MUTEX_ERRORCHECK };
+#else
 #include <pthread.h>
+typedef pthread_mutex_t edge_mutex_t;
+#define EDGE_MUTEX_NORMAL PTHREAD_MUTEX_NORMAL
+#define EDGE_MUTEX_RECURSIVE PTHREAD_MUTEX_RECURSIVE
+#define EDGE_MUTEX_ERRORCHECK PTHREAD_MUTEX_ERRORCHECK
+#endif
 #include <stdint.h>
 
 /**
@@ -40,13 +57,12 @@
  * "apt install glibc-doc".
  */
 
-typedef pthread_mutex_t edge_mutex_t;
-
 /**
  * \brief Initializes a mutex.
  * \param mutex pointer to the mutex which should be initialized. The user is responsible to allocate the
  *        memory for the mutex data structure.
- * \param type is used for setting mutex type using pthread_mutexattr_settype. See `man
+ * \param type selects EDGE_MUTEX_NORMAL, EDGE_MUTEX_RECURSIVE or EDGE_MUTEX_ERRORCHECK.
+ *        Linux also accepts the corresponding pthread constants. It uses pthread_mutexattr_settype. See `man
  * pthread_mutex_attr`. Allowed values are:
  *                        - PTHREAD_MUTEX_NORMAL
  *                        - PTHREAD_MUTEX_RECURSIVE

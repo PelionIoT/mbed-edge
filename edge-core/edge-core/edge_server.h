@@ -23,7 +23,7 @@
 
 #include "edge-client/edge_client.h"
 #include "edge-core/protocol_api_internal.h"
-#include <pthread.h>
+#include "edge-client/reset_factory_settings.h"
 #include "libwebsockets.h"
 #include "common/edge_mutex.h"
 
@@ -35,7 +35,7 @@ int32_t edgeserver_get_number_registered_endpoints_limit();
 int32_t edgeserver_get_number_registered_endpoints_count();
 void edgeserver_change_number_registered_endpoints_by_delta(int32_t delta);
 struct event_base *edge_server_get_base();
-void edge_server_set_rfs_thread(pthread_t *thread);
+void edge_server_set_rfs_thread(edge_rfs_thread_t *thread);
 connection_elem_list *edge_server_get_registered_translators();
 
 /**

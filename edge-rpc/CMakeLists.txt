@@ -10,3 +10,6 @@ target_include_directories (rpc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 target_include_directories (rpc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../lib/jsonrpc)
 
 target_link_libraries(rpc jsonrpc)
+if (WIN32)
+  target_link_libraries(rpc palRTOS)
+endif ()

@@ -8,6 +8,12 @@
 #define PAL_NET_MAX_IF_NAME_LENGTH 256
 #define PAL_NET_DNS_SUPPORT 1
 #define PAL_USE_FILESYSTEM 1
+#ifndef PAL_TLS_CIPHER_SUITE
+/* The shared OpenSSL backend enforces at least security level 1. Its 80-bit
+ * minimum excludes CCM8's 64-bit authentication tag; use the supported GCM
+ * suite for native TCP/TLS cloud connections. */
+#define PAL_TLS_CIPHER_SUITE PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE
+#endif
 #ifndef PAL_DNS_API_VERSION
 /* Use PAL's existing asynchronous DNS worker around the platform resolver. */
 #define PAL_DNS_API_VERSION 1

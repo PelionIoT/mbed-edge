@@ -44,6 +44,18 @@ enable_testing()
 add_test(NAME windows-pal-runtime COMMAND windows-pal-tests)
 set_tests_properties(windows-pal-runtime PROPERTIES TIMEOUT 45)
 
+add_executable(windows-edge-common-tests windows_edge_common_tests.c
+    "${EDGE_ROOT}/common/edge_time.c"
+    "${EDGE_ROOT}/common/read_file.c"
+    "${EDGE_ROOT}/common/edge-mutex/edge_mutex.c"
+    "${EDGE_ROOT}/common/edge-io-lib/edge_io_windows.c")
+target_include_directories(windows-edge-common-tests PRIVATE "${EDGE_ROOT}/include" "${EDGE_ROOT}/common")
+target_compile_options(windows-edge-common-tests PRIVATE /W4 /WX)
+target_link_libraries(windows-edge-common-tests PRIVATE windows-pal-adapters)
+add_dependencies(windows-pal-tests windows-edge-common-tests)
+add_test(NAME windows-edge-common COMMAND windows-edge-common-tests)
+set_tests_properties(windows-edge-common PROPERTIES TIMEOUT 15)
+
 add_executable(windows-pal-rot-tests windows_pal_rot_tests.c
     "${PAL}/Source/Port/Reference-Impl/Generic/ROT/FileBased/pal_plat_rot_file.c")
 target_include_directories(windows-pal-rot-tests PRIVATE

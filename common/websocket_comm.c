@@ -19,8 +19,10 @@
  */
 
 #include <stdlib.h>
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <sys/un.h>
+#endif
 #include "libwebsockets.h"
 #include "common/websocket_comm.h"
 #include "ns_list.h"

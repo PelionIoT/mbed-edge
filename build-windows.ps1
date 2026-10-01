@@ -11,6 +11,8 @@ param(
     [switch]$PalTests,
     [Parameter(ParameterSetName = 'PalBuild')]
     [switch]$PalOnly,
+    [Parameter(ParameterSetName = 'CoreTests')]
+    [switch]$CoreTests,
     [ValidateRange(1, 64)]
     [int]$Jobs = 1,
     [string[]]$CMakeArgument = @()
@@ -52,6 +54,10 @@ $profileArguments = @(
 if ($PalOnly) {
     $buildTargets = @('palRTOS', 'palFilesystem', 'palNetworking', 'palDRBG', 'crypto-service')
 }
+if ($CoreTests) {
+    $profileArguments += '-DEDGE_WINDOWS_TESTS=ON'
+    $buildTargets = @('edge-core', 'windows-websocket-tests', 'windows-client-timer-tests')
+}
 if ($PalTests) {
     $sourceDirectory = Join-Path $PSScriptRoot 'test/windows-pal'
     $buildTargets = @('windows-pal-tests')
@@ -72,7 +78,7 @@ if (-not $ConfigureOnly) {
     $buildArguments = @('--build', $BuildDirectory, '--config', $Configuration, '--target') +
         $buildTargets + @('--parallel', "$Jobs")
     Invoke-EdgeCMake -Arguments $buildArguments
-    if ($PalTests) {
+    if ($PalTests -or $CoreTests) {
         $ctestPath = Join-Path (Split-Path -Parent $CMakePath) 'ctest.exe'
         & $ctestPath --test-dir $BuildDirectory -C $Configuration --output-on-failure
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

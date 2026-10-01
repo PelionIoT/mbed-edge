@@ -21,7 +21,11 @@
 #ifndef EDGE_CLIENT_FORMAT_VALUES_H_
 #define EDGE_CLIENT_FORMAT_VALUES_H_
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <arpa/inet.h>
+#endif
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>

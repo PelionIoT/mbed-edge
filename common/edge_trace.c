@@ -21,7 +21,14 @@
 #define _GNU_SOURCE
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#include <time.h>
+#else
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#endif
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -31,8 +38,6 @@
 #include "common/test_support.h"
 #include "common/edge_time.h"
 #include "mbed-trace/mbed_trace.h"
-#include <sys/types.h>
-#include <sys/syscall.h>
 /**
  * \brief Trace prefix string length. Trace prefix format: YYYY-MM-DD hh:mm:ss.mmm tid:xxxxxxxxxx with one trailing
  * whitespace (39 chars + trailing nil)
@@ -56,7 +61,7 @@ EDGE_LOCAL void trace_mutex_init()
 {
     /* The mutex needs to be recursive, because there are trace calls like
        ```tr_dbg("Something: %s", tr_arr(funny));```. */
-    int32_t result = edge_mutex_init(&trace_mutex, PTHREAD_MUTEX_RECURSIVE);
+    int32_t result = edge_mutex_init(&trace_mutex, EDGE_MUTEX_RECURSIVE);
     assert(0 == result);
 }
 
@@ -101,9 +106,19 @@ EDGE_LOCAL char *edge_trace_prefix(size_t size)
     edgetime_get_real_in_ns(&sec, &ns);
 
     if (NULL != t) {
+#ifdef _WIN32
+        unsigned long tid = GetCurrentThreadId();
+        strftime(trace_prefix, TRACE_PREFIX_SIZE, "%Y-%m-%d %H:%M:%S.", t);
+#else
         pid_t tid = syscall(__NR_gettid);
         strftime(trace_prefix, TRACE_PREFIX_SIZE, "%F %H:%M:%S.", t);
+#endif
+#ifdef _WIN32
+        snprintf(trace_prefix + 19, TRACE_PREFIX_SIZE - 19, ".%03u tid:%7lu ",
+                 (unsigned)(ns / 1000000), tid);
+#else
         sprintf(trace_prefix + 19, ".%03d tid:%7d ", (int) (ns / 1.0e6), (int) tid);
+#endif
     } else {
         strncpy(trace_prefix, failed_time_prefix, TRACE_PREFIX_SIZE);
     }
@@ -118,7 +133,11 @@ void edge_trace_init(int color_mode)
     }
 
     // force stdout to line buffering
+#ifdef _WIN32
+    setvbuf(stdout, NULL, _IONBF, 0);
+#else
     setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
+#endif
 
     mbed_trace_init();
     trace_mutex_init();

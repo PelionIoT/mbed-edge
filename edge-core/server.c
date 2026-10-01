@@ -73,12 +73,21 @@ uint32_t connection_free(struct connection *connection)
 
 static int configure_libevent()
 {
+#ifdef _WIN32
+    if (evthread_use_windows_threads() == 0) {
+        tr_debug("Libevent configured to use Windows threads.");
+        return 0;
+    }
+    tr_error("Libevent Windows thread configuration failed!");
+    return 1;
+#else
     if (evthread_use_pthreads() == 0) {
         tr_debug("Libevent evthread configured to use pthreads.");
         return 0;
     }
     tr_error("Libevent evthread not configured to use pthreads!");
     return 1;
+#endif
 }
 
 bool create_server_event_loop(struct context *ctx, int http_port, char *http_address)

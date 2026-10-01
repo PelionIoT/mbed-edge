@@ -22,3 +22,6 @@ add_library (edge-read-file ${READ_FILE_SOURCES})
 add_library (edge-websocket-common ${WEBSOCKET_COMM_SOURCES})
 
 target_link_libraries(edge-default-message-id-generator edge-integer-length)
+if (WIN32)
+  target_link_libraries(edge-time palRTOS)
+endif ()

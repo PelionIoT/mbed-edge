@@ -20,7 +20,9 @@
 
 #include "edge-rpc/rpc_timeout_api.h"
 #include <event2/event.h>
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 #include <stdlib.h>
 #include "edge-rpc/rpc.h"
 #include "common/test_support.h"

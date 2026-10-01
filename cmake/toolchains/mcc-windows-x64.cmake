@@ -7,5 +7,6 @@ endif ()
 # would classify this native build as cross compilation and disable try_run.
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 11)
+# The cloud client uses designated initializers, which MSVC supports in C++20.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
