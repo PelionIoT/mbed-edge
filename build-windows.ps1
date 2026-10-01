@@ -5,6 +5,7 @@ param(
     [ValidateSet('Debug', 'Release', 'RelWithDebInfo')]
     [string]$Configuration = 'Debug',
     [string]$CMakePath,
+    [string]$OpenSSLRoot,
     [switch]$ConfigureOnly,
     [Parameter(ParameterSetName = 'PalTests')]
     [switch]$PalTests,
@@ -45,10 +46,11 @@ $sourceDirectory = $PSScriptRoot
 $buildTargets = @('edge-core')
 $profileArguments = @(
     '-DTARGET_TOOLCHAIN=mcc-windows-x64', '-DBYOC_MODE=ON', '-DDEVELOPER_MODE=OFF',
-    '-DFIRMWARE_UPDATE=OFF', '-DFOTA_ENABLE=OFF', '-DBUILD_DOCUMENTATION=OFF'
+    '-DFIRMWARE_UPDATE=OFF', '-DFOTA_ENABLE=OFF', '-DBUILD_DOCUMENTATION=OFF',
+    '-DMBED_CLOUD_CLIENT_USE_OPENSSL=ON'
 )
 if ($PalOnly) {
-    $buildTargets = @('palRTOS', 'palFilesystem', 'palNetworking', 'palDRBG')
+    $buildTargets = @('palRTOS', 'palFilesystem', 'palNetworking', 'palDRBG', 'crypto-service')
 }
 if ($PalTests) {
     $sourceDirectory = Join-Path $PSScriptRoot 'test/windows-pal'
@@ -57,6 +59,9 @@ if ($PalTests) {
     if (-not $PSBoundParameters.ContainsKey('BuildDirectory')) {
         $BuildDirectory = Join-Path $PSScriptRoot 'build/windows-pal'
     }
+}
+if ($OpenSSLRoot) {
+    $profileArguments += "-DOPENSSL_ROOT_DIR=$OpenSSLRoot"
 }
 $configureArguments = @(
     '-S', $sourceDirectory, '-B', $BuildDirectory,

@@ -24,8 +24,18 @@
 #define PAL_USE_HW_RTC 0
 #define PAL_USE_HW_TRNG 1
 #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
-#define PAL_USE_SECURE_TIME 1
+// PAL_USE_SECURE_TIME is now set by CMake based on MBED_CLOUD_CLIENT_USE_OPENSSL flag:
+// - If MBED_CLOUD_CLIENT_USE_OPENSSL=ON: PAL_USE_SECURE_TIME=0 (OpenSSL does not manage its own time)
+// - If MBED_CLOUD_CLIENT_USE_OPENSSL=OFF: PAL_USE_SECURE_TIME=1 (mbedTLS manages its own time)
+
 #define PAL_SIMULATOR_TEST_ENABLE 1
+
+// Read the RoT from the file given by RoTFilePath in the provisioning
+// configuration. Opt-in with -DROT_FROM_FILE=ON; requires provisioning via
+// the FCC bundle (e.g. BYOC JSON/CBOR config), as nothing else sets the path.
+#ifndef PAL_USE_ROT_FROM_FILE
+#define PAL_USE_ROT_FROM_FILE 0
+#endif
 
 #include "Linux_default.h"
 

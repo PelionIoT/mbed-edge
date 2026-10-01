@@ -13,6 +13,12 @@ option (FIRMWARE_UPDATE "Enable firware update" ON)
 option (DEVELOPER_MODE "Developer mode" OFF)
 option (BYOC_MODE "Bring your own certificate" OFF)
 option (FACTORY_MODE "Factory provisioning" OFF)
+option (ROT_FROM_FILE "Read the Root of Trust from the file given by RoTFilePath in the provisioning configuration" OFF)
+if (WIN32)
+  option (MBED_CLOUD_CLIENT_USE_OPENSSL "Use the shared OpenSSL crypto and TLS backend" ON)
+else ()
+  option (MBED_CLOUD_CLIENT_USE_OPENSSL "Use the shared OpenSSL crypto and TLS backend" OFF)
+endif ()
 
 # Note - CUSTOM_PORT enables also port alternation,
 # if errors occur 443 and both 5684 are tried alternatively.
@@ -35,6 +41,16 @@ endif()
 # Mandatory definitions for Device Management Client
 add_definitions ("-DRESOURCE_ATTRIBUTES_LIST=1")
 add_definitions ("-DENABLE_ASYNC_REST_RESPONSE")
+
+if (${ROT_FROM_FILE})
+  MESSAGE ("Root of Trust is read from file (RoTFilePath).")
+  add_definitions ("-DPAL_USE_ROT_FROM_FILE=1")
+endif()
+
+# External crypto store support
+if (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT)
+    add_definitions ("-DMBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT")
+endif()
 
 # Setting JSON RPC request time-outs
 
@@ -69,6 +85,7 @@ if (${DEVELOPER_MODE})
 elseif (${BYOC_MODE})
   MESSAGE ("BYOC mode provisioning set.")
   add_definitions ("-DBYOC_MODE=1")
+  add_definitions ("-DMBED_EDGE_ENABLE_BYOC_JSON=1")
 elseif (${FACTORY_MODE})
   MESSAGE ("Factory mode provisioning set.")
   add_definitions("-DPARSEC_TPM_SE_SUPPORT")
@@ -238,14 +255,24 @@ if (${FIRMWARE_UPDATE})
 
 endif()
 
-# mbedtls is supported
-# Custom mbedtls configuration header file can be given with argument -DMBEDTLS_CONFIG
-SET (TLS_LIBRARY "mbedTLS")
-if (NOT DEFINED MBEDTLS_CONFIG)
-  SET (MBEDTLS_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/mbed-client-pal/Configs/mbedTLS/mbedTLSConfig_Linux.h")
-  MESSAGE ("Using default client library mbedtls config: ${MBEDTLS_CONFIG}")
+# mbedtls and openssl is supported=
+if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
+  # Custom mbedtls configuration header file can be given with argument -DMBEDTLS_CONFIG
+  SET (TLS_LIBRARY "mbedTLS")
+  if (NOT DEFINED MBEDTLS_CONFIG)
+    SET (MBEDTLS_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/lib/mbed-cloud-client/mbed-client-pal/Configs/mbedTLS/mbedTLSConfig_Linux.h")
+    MESSAGE ("Using default client library mbedtls config: ${MBEDTLS_CONFIG}")
+  endif()
+  add_definitions ("-DMBEDTLS_CONFIG_FILE=\"${MBEDTLS_CONFIG}\"")
+  # Set PAL_USE_SECURE_TIME to 1 for mbedTLS
+  add_definitions(-DPAL_USE_SECURE_TIME=1)
+else()
+  SET (TLS_LIBRARY "OpenSSL")
+  find_package(OpenSSL 3.0 REQUIRED)
+  add_definitions(-DMBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL=1)
+  # Set PAL_USE_SECURE_TIME to 0 for OpenSSL
+  add_definitions(-DPAL_USE_SECURE_TIME=0)
 endif()
-add_definitions ("-DMBEDTLS_CONFIG_FILE=\"${MBEDTLS_CONFIG}\"")
 
 # Select Device Management Client configuration header
 # Custom configuration header file can be given with argument -DCLOUD_CLIENT_CONFIG

@@ -27,7 +27,11 @@
 #include "m2mresourceinstance.h"
 #include "edge-client/edge_client.h"
 #include "edge-client/async_cb_params_base.h"
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+#include "edge-client/edge_client_byoc_with_json.h"
+#else
 #include "edge-client/edge_client_byoc.h"
+#endif
 #include <event2/event.h>
 
 typedef struct {

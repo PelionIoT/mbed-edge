@@ -15,6 +15,10 @@ include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/jansson/jansson/include)
 include_directories (lib/libevent/libevent/include)
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libevent/libevent/include)
 
+# Tinycbor include
+include_directories (lib/mbed-cloud-client/tinycbor/src)
+include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/mbed-cloud-client/tinycbor/include)
+
 # Libwebsockets include
 include_directories (lib/libwebsockets/libwebsockets/lib)
 include_directories (lib/libwebsockets/libwebsockets/include)
@@ -23,12 +27,14 @@ include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets
 include_directories (${CMAKE_CURRENT_BINARY_DIR}/lib/libwebsockets/libwebsockets/include)
 
 # mbedtls
+if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
 include_directories (lib/mbedtls/include)
 include_directories (lib/mbedtls/include/mbedtls/)
 
 # crypto
 include_directories (lib/mbedtls/crypto/include)
 include_directories (lib/mbedtls/crypto/include/mbedtls)
+endif()
 
 SET (MBED_CLOUD_CLIENT_DEPENDENCY_SOURCES "${ROOT_HOME}/lib/mbed-cloud-client")
 

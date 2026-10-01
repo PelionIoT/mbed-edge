@@ -27,7 +27,11 @@
 #include <event2/event.h>
 
 #include "edge-client/edge_client.h"
+#ifdef MBED_EDGE_ENABLE_BYOC_JSON
+#include "edge-client/edge_client_byoc_with_json.h"
+#else
 #include "edge-client/edge_client_byoc.h"
+#endif
 #include "edge-core/client_type.h"
 #include "edge-core/protocol_api.h"
 #include "edge-core/protocol_crypto_api.h"
@@ -701,6 +705,7 @@ int testable_main(int argc, char **argv)
             est_enrollment_result_notifier;
         edgeclient_create_params.cert_renewal_ctx = &g_program_context->ctx_data->registered_translators;
 
+#ifndef MBED_EDGE_ENABLE_BYOC_JSON
         // args.cbor_conf is in stack
         #ifdef DEVELOPER_MODE
         if (args.cbor_conf) {
@@ -710,6 +715,17 @@ int testable_main(int argc, char **argv)
         }
         #endif
         byoc_data_t *byoc_data = edgeclient_create_byoc_data(args.cbor_conf);
+#else
+        // args.cbor_conf is in stack
+        #ifdef DEVELOPER_MODE
+        if (args.cbor_conf || args.json_conf) {
+           tr_err("developer mode, cannot give cbor or json conf.");
+           rc = 1;
+           break;
+        }
+        #endif
+        byoc_data_t *byoc_data = edgeclient_create_byoc_data(args.cbor_conf, args.json_conf);
+#endif
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
         rfs_add_factory_reset_resource();
