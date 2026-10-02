@@ -164,52 +164,13 @@ The matrix writes sanitized `results.json`; each case retains progress, logs
 and protected identity files. Temporary services/rules are removed. No host
 reboot, production identity reset or certificate revocation is performed.
 
-## Offline package and upgrade qualification
+## Windows installer and deployment qualification
 
-Build an unsigned qualification package using
-[the Windows package instructions](../../windows/README.md). Only native x64
-Release BYOC/OpenSSL outputs are accepted; no provisioning files are packaged.
-Run the credential-free integrity and signature-policy checks in Windows
-PowerShell 5.1, with a new output directory:
-
-```powershell
-.\test\windows-core\test-package.ps1 `
-    -PackageDirectory D:\packages\edge-core-0.21.1002-windows-x64 `
-    -OutputDirectory D:\work\mbed-edge\build\package-tests-1
-```
-
-The seven checks cover an intact package, default rejection of unsigned
-delivery, a changed DLL, extra unlisted content, manifest path traversal,
-catalog rejection of modified version metadata, and a Developer/Debug profile.
-They require no service registration, administrator privileges or credentials.
-
-For real-cloud install/upgrade/rollback qualification, build two packages with
-increasing three-part deployment versions and the `windows-update-failure.exe`
-native test target. This target links the production SCM adapter and returns
-service-specific error 42; it is excluded from release packages. Run elevated:
-
-```powershell
-.\test\windows-core\test-package-service.ps1 `
-    -InitialPackage D:\packages\edge-core-0.21.1001-windows-x64 `
-    -UpgradePackage D:\packages\edge-core-0.21.1002-windows-x64 `
-    -FailureExecutable D:\work\mbed-edge\build\windows-x64\bin\Release\windows-update-failure.exe `
-    -ProvisioningFile D:\factory\private-bundle\provisioning.cbor `
-    -OutputDirectory D:\work\mbed-edge\build\package-service-cbor-1
-```
-
-Repeat with JSON and a separate output directory. Each case installs only its
-unique test service, checks registration, withholds the installed provisioning
-input, upgrades and verifies the same identity, rejects a downgrade, then
-exercises rollback after an actual SCM candidate startup failure. Its synthetic
-failure package uses the explicit unsigned qualification override. Services
-are removed in `finally`; protected identity, configuration, logs and binaries
-are retained. Existing production services are not used by this test.
-
-The seven integrity checks and both service cases passed on Windows 10 Pro
-22H2 x64 on October 1, 2026. Actual four-case restart qualification also passed,
-including PRESHUTDOWN, SCM automatic startup and identity persistence; see
-[the recorded boot results](../../docs/windows-build.md#native-windows-service-and-restricted-identity).
-The package service cases found a newer installed C++ runtime, so installation
-of the offline prerequisite on a clean image remains untested. Interrupted
-updater recovery, signed release deployment, and other Windows editions remain
-separate qualification work.
+Package creation, setup, first provisioning and package/installer tests now
+belong in [mbed-edge-windows-installer](https://github.com/IzumaNetworks/mbed-edge-windows-installer).
+The local sibling checkout is `D:\work\mbed-edge-windows-installer`.
+Native service lifecycle/boot tests remain here and accept
+`-InstallerRepositoryDirectory`; by default they use that sibling checkout.
+The protected boot observer copies all required setup helpers from that checkout
+before running as SYSTEM. Historical boot/package results remain in the ignored
+Edge build directory.

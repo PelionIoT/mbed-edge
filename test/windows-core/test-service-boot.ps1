@@ -6,12 +6,13 @@ param(
     [string]$BuildDirectory,
     [string]$CredentialDirectory,
     [string]$EvidenceDirectory,
+    [string]$InstallerRepositoryDirectory=(Join-Path $PSScriptRoot '../../../mbed-edge-windows-installer'),
     [string]$Manifest
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-# The protected observer snapshot keeps all three scripts in one directory.
-$sharedTools = Join-Path $PSScriptRoot '../../windows/service-tools.ps1'
+# The protected observer snapshot keeps the runtime test and setup tools together.
+$sharedTools = Join-Path $InstallerRepositoryDirectory 'windows/service-tools.ps1'
 if (Test-Path -LiteralPath $sharedTools) { . $sharedTools }
 else {
     . (Join-Path $PSScriptRoot 'service-tools.ps1')
@@ -166,10 +167,10 @@ if ($Action -eq 'Prepare') {
     Protect-ObserverDirectory $root
     $observer = Join-Path $root 'observer'
     Protect-ObserverDirectory $observer
-    $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+    $installerRepo=(Resolve-Path -LiteralPath $InstallerRepositoryDirectory).Path
     Copy-Item -LiteralPath $PSCommandPath -Destination (Join-Path $observer 'test-service-boot.ps1')
-    foreach ($file in @('install-service.ps1','service-tools.ps1')) {
-        Copy-Item -LiteralPath (Join-Path $repo ('windows/' + $file)) -Destination $observer
+    foreach ($file in @('install-service.ps1','service-tools.ps1','package-tools.ps1','provisioning-tools.ps1')) {
+        Copy-Item -LiteralPath (Join-Path $installerRepo ('windows/' + $file)) -Destination $observer
     }
     New-Item -ItemType Directory -Path $evidence | Out-Null
     $plan = [ordered]@{schema=2; root=$root; observer=$observer; evidenceDirectory=$evidence;
@@ -198,7 +199,9 @@ if ($Action -eq 'Prepare') {
             (Get-Service $entry.name).WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running,[TimeSpan]::FromSeconds(40))
             $entry.identity = Wait-Connected $entry
             if ($format -ne 'developer') {
-                $provision = Join-Path $entry.data "config/provisioning.$format"
+                $provisionMatch=[regex]::Match($entry.command,'--(cbor|json)-conf "([^"]+)"')
+                if (-not $provisionMatch.Success) { throw 'Installed provisioning argument missing.' }
+                $provision=$provisionMatch.Groups[2].Value
                 Move-Item -LiteralPath $provision -Destination ($provision + '.test-withheld')
                 $entry.provisioningWithheld = $true
             }
@@ -274,7 +277,9 @@ if ($currentBoot -eq $plan.beforeBoot) {
         foreach ($entry in $plan.services) {
             Assert-Configuration $entry | Out-Null
             if ($entry.format -ne 'developer') {
-                $provision = Join-Path $entry.data "config/provisioning.$($entry.format)"
+                $provisionMatch=[regex]::Match($entry.command,'--(cbor|json)-conf "([^"]+)"')
+                if (-not $provisionMatch.Success) { throw 'Installed provisioning argument missing.' }
+                $provision=$provisionMatch.Groups[2].Value
                 if (-not $entry.provisioningWithheld -or (Test-Path -LiteralPath $provision) -or
                     -not (Test-Path -LiteralPath ($provision + '.test-withheld'))) {
                     throw 'Runtime provisioning input was not withheld for the boot test.'

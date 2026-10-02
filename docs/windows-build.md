@@ -334,7 +334,7 @@ certificate-enrollment system.
 Install a self-contained bundle from local media with the BYOC Release build:
 
 ```powershell
-.\windows\install-service.ps1 `
+..\mbed-edge-windows-installer\windows\install-service.ps1 `
     -BinaryDirectory .\build\windows-x64\bin\Release `
     -ProvisioningFile D:\factory\private-bundle\provisioning.json -Start
 ```
@@ -419,16 +419,16 @@ relative PAL mount configuration when building this profile. Writable data
 directories are excluded from subsequent DLL searches.
 Console runs without `--data-dir` also lock their existing working directory.
 
-`windows/install-service.ps1` is an offline service-registration/setup helper,
+`mbed-edge-windows-installer/windows/install-service.ps1` is an offline service-registration/setup helper,
 not an MSI or a completed upgrade installer. Run it from elevated Windows
 PowerShell 5.1+ after building and staging the runtime dependencies:
 
 ```powershell
-.\windows\install-service.ps1 `
+..\mbed-edge-windows-installer\windows\install-service.ps1 `
     -BinaryDirectory .\build\windows-main-merge\bin\Release
 Start-Service EdgeCore
 Stop-Service EdgeCore
-.\windows\install-service.ps1 -Action Uninstall
+..\mbed-edge-windows-installer\windows\install-service.ps1 -Action Uninstall
 ```
 
 The defaults install to `%ProgramFiles%\Izuma\EdgeCore` and store data in
@@ -581,3 +581,11 @@ The service log currently captures appended console diagnostics without
 rotation or an Event Viewer provider. The local loopback protocol API also
 remains unauthenticated: restricted service identity does not authenticate
 translator/admin callers. Those are separate production gaps.
+
+## Separate Windows installer repository
+
+Packaging, service installation/upgrade/provisioning scripts and deployment
+tests now live in [mbed-edge-windows-installer](https://github.com/IzumaNetworks/mbed-edge-windows-installer).
+Native runtime, service adapter and PAL implementation remain in Edge.
+Runtime service/boot tests accept `-InstallerRepositoryDirectory`, defaulting
+to a sibling checkout. See [the deployment pointer](../windows/README.md).

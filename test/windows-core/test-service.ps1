@@ -6,12 +6,14 @@ param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
     [switch]$RealCloud,
     [switch]$OfflineStartup,
+    [string]$InstallerRepositoryDirectory=(Join-Path $PSScriptRoot '../../../mbed-edge-windows-installer'),
     [string]$ProvisioningFile
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$installer = Join-Path $repo 'windows/install-service.ps1'
-. (Join-Path $repo 'windows/service-tools.ps1')
+$installerRepo=(Resolve-Path -LiteralPath $InstallerRepositoryDirectory).Path
+$installer = Join-Path $installerRepo 'windows/install-service.ps1'
+. (Join-Path $installerRepo 'windows/service-tools.ps1')
 $binary = (Resolve-Path -LiteralPath $BinaryDirectory).Path
 if ($OfflineStartup -and -not $RealCloud) { throw '-OfflineStartup requires -RealCloud.' }
 if ($ProvisioningFile -and -not $RealCloud) { throw '-ProvisioningFile requires -RealCloud and a BYOC binary.' }
@@ -211,7 +213,9 @@ try {
         Record 'Real edge-core registered with cloud under restricted LocalService'
         if ($ProvisioningFile) {
             $extension = [IO.Path]::GetExtension($ProvisioningFile)
-            $installedProvision = Join-Path $edgeData ('config/provisioning' + $extension)
+            $provisionMatch=[regex]::Match((Get-EdgeServiceInfo $edgeName).PathName,'--(cbor|json)-conf "([^"]+)"')
+            if (-not $provisionMatch.Success) { throw 'Installed provisioning argument missing.' }
+            $installedProvision=$provisionMatch.Groups[2].Value
             $withheldProvision = $installedProvision + '.test-withheld'
             Move-Item -LiteralPath $installedProvision -Destination $withheldProvision
             Record 'Initial runtime provisioning accepted; installed input withheld to verify persisted credentials on restart'
