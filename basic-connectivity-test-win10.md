@@ -396,10 +396,9 @@ Evidence is under the ignored
 `build/windows-service-verified-{release,debug}-20261001-170058-e17b3f` directories.
 This service test checks registration and identity persistence; the live-read,
 network-outage and soak passes above were performed in console mode. Actual
-machine reboot/shutdown, automatic startup after boot and the other target
-Windows editions still require qualification. The protected SYSTEM observer
-preflight is also pending; no reboot-test services/tasks were installed and no
-host restart occurred. Follow the preparation and cleanup
+restart and automatic startup passed later on the same host, as recorded
+below. The other target Windows editions still require qualification. Follow
+the preparation and cleanup
 instructions in [the Windows build guide](docs/windows-build.md#native-windows-service-and-restricted-identity).
 
 Runtime provisioning parity passed on the same Windows 10 host on October 1,
@@ -424,6 +423,32 @@ Current builds pass seven BYOC and five developer application tests per
 configuration. The BYOC matrix covers initial registration and stored identity;
 C3 portal reads, uninterrupted network recovery, renewal and soak have not yet
 been repeated for the runtime provisioning profile.
+
+Actual restart qualification passed on October 1, 2026 at 21:16 CDT using the
+protected SYSTEM observer. All four BYOC/OpenSSL service cases (Release/Debug,
+CBOR/JSON) received Windows PRESHUTDOWN control 15 and exited cleanly in 516 ms.
+SCM started them automatically 140.95–142.33 seconds after the new boot; the
+observer did not start any service. Each reconnected with the same cloud
+identity while its installed provisioning input remained withheld. The
+observer removed all four temporary services and its startup task, with
+`cleanupVerified: true`. Evidence is under
+`build/windows-boot-runtime-20261001-210514`; `prepared.json` identifies the
+protected result, and `results.json` is its sanitized completed copy. This
+qualifies a coordinated restart on this host; Fast Startup power cycles,
+abrupt power loss and disconnected-network boot remain separate tests.
+
+Offline package and administrative upgrade qualification passed for Release
+CBOR and JSON on the same host. Both cases installed the local payload,
+registered as restricted LocalService, upgraded with unchanged identity,
+rejected a downgrade before service mutation, and recovered the previous
+running release and identity after a native candidate failed startup through
+SCM. Uninstall retained identity/configuration/logs. Evidence is in
+`build/windows-package-service-{cbor,json}-20261001-210514/results.json`.
+Seven credential-free package validation checks passed in
+`build/windows-package-tests-1/results.json`. The host already had a newer
+Visual C++ runtime, so the bundled prerequisite's installation path has not
+been executed on a clean image. These packages are unsigned qualification
+artifacts; see [deployment instructions and remaining release work](windows/README.md).
 
 After execution, stop the test client, remove its temporary firewall rule and
 retain or retire the dedicated cloud device/certificate according to the account

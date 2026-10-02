@@ -4,6 +4,7 @@
 param(
     [ValidateSet('Prepare','Verify','Cleanup')][string]$Action = 'Prepare',
     [string]$BuildDirectory,
+    [string]$CredentialDirectory,
     [string]$EvidenceDirectory,
     [string]$Manifest
 )
@@ -84,10 +85,23 @@ function Wait-Connected {
 function Publish-Result {
     param($Value,$Plan)
     $json = $Value | ConvertTo-Json -Depth 6
-    $json | Set-Content -LiteralPath (Join-Path $Plan.root 'results.json') -Encoding UTF8
-    # Only a sanitized result is published to the workspace; the SYSTEM task
-    # never executes code or reads a manifest from that writable directory.
-    $json | Set-Content -LiteralPath (Join-Path $Plan.evidenceDirectory 'boot-results.json') -Encoding UTF8
+    # SYSTEM writes only inside the protected namespace. The operator may read
+    # this sanitized file directly; nothing depends on the workspace at boot.
+    $temporary = Join-Path $Plan.root 'results.pending.json'
+    $json | Set-Content -LiteralPath $temporary -Encoding UTF8
+    $acl = New-Object Security.AccessControl.FileSecurity
+    $acl.SetAccessRuleProtection($true,$false)
+    $acl.SetOwner([Security.Principal.SecurityIdentifier]'S-1-5-32-544')
+    foreach ($sid in @('S-1-5-18','S-1-5-32-544')) {
+        $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+            ([Security.Principal.SecurityIdentifier]$sid),'FullControl','Allow')
+        $acl.AddAccessRule($rule)
+    }
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+        ([Security.Principal.SecurityIdentifier]$Plan.operatorSid),'Read','Allow')
+    $acl.AddAccessRule($rule)
+    Set-Acl -LiteralPath $temporary -AclObject $acl
+    Move-Item -LiteralPath $temporary -Destination (Join-Path $Plan.root 'results.json') -Force
 }
 function Remove-OwnedTest {
     param($Plan)
@@ -106,7 +120,9 @@ function Remove-OwnedTest {
         if ($task) {
             $expected = ConvertTo-EdgeNativeArguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',
                 (Join-Path $Plan.observer 'test-service-boot.ps1'),'-Action','Verify','-Manifest',(Join-Path $Plan.root 'manifest.json'))
-            if ($task.Actions.Count -ne 1 -or $task.Actions[0].Arguments -ne $expected) {
+            $shell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+            if ($task.Actions.Count -ne 1 -or $task.Actions[0].Arguments -ne $expected -or
+                $task.Actions[0].Execute -ne $shell -or $task.Actions[0].WorkingDirectory -ne $Plan.observer) {
                 throw 'Observer task changed; refusing removal.'
             }
             Unregister-ScheduledTask -TaskName $Plan.taskName -Confirm:$false
@@ -118,6 +134,27 @@ function Remove-OwnedTest {
 if ($Action -eq 'Prepare') {
     if (-not $BuildDirectory -or -not $EvidenceDirectory) { throw 'Specify -BuildDirectory and a new -EvidenceDirectory.' }
     $build = (Resolve-Path -LiteralPath $BuildDirectory).Path
+    $formats = @('developer')
+    if ($CredentialDirectory) {
+        $credentials = (Resolve-Path -LiteralPath $CredentialDirectory).Path
+        $cache = Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt') -Raw
+        foreach ($option in @('BYOC_MODE:BOOL=ON','DEVELOPER_MODE:BOOL=OFF','MBED_CLOUD_CLIENT_USE_OPENSSL:BOOL=ON')) {
+            if ($cache -notmatch ('(?m)^' + [regex]::Escape($option) + '\r?$')) {
+                throw "Runtime boot qualification requires $option."
+            }
+        }
+        $formats = @('cbor','json')
+        foreach ($format in $formats) {
+            if (-not (Test-Path -LiteralPath (Join-Path $credentials "provisioning.$format") -PathType Leaf)) {
+                throw "Missing provisioning.$format in CredentialDirectory."
+            }
+        }
+    }
+    foreach ($configuration in @('Release','Debug')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $build "bin/$configuration/edge-core.exe") -PathType Leaf)) {
+            throw "Missing $configuration edge-core.exe."
+        }
+    }
     $evidence = Safe-Directory $EvidenceDirectory
     if (Test-Path -LiteralPath $evidence) { throw 'EvidenceDirectory must be new.' }
     $parent = Safe-Directory $bootParent
@@ -135,23 +172,38 @@ if ($Action -eq 'Prepare') {
         Copy-Item -LiteralPath (Join-Path $repo ('windows/' + $file)) -Destination $observer
     }
     New-Item -ItemType Directory -Path $evidence | Out-Null
-    $plan = [ordered]@{schema=1; root=$root; observer=$observer; evidenceDirectory=$evidence;
+    $plan = [ordered]@{schema=2; root=$root; observer=$observer; evidenceDirectory=$evidence;
+        operatorSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; formats=$formats;
         taskName=('IzumaEdgeBoot_' + $tag); beforeBoot=(Boot-Time); services=@()}
     try {
         foreach ($configuration in @('Release','Debug')) {
-            $entry = [ordered]@{configuration=$configuration; name=('IzumaEdgeBoot_' + $configuration + '_' + $tag);
-                httpPort=(Free-Port); protocolPort=(Free-Port); install=(Join-Path $root "$configuration installation");
-                data=(Join-Path $root "$configuration data"); command=''; identity=''; logOffset=0}
+          foreach ($format in $formats) {
+            $label = "$configuration $format"
+            $httpPort = Free-Port
+            do { $protocolPort = Free-Port } while ($protocolPort -eq $httpPort)
+            $entry = [ordered]@{configuration=$configuration; format=$format;
+                name=('IzumaEdgeBoot_' + $configuration + '_' + $format + '_' + $tag);
+                httpPort=$httpPort; protocolPort=$protocolPort; install=(Join-Path $root "$label installation");
+                data=(Join-Path $root "$label data"); command=''; identity=''; logOffset=0;
+                provisioningWithheld=$false}
+            $provisionArguments = @{}
+            if ($format -ne 'developer') { $provisionArguments.ProvisioningFile = Join-Path $credentials "provisioning.$format" }
             & (Join-Path $observer 'install-service.ps1') -BinaryDirectory (Join-Path $build "bin/$configuration") `
                 -ServiceName $entry.name -InstallDirectory $entry.install -DataDirectory $entry.data `
-                -HttpPort $entry.httpPort -ProtocolPort $entry.protocolPort -StartupType Automatic
+                -HttpPort $entry.httpPort -ProtocolPort $entry.protocolPort -StartupType Automatic @provisionArguments
             $entry.command = (Service-Info $entry.name).PathName
             $plan.services += $entry
             Assert-Configuration $entry | Out-Null
             Start-Service $entry.name
             (Get-Service $entry.name).WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running,[TimeSpan]::FromSeconds(40))
             $entry.identity = Wait-Connected $entry
+            if ($format -ne 'developer') {
+                $provision = Join-Path $entry.data "config/provisioning.$format"
+                Move-Item -LiteralPath $provision -Destination ($provision + '.test-withheld')
+                $entry.provisioningWithheld = $true
+            }
             $entry.logOffset = (Get-Item -LiteralPath (Join-Path $entry.data 'logs/edge-core.log')).Length
+          }
         }
         $manifestPath = Join-Path $root 'manifest.json'
         $plan | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -161,7 +213,7 @@ if ($Action -eq 'Prepare') {
         $taskAction = New-ScheduledTaskAction -Execute $shell -Argument $arguments -WorkingDirectory $observer
         $trigger = New-ScheduledTaskTrigger -AtStartup
         $taskPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-        $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
+        $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 20) `
             -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
         Register-ScheduledTask -TaskName $plan.taskName -Action $taskAction -Trigger $trigger -Principal $taskPrincipal -Settings $settings | Out-Null
         # Exercise the exact protected observer as SYSTEM without rebooting.
@@ -173,9 +225,9 @@ if ($Action -eq 'Prepare') {
         if (-not (Test-Path -LiteralPath $resultFile)) { throw 'SYSTEM observer preflight did not report.' }
         $result = Get-Content -LiteralPath $resultFile -Raw | ConvertFrom-Json
         if ($result.stage -ne 'awaiting-reboot' -or -not $result.observerIsSystem) { throw 'SYSTEM observer preflight failed.' }
-        @{manifest=$manifestPath; taskName=$plan.taskName; services=@($plan.services.name)} |
+        @{manifest=$manifestPath; resultsFile=$resultFile; taskName=$plan.taskName; services=@($plan.services.name)} |
             ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $evidence 'prepared.json') -Encoding UTF8
-        Write-Output "Prepared. No reboot requested. Manifest: $manifestPath"
+        Write-Output "Prepared. No reboot requested. Manifest: $manifestPath. Results: $resultFile"
     } catch {
         $failure = $_
         try { Remove-OwnedTest $plan } catch { Write-Warning $_.Exception.Message }
@@ -191,13 +243,20 @@ $tag = [IO.Path]::GetFileName($root)
 if ($tag -notmatch '^[0-9a-f]{32}$' -or $root -ne (Join-Path (Safe-Directory $bootParent) $tag) -or
     [IO.Path]::GetFileName($manifestPath) -ne 'manifest.json') { throw 'Manifest is outside the owned boot-test namespace.' }
 $plan = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if ($plan.schema -ne 1 -or $plan.root -ne $root -or $plan.observer -ne (Join-Path $root 'observer') -or
-    $plan.taskName -ne ('IzumaEdgeBoot_' + $tag) -or $plan.services.Count -ne 2) { throw 'Invalid boot-test manifest.' }
+if ($plan.schema -ne 2 -or $plan.root -ne $root -or $plan.observer -ne (Join-Path $root 'observer') -or
+    $plan.taskName -ne ('IzumaEdgeBoot_' + $tag) -or $plan.operatorSid -notmatch '^S-1-5-(18|21-\d+-\d+-\d+-\d+)$' -or
+    @($plan.formats).Count -notin @(1,2) -or
+    $plan.services.Count -ne (2 * @($plan.formats).Count)) { throw 'Invalid boot-test manifest.' }
+if ((@($plan.formats) -join ',') -notin @('developer','cbor,json')) { throw 'Invalid provisioning format list.' }
+$labels = @()
 foreach ($entry in $plan.services) {
+    $label = "$($entry.configuration) $($entry.format)"
     if ($entry.configuration -notin @('Release','Debug') -or
-        $entry.name -ne ('IzumaEdgeBoot_' + $entry.configuration + '_' + $tag) -or
-        $entry.install -ne (Join-Path $root "$($entry.configuration) installation") -or
-        $entry.data -ne (Join-Path $root "$($entry.configuration) data")) { throw 'Invalid owned service in manifest.' }
+        $entry.format -notin $plan.formats -or $label -in $labels -or
+        $entry.name -ne ('IzumaEdgeBoot_' + $entry.configuration + '_' + $entry.format + '_' + $tag) -or
+        $entry.install -ne (Join-Path $root "$label installation") -or
+        $entry.data -ne (Join-Path $root "$label data")) { throw 'Invalid owned service in manifest.' }
+    $labels += $label
 }
 if ($Action -eq 'Cleanup') {
     Remove-OwnedTest $plan
@@ -212,7 +271,16 @@ $result = [ordered]@{stage='verifying'; passed=$null; observerIsSystem=$isSystem
 if ($currentBoot -eq $plan.beforeBoot) {
     try {
         if (-not $isSystem) { throw 'Observer preflight must run as SYSTEM.' }
-        foreach ($entry in $plan.services) { Assert-Configuration $entry | Out-Null }
+        foreach ($entry in $plan.services) {
+            Assert-Configuration $entry | Out-Null
+            if ($entry.format -ne 'developer') {
+                $provision = Join-Path $entry.data "config/provisioning.$($entry.format)"
+                if (-not $entry.provisioningWithheld -or (Test-Path -LiteralPath $provision) -or
+                    -not (Test-Path -LiteralPath ($provision + '.test-withheld'))) {
+                    throw 'Runtime provisioning input was not withheld for the boot test.'
+                }
+            }
+        }
         $result.stage = 'awaiting-reboot'
     } catch { $result.stage='preflight-failed'; $result.error=$_.Exception.Message }
     Publish-Result $result $plan
@@ -246,9 +314,10 @@ try {
         }
         $identity = Wait-Connected $entry
         if ($identity -ne $entry.identity) { throw "Cloud identity changed across reboot: $($entry.name)" }
-        $result.services += @{configuration=$entry.configuration; name=$entry.name; automaticStart=$true;
+        $result.services += @{configuration=$entry.configuration; format=$entry.format; name=$entry.name; automaticStart=$true;
             startupDelaySeconds=($process.StartTime.ToUniversalTime() - [DateTime]::Parse($currentBoot).ToUniversalTime()).TotalSeconds;
-            preshutdownMilliseconds=[int64]$stop.Groups[1].Value; sameCloudIdentity=$true}
+            preshutdownMilliseconds=[int64]$stop.Groups[1].Value; sameCloudIdentity=$true;
+            provisioningWithheld=$entry.provisioningWithheld}
     }
     $result.passed = $true
 } catch { $result.passed=$false; $result.error=$_.Exception.Message }

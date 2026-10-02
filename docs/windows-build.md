@@ -452,8 +452,9 @@ Use `-ServiceName`, `-InstallDirectory`, `-DataDirectory`, `-HttpPort` and
 dedicated binary directory and separate dedicated data directory; it rejects
 reparse points. Uninstall stops/removes the service but retains all binaries,
 configuration, logs and persisted identity. Existing state can be secured and
-reused by a later installation of the same service name. Staged upgrades and
-rollback are not implemented yet.
+reused by a later installation of the same service name. The offline package
+installer and separate administrative updater now provide versioned staging
+and rollback; see [Windows package deployment](../windows/README.md).
 
 For reproducible integration tests, build with `-CoreTests`, then run the
 following in an elevated PowerShell prompt. It creates uniquely named test
@@ -483,18 +484,20 @@ stop while that executable's outbound cloud traffic is blocked. The existing
 firewall helper and independent cleanup watchdog remove only the test's own
 per-program rule; firewall profiles must already be enabled.
 
-For actual machine reboot qualification, use the elevated boot helper after
-building both developer configurations with the same private credentials:
+For actual machine reboot qualification, use the elevated boot helper with
+both BYOC configurations and a private runtime provisioning bundle:
 
 ```powershell
 .\test\windows-core\test-service-boot.ps1 -Action Prepare `
-    -BuildDirectory D:\work\mbed-edge\build\windows-main-merge `
+    -BuildDirectory D:\work\mbed-edge\build\windows-x64 `
+    -CredentialDirectory D:\factory\private-bundle `
     -EvidenceDirectory D:\work\mbed-edge\build\boot-test-1
 ```
 
-Prepare installs uniquely named Release and Debug services with delayed
-automatic startup, verifies initial cloud registration, and snapshots their
-identity and log offsets. It copies the observer and installer into an
+Prepare installs four uniquely named services (Release/Debug, CBOR/JSON) with
+delayed automatic startup, verifies initial cloud registration, withholds the
+installed provisioning inputs, and snapshots identity and log offsets. It
+copies the observer and installer into an
 Administrators/SYSTEM-only directory under
 `%ProgramData%\Izuma\EdgeCoreBootTests`. A startup task runs that protected
 observer as SYSTEM without a user login. Prepare exercises the exact task on
@@ -506,8 +509,12 @@ the services automatically; it never starts them itself. It requires the prior
 boot's PRESHUTDOWN control (15), clean exit within 20 seconds, a subsequent
 service start, and cloud registration with the same identity. It then removes
 only its matching test services and startup task, retaining state and logs.
-The sanitized `boot-results.json` in the evidence directory records pass/fail
-and cleanup; `prepared.json` records the protected manifest path. To cancel
+The observer writes its sanitized `results.json` only inside protected
+ProgramData. It grants the preparing operator read access to that file without
+granting access to private identities or observer code. It does not write to
+or execute anything from the workspace after startup. The workspace's
+`prepared.json` records the protected manifest and result paths. Read the
+`resultsFile` after reboot to obtain pass/fail and cleanup status. To cancel
 before reboot, run:
 
 ```powershell
@@ -516,8 +523,9 @@ before reboot, run:
 ```
 
 One reboot does not qualify Fast Startup power-off/power-on, abrupt power loss,
-or disconnected-network boot. Those are additional machine tests. The current
-developer binaries contain a private test key and remain development artifacts.
+or disconnected-network boot. Those are additional machine tests. Omitting
+`-CredentialDirectory` retains the two-service developer-build test flow; those
+binaries contain a private test key and remain development artifacts.
 
 Validation on 2026-10-01: native developer Debug and Release builds each pass
 all five console/timer/WebSocket/options tests. BYOC Debug and Release pass
@@ -544,15 +552,30 @@ temporary test services are removed. Ignored evidence directories are
 `results.json`, `progress.log`, and copied probe/cloud logs.
 
 This clears the service lifecycle and restricted identity milestone on the
-tested Windows 10 host. Machine reboot/shutdown, delayed automatic startup
-after boot and Windows 11/Server/Server Core
-qualification remain pending.
+tested Windows 10 host. Actual restart qualification also passed on October 1,
+2026 at 21:16 CDT. The protected startup observer ran as SYSTEM after a different
+boot and verified all four BYOC/OpenSSL cases (Release/Debug, CBOR/JSON):
 
-The current runtime provisioning matrix above also qualifies configuration of
-the 25-second preshutdown timeout and offline service startup/stop in all four
-BYOC cases. Actual OS delivery of PRESHUTDOWN, the protected SYSTEM observer
-preflight and startup after a different boot still need qualification. No
-boot-test services or tasks have been installed, and no reboot has occurred.
+| Check | Result |
+| --- | --- |
+| Windows PRESHUTDOWN control 15 and application exit 0 | Passed; 516 ms in every case, within the 20-second shutdown bound |
+| SCM delayed automatic startup without observer intervention | Passed; 140.95–142.33 seconds after boot |
+| Registration with provisioning input withheld | Passed; same persisted cloud identity in every case |
+| Temporary service and startup task cleanup | Passed; all four services and the task removed |
+
+Evidence is under `build/windows-boot-runtime-20261001-210514`. Its
+`prepared.json` records the protected observer result; `results.json` is a
+sanitized copy of that completed result. The current boot began at
+`2026-10-02T02:16:27.5000000Z` (October 1 in CDT). Protected identities and logs
+remain available for diagnosis. Fast Startup power cycles, abrupt power loss,
+disconnected-network boot, and Windows 11/Server/Server Core remain untested.
+
+Offline package qualification also passed on October 1 for both CBOR and JSON.
+The administrative updater activated a staged release with the same cloud
+identity, rejected a downgrade before modifying the service, and restored the
+previous running release and identity after an actual SCM startup failure.
+Seven credential-free package integrity/profile/signature-policy checks passed.
+See [package instructions and remaining release qualification](../windows/README.md).
 
 The service log currently captures appended console diagnostics without
 rotation or an Event Viewer provider. The local loopback protocol API also

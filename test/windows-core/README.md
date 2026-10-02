@@ -133,6 +133,12 @@ logs and state are retained. Actual reboot qualification uses
 `test-service-boot.ps1`, which prepares both configurations and a protected
 SYSTEM startup observer. It does not reboot the host. Follow the
 [boot preparation and cleanup instructions](../../docs/windows-build.md#native-windows-service-and-restricted-identity).
+Use `-CredentialDirectory` with the BYOC build to cover CBOR and JSON in both
+configurations without embedded credentials. Prepare withholds each installed
+provisioning input after registration. The observer requires identity retention,
+an actual PRESHUTDOWN control with clean exit, and SCM automatic startup after
+a different boot. `prepared.json` contains the protected, operator-readable
+`resultsFile`; the startup observer does not access the workspace.
 
 ## Runtime provisioning parity
 
@@ -157,3 +163,53 @@ fixture and optionally tests startup/stop under a temporary outbound block.
 The matrix writes sanitized `results.json`; each case retains progress, logs
 and protected identity files. Temporary services/rules are removed. No host
 reboot, production identity reset or certificate revocation is performed.
+
+## Offline package and upgrade qualification
+
+Build an unsigned qualification package using
+[the Windows package instructions](../../windows/README.md). Only native x64
+Release BYOC/OpenSSL outputs are accepted; no provisioning files are packaged.
+Run the credential-free integrity and signature-policy checks in Windows
+PowerShell 5.1, with a new output directory:
+
+```powershell
+.\test\windows-core\test-package.ps1 `
+    -PackageDirectory D:\packages\edge-core-0.21.1002-windows-x64 `
+    -OutputDirectory D:\work\mbed-edge\build\package-tests-1
+```
+
+The seven checks cover an intact package, default rejection of unsigned
+delivery, a changed DLL, extra unlisted content, manifest path traversal,
+catalog rejection of modified version metadata, and a Developer/Debug profile.
+They require no service registration, administrator privileges or credentials.
+
+For real-cloud install/upgrade/rollback qualification, build two packages with
+increasing three-part deployment versions and the `windows-update-failure.exe`
+native test target. This target links the production SCM adapter and returns
+service-specific error 42; it is excluded from release packages. Run elevated:
+
+```powershell
+.\test\windows-core\test-package-service.ps1 `
+    -InitialPackage D:\packages\edge-core-0.21.1001-windows-x64 `
+    -UpgradePackage D:\packages\edge-core-0.21.1002-windows-x64 `
+    -FailureExecutable D:\work\mbed-edge\build\windows-x64\bin\Release\windows-update-failure.exe `
+    -ProvisioningFile D:\factory\private-bundle\provisioning.cbor `
+    -OutputDirectory D:\work\mbed-edge\build\package-service-cbor-1
+```
+
+Repeat with JSON and a separate output directory. Each case installs only its
+unique test service, checks registration, withholds the installed provisioning
+input, upgrades and verifies the same identity, rejects a downgrade, then
+exercises rollback after an actual SCM candidate startup failure. Its synthetic
+failure package uses the explicit unsigned qualification override. Services
+are removed in `finally`; protected identity, configuration, logs and binaries
+are retained. Existing production services are not used by this test.
+
+The seven integrity checks and both service cases passed on Windows 10 Pro
+22H2 x64 on October 1, 2026. Actual four-case restart qualification also passed,
+including PRESHUTDOWN, SCM automatic startup and identity persistence; see
+[the recorded boot results](../../docs/windows-build.md#native-windows-service-and-restricted-identity).
+The package service cases found a newer installed C++ runtime, so installation
+of the offline prerequisite on a clean image remains untested. Interrupted
+updater recovery, signed release deployment, and other Windows editions remain
+separate qualification work.
