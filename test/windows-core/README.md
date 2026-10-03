@@ -27,6 +27,8 @@ The tests verify:
   nanostack scheduler and Windows PAL, including the bootstrap stagger timer.
 - A five-second registration timer against an independent performance clock,
   including a 1.5-second callback stall, to detect scheduler clock drift.
+- Real client endpoint creation, resource lookup/updates, and all packed
+  base/data types, including the MSVC endpoint-directory sign-extension regression.
 - Windows service option validation and isolation of explicit state directories.
 - Fresh BYOC startup: storage initializes and the timestamp logger prints a
   missing-configuration error, then the process exits normally with code 1.
@@ -48,8 +50,11 @@ ctest --test-dir build/windows-x64 -C Debug --output-on-failure
 ```
 
 These checks do not validate a connected protocol translator, JSON RPC
-registration or real cloud provisioning. The BYOC profile has seven tests;
-the developer profile has five. The elevated service tests below
+registration or real cloud provisioning. The BYOC profile has eight tests;
+the developer profile has six. For the separate, portal-assisted PT counter
+test against a real cloud-connected Edge Core, follow [PT-CLOUD-TEST.md](PT-CLOUD-TEST.md).
+It requires the baseline and two resource changes to be verified in the portal
+before reporting a pass. The elevated service tests below
 validate the native Windows service separately. Run
 the [PAL/common suite](../windows-pal/README.md) separately and follow the
 [cloud connectivity plan](../../basic-connectivity-test-win10.md) for a real
@@ -64,7 +69,7 @@ To build that developer profile with the downloaded C credential:
 ```
 
 The helper checks the expected credential fields without printing their values,
-builds with the shared OpenSSL backend, and runs the five CLI/options/transport/timer tests.
+builds with the shared OpenSSL backend, and runs the six CLI/options/transport/timer/endpoint tests.
 It disables firmware updates, file-based RoT and CoAP payload dumps. It does
 not start the cloud client automatically. The executable includes the developer
 private key; keep the build output and identity storage private and out of Git.

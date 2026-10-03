@@ -257,10 +257,12 @@ this GCM suite with server trust validation and mutual authentication.
 document the minimum security requirements.
 
 The PAL/common suite has passed all five tests in Debug and Release on this
-Windows 10 host. Current application builds pass all five developer tests
-and all seven BYOC tests in each configuration. The BYOC suite includes fresh
+Windows 10 host. At that milestone, application builds passed all five developer
+tests and all seven BYOC tests in each configuration. The BYOC suite includes fresh
 unprovisioned startup and credential-free JSON/PAL regression checks. A
-connected translator remains untested. Historical failed build logs remain
+connected translator was not tested in that milestone; the later
+[PT cloud counter test](../test/windows-core/PT-CLOUD-TEST.md) covers it separately.
+Historical failed build logs remain
 under `build/windows-main-merge-full.log`, `build/windows-pal-full-build.log`
 and `build/windows-msbuild-diagnostic.log`.
 
@@ -581,6 +583,18 @@ The service log currently captures appended console diagnostics without
 rotation or an Event Viewer provider. The local loopback protocol API also
 remains unauthenticated: restricted service identity does not authenticate
 translator/admin callers. Those are separate production gaps.
+
+## PT resource changes verified in the cloud
+
+On 2026-10-03, a minimal JavaScript PT passed end to end through the native
+Windows WebSocket JSON-RPC listener, Edge resource model, cloud transport and
+fresh portal reads. Debug verified counter values 1001, 1002 and 1003; Release
+verified 2001, 2002 and 2003. The test exposed and fixed an MSVC enum bitfield
+defect that prevented endpoint lookup during `device_register`. A new offline
+endpoint regression and all five existing developer tests pass in each build.
+Both PTs unregistered and exited cleanly, followed by clean console shutdown.
+The older installed service binary has not been upgraded with this fix.
+See [the repeatable test and qualification evidence](../test/windows-core/PT-CLOUD-TEST.md).
 
 ## Separate Windows installer repository
 
