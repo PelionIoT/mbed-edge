@@ -176,6 +176,14 @@ void edge_pt_pipe_close(void *transport)
     }
 }
 
+unsigned edge_pt_pipe_client_count(const struct edge_pt_pipe_listener *listener)
+{
+    unsigned count = 0;
+    if (listener) for (unsigned i = 0; i < listener->count; ++i)
+        if (listener->peers[i].connected && listener->peers[i].session && !listener->peers[i].closing) ++count;
+    return count;
+}
+
 int edge_pt_pipe_send(struct edge_pt_pipe_connection *peer, char *data, size_t length)
 {
     if (!peer || !peer->connected || peer->closing || !data || !length || length > EDGE_PT_PIPE_MAX_FRAME ||

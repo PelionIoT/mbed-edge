@@ -14,6 +14,9 @@ extern "C" {
 #include <event2/bufferevent.h>
 #include "edge-core/http_server.h"
 #include "edge-core/server.h"
+#include "edge-core/protocol_api_internal.h"
+#include "edge-core/grm_api_internal.h"
+#include "edge-core/listener_status.h"
 #include "test-lib/evhttp_mock.h"
 #include "edge_version_info.h"
 }
@@ -54,6 +57,61 @@ TEST_GROUP(http_server_group) {
     {
     }
 };
+
+static void expect_status_identity()
+{
+    mock().expectOneCall("get_internal_id").andReturnValue("internal-id");
+    mock().expectOneCall("get_endpoint_name").andReturnValue("endpoint-name");
+    mock().expectOneCall("get_account_id").andReturnValue("account-id");
+    mock().expectOneCall("get_lwm2m_server_uri").andReturnValue("lwm2m-server-uri");
+}
+
+TEST(http_server_group, additive_listener_details_preserve_existing_status_fields)
+{
+    ctx_data.cloud_connection_status = EDGE_STATE_CONNECTED;
+    ns_list_init(&ctx_data.registered_translators);
+    edge_listener_status listeners = {};
+    listeners.http = {true, true, true, "127.0.0.1:8080"};
+    listeners.af_unix = {true, true, true, "/tmp/edge.sock"};
+    ctx_data.listener_status = &listeners;
+    expect_status_identity();
+    json_t *response = http_state_in_json(&ctx);
+    STRCMP_EQUAL("connected", json_string_value(json_object_get(response, "status")));
+    STRCMP_EQUAL("internal-id", json_string_value(json_object_get(response, "internal-id")));
+    STRCMP_EQUAL("endpoint-name", json_string_value(json_object_get(response, "endpoint-name")));
+    STRCMP_EQUAL("account-id", json_string_value(json_object_get(response, "account-id")));
+    STRCMP_EQUAL("lwm2m-server-uri", json_string_value(json_object_get(response, "lwm2m-server-uri")));
+    CHECK(json_object_get(response, "edge-version"));
+    json_t *details = json_object_get(response, "connectivity"); CHECK(details);
+    json_t *entries = json_object_get(details, "listeners");
+    STRCMP_EQUAL("/tmp/edge.sock", json_string_value(json_object_get(json_object_get(entries, "afUnix"), "address")));
+    CHECK(json_is_false(json_object_get(json_object_get(entries, "namedPipe"), "available")));
+    json_decref(response);
+    mock().checkExpectations();
+}
+
+TEST(http_server_group, listener_pt_count_excludes_gateway_resource_managers)
+{
+    ns_list_init(&ctx_data.registered_translators);
+    client_data_t pt = {}; pt.method_table = method_table;
+    client_data_t grm = {}; grm.method_table = grm_method_table;
+    connection_t pt_connection = {}; pt_connection.client_data = &pt;
+    connection_t grm_connection = {}; grm_connection.client_data = &grm;
+    connection_list_elem pt_entry = {}; pt_entry.conn = &pt_connection;
+    connection_list_elem grm_entry = {}; grm_entry.conn = &grm_connection;
+    ns_list_add_to_end(&ctx_data.registered_translators, &pt_entry);
+    ns_list_add_to_end(&ctx_data.registered_translators, &grm_entry);
+    edge_listener_status listeners = {};
+    ctx_data.listener_status = &listeners;
+    expect_status_identity();
+    json_t *response = http_state_in_json(&ctx);
+    LONGS_EQUAL(2, ns_list_count(&ctx_data.registered_translators));
+    LONGS_EQUAL(1, json_integer_value(json_object_get(json_object_get(response, "connectivity"), "registeredPtCount")));
+    json_decref(response);
+    ns_list_remove(&ctx_data.registered_translators, &pt_entry);
+    ns_list_remove(&ctx_data.registered_translators, &grm_entry);
+    mock().checkExpectations();
+}
 
 void test_http_server_init_succeeds_expectations(struct evhttp *http,
                                                  struct evhttp_bound_socket *socket,

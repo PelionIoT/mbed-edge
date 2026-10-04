@@ -613,7 +613,8 @@ verified 2001, 2002 and 2003. The test exposed and fixed an MSVC enum bitfield
 defect that prevented endpoint lookup during `device_register`. A new offline
 endpoint regression and all five existing developer tests pass in each build.
 Both PTs unregistered and exited cleanly, followed by clean console shutdown.
-The older installed service binary has not been upgraded with this fix.
+The installed service was still older during this October 3 test; it was
+updated on October 4 as described under local listener diagnostics below.
 See [the repeatable test and qualification evidence](../test/windows-core/PT-CLOUD-TEST.md).
 
 ## Separate Windows installer repository
@@ -656,7 +657,7 @@ work is:
 
 | Priority | Gap | Completion evidence |
 | --- | --- | --- |
-| Release gate | Final artifact integration | Build a versioned Release BYOC package containing the PT enum fix, selected IPC listeners and runtime configuration; qualify the exact packaged binaries under restricted LocalService, including PT-to-cloud changes, retained identity and upgrade/rollback. The installed EdgeCore still points to 0.21.1002 and has not received these changes |
+| Release gate | Final artifact integration | Qualify the final installer and exact packaged binaries under restricted LocalService, including selected IPC configuration/permissions, PT-to-cloud changes, retained identity and upgrade/rollback. Qualification package 0.21.1007 is now installed with the PT enum fix, compiled IPC listeners and status metadata; HTTP/TCP, cloud reconnection and identity preservation passed on October 4. Selected IPC and final installer integration still require qualification |
 | Release gate | Signing and clean-machine setup | Qualify the production signing path and trusted offline delivery, install the bundled VC++ prerequisite on a clean image, verify restart-required return handling, and exercise ordinary interactive and silent setup. Existing installer tests used unsigned qualification artifacts on a host with a newer runtime already installed |
 | Release gate | Local PT/admin access policy | Qualify the supported local trust boundary. TCP can now be disabled through `tcpEnabled`; if enabled it does not authenticate users. Qualify AF_UNIX directory grants and/or the named-pipe `clientSids` allowlist against the actual restricted service SID and intended/denied PT identities, without granting access to cloud state |
 | Release gate | Complete PT/cloud behavior | Qualify cloud observation/notifications and cloud-originated writable/execute resources through a C or existing TCP test PT. Current counter evidence proves fresh cloud reads. Diagnose the portal's automatic HTTP 400 request and establish whether it affects the supported observation flow |
@@ -677,3 +678,25 @@ named-pipe server support is implemented behind a default-ON Windows build flag,
 with runtime activation and TCP isolation settings. Its transport and C tests
 are described in [the pipe guide](../test/windows-core/NAMED-PIPE-PT.md).
 The SDK is not required to qualify or release the Edge server transport.
+
+## Local listener diagnostics
+
+On October 4, 2026, the additive local status extension was qualified in
+developer Debug/Release (10/10 tests each) and BYOC Debug/Release (12/12 each).
+The separate Windows monitor now has Status and Details tabs and reads the
+reported HTTP, TCP, AF_UNIX and named-pipe listeners, process/uptime, PT/device
+counts and pipe usage/access. Live checks used isolated console instances and
+native C PTs. After those checks, the installed restricted LocalService was
+upgraded from package 0.21.1002 to unsigned qualification package 0.21.1007.
+The update retained cloud identity, private provisioning configuration, service
+arguments, startup settings and service permissions, and reconnected to the
+cloud. The ordinary-user native monitor accepted its new listener metadata.
+HTTP `127.0.0.1:8080` and TCP PT `127.0.0.1:7681` are listening; compiled AF_UNIX
+and named-pipe transports remain disabled by the retained startup selection.
+Previous binaries are retained for rollback. Older responses remain usable for
+basic status monitoring.
+
+The same status contract is implemented for Linux, preserving its existing
+HTTP and Unix-socket behavior. Linux unit coverage has been added, but execution
+on a Linux host/CI remains a regression requirement. See
+[the status contract and validation record](local-status.md).

@@ -19,4 +19,6 @@ struct edge_pt_pipe_listener *edge_pt_pipe_start(struct event_base *base,
 int edge_pt_pipe_send(struct edge_pt_pipe_connection *peer, char *data, size_t length);
 void edge_pt_pipe_close(void *peer);
 void edge_pt_pipe_stop(struct edge_pt_pipe_listener *listener);
+/* Established framing sessions; call on the server event thread. */
+unsigned edge_pt_pipe_client_count(const struct edge_pt_pipe_listener *listener);
 #endif

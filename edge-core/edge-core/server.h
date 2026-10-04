@@ -34,6 +34,7 @@
  */
 
 struct ctx_data;
+struct edge_listener_status;
 
 struct context {
     struct event_base *ev_base;
@@ -99,6 +100,7 @@ struct cloud_error {
 
 struct ctx_data {
     struct http_server *http_server;
+    struct edge_listener_status *listener_status;
     edge_state cloud_connection_status;
     struct cloud_error *cloud_error;
     connection_elem_list registered_translators;

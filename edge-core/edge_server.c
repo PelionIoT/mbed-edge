@@ -57,6 +57,8 @@
 #include "edge-core/srv_comm.h"
 #include "edge-core/edge_server.h"
 #include "edge-core/http_server.h"
+#include "edge-core/listener_status.h"
+#include "common/edge_time.h"
 #include "edge-rpc/rpc.h"
 #include "common/websocket_comm.h"
 #include "common/edge_mutex.h"
@@ -395,6 +397,29 @@ json_t *http_state_in_json(struct context *ctx)
     json_object_set_new(res, "edge-version", json_string(VERSION_STRING));
     json_object_set_new(res, "account-id", json_string(edgeclient_get_account_id()));
     json_object_set_new(res, "lwm2m-server-uri", json_string(edgeclient_get_lwm2m_server_uri()));
+
+    if (ctx->ctx_data->listener_status) {
+        edge_listener_status *listeners = ctx->ctx_data->listener_status;
+        unsigned registered_pts = 0;
+        /* GRM clients share the registered-translator list with PTs. */
+        ns_list_foreach(struct connection_list_elem, entry, &ctx->ctx_data->registered_translators) {
+            if (entry->conn && entry->conn->client_data && entry->conn->client_data->method_table == method_table) {
+                ++registered_pts;
+            }
+        }
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+        listeners->pipe_connected_clients = edge_pt_pipe_client_count(listeners->pipe_listener);
+#endif
+#ifdef _WIN32
+        uint32_t process_id = (uint32_t)_getpid();
+#else
+        uint32_t process_id = (uint32_t)getpid();
+#endif
+        json_object_set_new(res, "connectivity", edge_listener_status_json(listeners,
+            edgetime_get_monotonic_in_ms(), process_id,
+            registered_pts,
+            ctx->ctx_data->registered_endpoint_count > 0 ? (unsigned)ctx->ctx_data->registered_endpoint_count : 0));
+    }
 
     if (ctx->ctx_data->cloud_connection_status  == EDGE_STATE_ERROR) {
         json_object_set_new(res, "error_code", json_integer(ctx->ctx_data->cloud_error->error_code));
@@ -817,6 +842,11 @@ int testable_main(int argc, char **argv)
 #endif
     int counter;
     struct lws_context *lwsc = NULL;
+#ifndef BUILD_TYPE_TEST
+    edge_listener_status listeners = {0};
+    char http_listener_address[96] = {0};
+    listeners.started_ms = edgetime_get_monotonic_in_ms();
+#endif
     memset(&edgeclient_create_params, 0, sizeof(edgeclient_create_parameters_t));
     DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ VERSION_STRING);
 #ifdef _WIN32
@@ -874,12 +904,34 @@ int testable_main(int argc, char **argv)
         struct ctx_data *ctx_data = g_program_context->ctx_data;
         ns_list_init(&ctx_data->registered_translators);
         ns_list_init(&ctx_data->not_accepted_translators);
+#ifndef BUILD_TYPE_TEST
+        ctx_data->listener_status = &listeners;
+#endif
 
         if (!create_server_event_loop(g_program_context, http_port, args.bind)) {
             tr_err("Could not create http server.");
             rc = 1;
             break;
         }
+#ifndef BUILD_TYPE_TEST
+        edge_listener_http_address(ctx_data->http_server->bound_socket, http_listener_address, sizeof(http_listener_address));
+        listeners.http = (edge_listener_entry){true, true, true, http_listener_address};
+#ifdef _WIN32
+        listeners.tcp = (edge_listener_entry){true, runtime_config.tcp_enabled, false, edge_pt_socket};
+        listeners.af_unix = (edge_listener_entry){false, runtime_config.af_unix_enabled, false, runtime_config.af_unix_path};
+        listeners.named_pipe = (edge_listener_entry){false, runtime_config.named_pipe_enabled, false, runtime_config.named_pipe_name};
+#ifdef MBED_EDGE_WINDOWS_AF_UNIX
+        listeners.af_unix.available = true;
+#endif
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+        listeners.named_pipe.available = true;
+        listeners.pipe_max_clients = runtime_config.named_pipe_max_clients;
+        listeners.pipe_client_sid_count = runtime_config.named_pipe_client_sid_count;
+#endif
+#else
+        listeners.af_unix = (edge_listener_entry){true, true, false, edge_pt_socket};
+#endif
+#endif
 
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
         edge_windows_service_checkpoint();
@@ -969,6 +1021,13 @@ int testable_main(int argc, char **argv)
 #endif
                                                edge_server_protocols,
                                                &lock_fd);
+#ifndef BUILD_TYPE_TEST
+#ifdef _WIN32
+        listeners.tcp.listening = lwsc && runtime_config.tcp_enabled;
+#else
+        listeners.af_unix.listening = lwsc != NULL;
+#endif
+#endif
 #ifdef _WIN32
         if (!lwsc) {
             rc = 1;
@@ -978,6 +1037,9 @@ int testable_main(int argc, char **argv)
         if (runtime_config.af_unix_enabled) {
             unix_listener = edge_pt_unix_start(g_program_context->ev_base, lwsc, runtime_config.af_unix_path);
             if (!unix_listener) { rc = 1; break; }
+#ifndef BUILD_TYPE_TEST
+            listeners.af_unix.listening = true;
+#endif
         }
 #endif
 #ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
@@ -985,6 +1047,10 @@ int testable_main(int argc, char **argv)
             pipe_listener = edge_pt_pipe_start(g_program_context->ev_base, &runtime_config,
                                                &pipe_callbacks, NULL);
             if (!pipe_listener) { rc = 1; break; }
+#ifndef BUILD_TYPE_TEST
+            listeners.named_pipe.listening = true;
+            listeners.pipe_listener = pipe_listener;
+#endif
         }
 #endif
 #endif

@@ -31,6 +31,8 @@ The tests verify:
   base/data types, including the MSVC endpoint-directory sign-extension regression.
 - Windows service option validation and isolation of explicit state directories.
 - Runtime PT settings, Unicode config filenames and build capability checks.
+- Additive listener details, Linux/Windows snapshot semantics and the actual
+  HTTP bound address, including an OS-selected port.
 - On supported Windows targets, the native C AF_UNIX PT against the production
   listener: registration, counter writes, errors, ownership and cleanup.
 - With named pipes compiled, the native C PT against the production adapter:
@@ -56,8 +58,8 @@ ctest --test-dir build/windows-x64 -C Debug --output-on-failure
 ```
 
 The AF_UNIX fixture validates local PT JSON-RPC, independently of the cloud.
-With AF_UNIX and named pipes compiled, the BYOC profile has eleven tests and the
-developer profile has nine; omitted transports omit their corresponding tests.
+With AF_UNIX and named pipes compiled, the BYOC profile has twelve tests and the
+developer profile has ten; omitted transports omit their corresponding tests.
 For the portal-assisted PT counter
 test against a real cloud-connected Edge Core, follow [PT-CLOUD-TEST.md](PT-CLOUD-TEST.md).
 For the native C AF_UNIX PT and its JSON configuration, follow [AF-UNIX-PT.md](AF-UNIX-PT.md).
