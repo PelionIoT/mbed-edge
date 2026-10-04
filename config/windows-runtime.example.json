@@ -1,17 +1,10 @@
 {
   "schemaVersion": 1,
   "pt": {
-    "tcpEnabled": true,
     "tcpAddress": "127.0.0.1:7681",
     "afUnix": {
       "enabled": false,
       "path": "C:/ProgramData/Izuma/EdgeCoreIPC/pt.sock"
-    },
-    "namedPipe": {
-      "enabled": false,
-      "name": "\\\\.\\pipe\\IzumaEdgeCorePT",
-      "maxClients": 16,
-      "clientSids": []
     }
   }
 }
