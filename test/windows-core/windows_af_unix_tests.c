@@ -107,7 +107,8 @@ int wmain(int argc, wchar_t **argv)
     void *loops[] = {base};
     struct lws_protocols protocols[] = {{"edge_protocol_translator", protocol, sizeof(struct session), 1024, 0, NULL, 0}, {NULL, NULL, 0, 0, 0, NULL, 0}};
     struct lws_context_creation_info info = {0};
-    info.port = 0; info.iface = "127.0.0.1"; info.protocols = protocols; info.foreign_loops = loops;
+    /* AF_UNIX works with the TCP listener disabled as well. */
+    info.port = CONTEXT_PORT_NO_LISTEN; info.iface = "127.0.0.1"; info.protocols = protocols; info.foreign_loops = loops;
     info.options = LWS_SERVER_OPTION_LIBEVENT; info.gid = info.uid = -1;
     lws_set_log_level(LLL_ERR | LLL_WARN, NULL);
     struct lws_context *context = lws_create_context(&info); CHECK(context);

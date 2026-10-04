@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include <windows.h>
+#include <sddl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,15 +10,26 @@
 void edge_runtime_config_defaults(edge_runtime_config *config)
 {
     memset(config, 0, sizeof(*config));
+    config->tcp_enabled = true;
     strcpy_s(config->tcp_address, sizeof(config->tcp_address), "127.0.0.1:7681");
+    strcpy_s(config->named_pipe_name, sizeof(config->named_pipe_name), "\\\\.\\pipe\\IzumaEdgeCorePT");
+    config->named_pipe_max_clients = 16;
 }
 
-static bool keys_allowed(json_t *object, const char *first, const char *second)
+bool edge_runtime_pipe_name_valid(const char *name)
+{
+    if (!name || strlen(name) <= 9 || strlen(name) >= EDGE_PIPE_NAME_CAPACITY ||
+        strncmp(name, "\\\\.\\pipe\\", 9)) return false;
+    return strspn(name + 9, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-") == strlen(name + 9);
+}
+
+static bool keys_allowed(json_t *object, const char *first, const char *second, const char *third, const char *fourth)
 {
     const char *key; json_t *value;
     if (!json_is_object(object)) return false;
     json_object_foreach(object, key, value) {
-        if (strcmp(key, first) && (!second || strcmp(key, second))) return false;
+        if (strcmp(key, first) && (!second || strcmp(key, second)) &&
+            (!third || strcmp(key, third)) && (!fourth || strcmp(key, fourth))) return false;
     }
     return true;
 }
@@ -42,12 +54,17 @@ bool edge_runtime_config_load(edge_runtime_config *config, const char *filename)
     size_t bom = bytes >= 3 && (unsigned char)data[0] == 0xef && (unsigned char)data[1] == 0xbb &&
         (unsigned char)data[2] == 0xbf ? 3 : 0;
     root = json_loadb(data + bom, bytes - bom, JSON_REJECT_DUPLICATES, &error);
-    if (!root || !keys_allowed(root, "schemaVersion", "pt") ||
+    if (!root || !keys_allowed(root, "schemaVersion", "pt", NULL, NULL) ||
         !json_is_integer(json_object_get(root, "schemaVersion")) ||
         json_integer_value(json_object_get(root, "schemaVersion")) != 1) goto done;
     json_t *pt = json_object_get(root, "pt");
     if (pt) {
-        if (!keys_allowed(pt, "tcpAddress", "afUnix")) goto done;
+        if (!keys_allowed(pt, "tcpAddress", "tcpEnabled", "afUnix", "namedPipe")) goto done;
+        json_t *tcp_enabled = json_object_get(pt, "tcpEnabled");
+        if (tcp_enabled) {
+            if (!json_is_boolean(tcp_enabled)) goto done;
+            parsed.tcp_enabled = json_is_true(tcp_enabled);
+        }
         json_t *tcp = json_object_get(pt, "tcpAddress");
         if (tcp) {
             const char *text = json_string_value(tcp); char *end;
@@ -60,7 +77,7 @@ bool edge_runtime_config_load(edge_runtime_config *config, const char *filename)
         }
         json_t *unix_config = json_object_get(pt, "afUnix");
         if (unix_config) {
-            if (!keys_allowed(unix_config, "enabled", "path")) goto done;
+            if (!keys_allowed(unix_config, "enabled", "path", NULL, NULL)) goto done;
             json_t *enabled = json_object_get(unix_config, "enabled");
             json_t *path = json_object_get(unix_config, "path");
             if (!json_is_boolean(enabled)) goto done;
@@ -76,6 +93,48 @@ bool edge_runtime_config_load(edge_runtime_config *config, const char *filename)
 #ifndef MBED_EDGE_WINDOWS_AF_UNIX
             if (parsed.af_unix_enabled) {
                 fprintf(stderr, "AF_UNIX is unavailable in this Windows target build.\n");
+                goto done;
+            }
+#endif
+        }
+        json_t *pipe_config = json_object_get(pt, "namedPipe");
+        if (pipe_config) {
+            if (!keys_allowed(pipe_config, "enabled", "name", "maxClients", "clientSids")) goto done;
+            json_t *enabled = json_object_get(pipe_config, "enabled");
+            if (!json_is_boolean(enabled)) goto done;
+            parsed.named_pipe_enabled = json_is_true(enabled);
+            json_t *name = json_object_get(pipe_config, "name");
+            if (name) {
+                const char *text = json_string_value(name);
+                if (!text || json_string_length(name) != strlen(text) || !edge_runtime_pipe_name_valid(text)) goto done;
+                strcpy_s(parsed.named_pipe_name, sizeof(parsed.named_pipe_name), text);
+            }
+            json_t *max_clients = json_object_get(pipe_config, "maxClients");
+            if (max_clients) {
+                if (!json_is_integer(max_clients) || json_integer_value(max_clients) < 1 ||
+                    json_integer_value(max_clients) > 32) goto done;
+                parsed.named_pipe_max_clients = (unsigned)json_integer_value(max_clients);
+            }
+            json_t *sids = json_object_get(pipe_config, "clientSids");
+            if (sids) {
+                if (!json_is_array(sids) || json_array_size(sids) > EDGE_PIPE_MAX_CLIENT_SIDS) goto done;
+                parsed.named_pipe_client_sid_count = 0;
+                size_t index; json_t *sid_value;
+                json_array_foreach(sids, index, sid_value) {
+                    const char *sid_text = json_string_value(sid_value);
+                    PSID sid = NULL;
+                    if (!sid_text || json_string_length(sid_value) != strlen(sid_text) ||
+                        strlen(sid_text) >= EDGE_PIPE_SID_CAPACITY || strncmp(sid_text, "S-1-", 4) ||
+                        !ConvertStringSidToSidA(sid_text, &sid)) goto done;
+                    LocalFree(sid);
+                    for (unsigned previous = 0; previous < parsed.named_pipe_client_sid_count; ++previous)
+                        if (!strcmp(parsed.named_pipe_client_sids[previous], sid_text)) goto done;
+                    strcpy_s(parsed.named_pipe_client_sids[parsed.named_pipe_client_sid_count++], EDGE_PIPE_SID_CAPACITY, sid_text);
+                }
+            }
+#ifndef MBED_EDGE_WINDOWS_NAMED_PIPE
+            if (parsed.named_pipe_enabled) {
+                fprintf(stderr, "Named pipes are unavailable in this Windows build (EDGE_WINDOWS_NAMED_PIPE=OFF).\n");
                 goto done;
             }
 #endif

@@ -1,4 +1,5 @@
 message(STATUS "Building native Windows x64 target")
+option(EDGE_WINDOWS_NAMED_PIPE "Compile the native Windows PT named-pipe transport" ON)
 
 # The SDK version is not the minimum deployment OS. Declare that separately
 # so an older Windows target does not acquire an AF_UNIX dependency.

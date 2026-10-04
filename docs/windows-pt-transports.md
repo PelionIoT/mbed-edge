@@ -5,7 +5,11 @@ Research date: October 3, 2026. Repository baseline: `9a0985a`.
 Keep the existing loopback TCP/WebSocket listener and add optional native
 AF_UNIX and named-pipe listeners. AF_UNIX is now implemented and passed Debug
 and Release PT-to-cloud counter reads on this Windows 10 host. Named pipes
-remain a design proposal supported by local feasibility experiments.
+now have a native Edge Core adapter behind `EDGE_WINDOWS_NAMED_PIPE` (default
+ON for Windows), with runtime activation through `pt.namedPipe.enabled`.
+The runtime `pt.tcpEnabled` setting can disable the TCP/WebSocket listener
+while keeping either or both IPC listeners available. See the
+[implemented pipe contract and C test client](../test/windows-core/NAMED-PIPE-PT.md).
 
 ## Comparison and recommendation
 
@@ -13,12 +17,12 @@ remain a design proposal supported by local feasibility experiments.
 | --- | --- | --- | --- |
 | Existing TCP | HTTP upgrade, WebSocket, JSON-RPC | Retain `127.0.0.1:7681` and `--edge-pt-address` | Broader Windows target qualification |
 | Winsock AF_UNIX | Same WebSocket and JSON-RPC | Implemented native listener adopting accepted sockets into existing libwebsockets | Restricted-service ACL, broader Windows target and load qualification |
-| Windows named pipe | Same JSON-RPC methods; proposed explicit message framing | Native asynchronous pipe adapter feeding the shared RPC layer | Framing contract, asynchronous I/O integration, lifecycle/ACLs, client support and qualification |
+| Windows named pipe | Existing PT JSON-RPC inside versioned length-prefixed records | Implemented native overlapped I/O feeding the shared RPC layer | Real service-SID deployment, cloud operations, load and broader OS qualification; supported SDK deferred |
 
 Implement AF_UNIX first. The socket-adoption experiment demonstrates that the
 existing WebSocket implementation can serve an AF_UNIX connection without
 enabling its built-in Unix listener. Implement named pipes through a separate
-adapter next, after agreeing its framing contract. Support all enabled
+adapter with the documented version-1 framing contract. Support all enabled
 listeners concurrently; retain TCP as the default. Do not silently switch a
 client to another transport after an access or connection failure.
 
@@ -30,7 +34,8 @@ in Release through the portal and matching cloud GET/CONTENT traces. TCP PTs
 also registered, wrote and unregistered while each AF_UNIX PT remained
 connected. All test PTs and temporary Edge instances closed cleanly. These
 cloud reads do not qualify unsolicited notifications or subscriptions.
-Named-pipe framing and runtime settings remain a subsequent design step.
+Named-pipe framing and runtime settings are documented in the implemented guide
+above. The separate Windows PT SDK remains on the backlog.
 
 Use a separate IPC directory, rather than allowing PT users into directories
 holding cloud credentials. Separate names/paths should support multiple Edge
@@ -111,11 +116,10 @@ wait for cancellation completion.
 [Overlapped pipe example](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-server-using-overlapped-i-o),
 [CancelIoEx](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex)
 
-The shared RPC layer already accepts a write callback. The server communication
-layer still casts connection state to WebSocket structures for sending,
-closing and destroying connections. Extend that layer with transport-specific
-operations; keep resource registration, method dispatch, ownership and cloud
-behavior common to all transports.
+The shared RPC layer accepts a write callback. The server communication layer
+now uses transport close/destroy callbacks and the connection's write function
+for incoming-message responses. Resource registration, method dispatch,
+ownership and cloud behavior remain common to all transports.
 
 Recommended pipe framing is one bounded UTF-8 JSON-RPC document per explicit
 length-prefixed record, with a versioned connection contract. Specify length
@@ -150,10 +154,10 @@ not establish the exact cause of a failure under the real service identity.
 The main integration work is in the transport boundary. The existing
 `transport_connection_t` already has an opaque transport pointer and a write
 callback, and outbound PT requests generally use that callback. However,
-`srv_comm.c` still assumes a WebSocket for close, destroy and incoming-message
-responses. Extend the transport operations to cover send, close and destroy;
-route received records through `rpc_handle_message` with the connection's write
-callback. The callback takes ownership of serialized data, so a queued pipe
+`srv_comm.c` originally assumed a WebSocket for close, destroy and incoming-message
+responses. The implementation extends those operations and routes received
+records through `rpc_handle_message` with the connection's write callback.
+The callback takes ownership of serialized data, so a queued pipe
 write must retain the buffer until I/O completes and release it on failure.
 Preserve existing PT registration, device ownership, pending-RPC cancellation
 and cloud behavior. Start with a PT-only pipe; the WebSocket URL currently
@@ -165,14 +169,16 @@ selects PT, management or GRM, and a raw pipe has no such URL routing.
 | Native pipe carrying HTTP/WebSocket | Preserves the existing wire framing; clients still need a pipe connector | A substantial I/O adaptation to the bundled socket-oriented WebSocket library |
 | Pipe-to-socket relay | Can reuse the current WebSocket parser | Internal socket per client, two-way queues and an additional ownership/disconnect boundary |
 
-The native framed-JSON-RPC adapter remains the recommendation. This is an
-implementation recommendation, not an implemented or measured production path.
+The native framed-JSON-RPC adapter is now implemented. Production service,
+larger-workload and additional-OS qualification remain separate from the C
+fixture results.
 For its contract, use duplex byte mode and explicit bounded records, such as a
 four-byte unsigned big-endian byte count followed by one UTF-8 JSON-RPC document.
-Specify the protocol version before dispatching PT methods. The exact version
-negotiation and limits still need design; choose limits from real registration
-and certificate workloads, rather than inheriting the tiny counter example's
-16-KiB limit. Accept fragmented headers/bodies and multiple records in one read.
+The implemented version-1 handshake precedes PT methods; records are bounded
+to 64 KiB and per-client queued wire data to 256 KiB/32 frames. The C counter
+client has its own smaller 16-KiB limit. Qualify these bounds against the intended
+registration and certificate workloads. Accept fragmented headers/bodies and
+multiple records in one read.
 Message-mode pipes are possible, but clients initially open in byte-read mode,
 and incomplete message reads return `ERROR_MORE_DATA`. Explicit framing avoids
 depending on each runtime preserving native pipe message boundaries.
@@ -229,7 +235,9 @@ requests to PTs; a send-then-read-only design can deadlock or miss cloud writes.
 [Overlapped server](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-server-using-overlapped-i-o),
 [Pipe buffering and timeout parameters](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createnamedpipea)
 
-A single worker waiting on per-operation events is reasonable for a small
+The implemented backend polls overlapped completion state every 10 ms on the
+Edge event thread and supports a configured maximum of 1–32 clients. It uses no
+worker or `WaitForMultipleObjects` wait set. A single worker waiting on per-operation events is another option for a small
 explicit PT limit. Windows' `WaitForMultipleObjects` limit is 64 handles,
 including wake/stop/listener events, not 64 PTs: each PT may need separate read
 and write events. For larger PT counts, use IOCP or a qualified thread-pool
@@ -258,13 +266,14 @@ inherit pipe handles into children, which could extend their lifetime.
 [ConnectNamedPipe](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-connectnamedpipe),
 [WaitNamedPipe](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-waitnamedpipea)
 
-Compile the adapter for supported Windows targets automatically and default its
-runtime setting to disabled, following the AF_UNIX capability/configuration
-pattern. The existing Windows 10 targets support the required APIs; it does not
-need AF_UNIX's 17134 build threshold. Extend the strict runtime schema with a
-pipe name and an identity allowlist. These are proposed settings, not keys the
-current reader accepts. Enabled creation/ACL failures should fail startup;
-preserve concurrent TCP and AF_UNIX operation.
+The Windows profile defaults `EDGE_WINDOWS_NAMED_PIPE=ON`; setting the flag OFF
+omits its server/client/test targets. Runtime activation defaults to disabled,
+following the AF_UNIX capability/configuration pattern. The existing Windows
+10 targets support the required APIs; it does not need AF_UNIX's 17134 build
+threshold. The strict runtime schema accepts a pipe name, `maxClients` and a
+numeric `clientSids` allowlist. Enabled creation/ACL failures fail startup.
+`tcpEnabled: false` disables TCP even if a CLI address was supplied, allowing
+pipe-only, AF_UNIX-only or combined IPC operation.
 
 Before declaring support, run native-client tests under the actual restricted
 service and intended/denied PT identities. Cover framing splits and oversized
@@ -295,10 +304,10 @@ Reusable SDK code and its supported PT client example belong in that separate
 repository when this work resumes. The SDK is not a dependency of the initial
 Windows Edge Core release or of testing the future pipe adapter with a C fixture.
 
-The production named-pipe adapter remains planned work. The initial release can
-use the existing TCP transport and, after service ACL qualification, optional
-AF_UNIX. Neither the standalone pipe prototype nor the diagram below means Edge
-currently accepts pipe PT connections.
+The production named-pipe adapter is now implemented in this branch; the
+standalone feasibility prototype remains a separate historical experiment.
+The initial release can select TCP, AF_UNIX and/or named pipes after qualifying
+the chosen service access policy. Building the separate SDK remains deferred.
 
 ```mermaid
 flowchart LR
@@ -342,12 +351,12 @@ qualified TCP transport, not an implicit remote-pipe mode.
 
 | Target | Named-pipe SDK client | Full Edge runtime |
 | --- | --- | --- |
-| Current Windows 10 target | Native C transport prototype passed; production SDK/adapter pending | Existing TCP/AF_UNIX qualification; named-pipe qualification pending |
+| Current Windows 10 target | Native C PT test client and transport fixtures passed; supported SDK is backlog work | Native named-pipe adapter implemented; TCP/AF_UNIX cloud reads passed; named-pipe fresh cloud reads and actual service-SID deployment still need qualification |
 | Windows 8 / 8.1 | Pipe and proposed cancellation APIs are available; candidate for a compatible toolchain/runtime build and actual OS test | Separate port/qualification needed; current configuration declares Windows 10 |
 | Windows XP | Base pipe APIs exist; requires a legacy client build with different cancellation/timing and dependency choices | A much broader legacy port; adding the pipe listener does not supply XP support |
 
 `CreateNamedPipe` is documented for Windows 2000 and later, so named pipes remove
-AF_UNIX's Windows 10 transport availability constraint. The proposed adapter
+AF_UNIX's Windows 10 transport availability constraint. The implemented adapter
 and this example use `CancelIoEx` and `GetTickCount64`, both introduced in Vista.
 They cannot be imported unconditionally by an XP binary. An XP variant would
 need a suitable I/O ownership/cancellation design and compatible timing code,

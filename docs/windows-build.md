@@ -20,6 +20,11 @@ See the [AF_UNIX PT and settings guide](../test/windows-core/AF-UNIX-PT.md) and
 [example config](../config/windows-runtime.example.json). This operational file
 is separate from the cloud provisioning JSON supplied with `--json-conf`.
 
+Windows also defaults `EDGE_WINDOWS_NAMED_PIPE=ON` at compile time. Its native
+PT listener is runtime-disabled by default and configured with `pt.namedPipe`.
+Set `pt.tcpEnabled: false` to remove the TCP/WebSocket listener while using
+AF_UNIX, named pipes or both. See the [pipe contract and C test guide](../test/windows-core/NAMED-PIPE-PT.md).
+
 ## Source baseline
 
 `experiment/win10support` was created from local `master` at
@@ -629,10 +634,13 @@ package upgrade/rollback.
 The Windows 10 Pro 22H2 x64 host has qualified developer cloud connectivity,
 network recovery and registration renewal; restricted LocalService lifecycle;
 runtime CBOR/JSON provisioning; four real reboot cases; and TCP/AF_UNIX PT
-counter changes read through the cloud. Developer Debug/Release now pass eight
-local tests each, and BYOC Debug/Release pass ten each. The standalone C pipe
-prototype passes two tests in each configuration. It is not a production PT
-adapter.
+counter changes read through the cloud. With AF_UNIX and named pipes compiled,
+developer Debug/Release pass nine local tests each, and BYOC Debug/Release pass
+eleven each. The native pipe adapter also passed real Edge registration and
+counter-write checks with TCP disabled, including concurrent AF_UNIX operation.
+Fresh named-pipe cloud reads remain unverified while the portal is signed out.
+See [the pipe qualification record](../test/windows-core/NAMED-PIPE-PT.md#qualification-on-october-3-2026).
+The earlier standalone pipe prototype remains a separate transport experiment.
 
 The separate installer repository records 23 provisioning checks and 25
 installer lifecycle checks passing against setup versions 0.21.1005/0.21.1006,
@@ -643,14 +651,14 @@ Its older references to production identity validation being pending are
 superseded by the owner's confirmation above. Other installer qualification
 gaps below are unchanged.
 
-For an initial production release using TCP and optional AF_UNIX, the remaining
+For an initial production release selecting TCP, AF_UNIX and/or named pipes, the remaining
 work is:
 
 | Priority | Gap | Completion evidence |
 | --- | --- | --- |
-| Release gate | Final artifact integration | Build a versioned Release BYOC package containing the PT enum fix, AF_UNIX listener and runtime configuration; qualify the exact packaged binaries under restricted LocalService, including PT-to-cloud changes, retained identity and upgrade/rollback. The installed EdgeCore still points to 0.21.1002 and has not received these changes |
+| Release gate | Final artifact integration | Build a versioned Release BYOC package containing the PT enum fix, selected IPC listeners and runtime configuration; qualify the exact packaged binaries under restricted LocalService, including PT-to-cloud changes, retained identity and upgrade/rollback. The installed EdgeCore still points to 0.21.1002 and has not received these changes |
 | Release gate | Signing and clean-machine setup | Qualify the production signing path and trusted offline delivery, install the bundled VC++ prerequisite on a clean image, verify restart-required return handling, and exercise ordinary interactive and silent setup. Existing installer tests used unsigned qualification artifacts on a host with a newer runtime already installed |
-| Release gate | Local PT/admin access policy | Define and enforce the supported local trust boundary. Loopback TCP does not authenticate users. If shipping AF_UNIX as supported, configure its separate IPC directory and qualify intended/denied PT identities against the restricted service SID without granting access to cloud state. Keep AF_UNIX disabled in deployments until those grants are qualified |
+| Release gate | Local PT/admin access policy | Qualify the supported local trust boundary. TCP can now be disabled through `tcpEnabled`; if enabled it does not authenticate users. Qualify AF_UNIX directory grants and/or the named-pipe `clientSids` allowlist against the actual restricted service SID and intended/denied PT identities, without granting access to cloud state |
 | Release gate | Complete PT/cloud behavior | Qualify cloud observation/notifications and cloud-originated writable/execute resources through a C or existing TCP test PT. Current counter evidence proves fresh cloud reads. Diagnose the portal's automatic HTTP 400 request and establish whether it affects the supported observation flow |
 | Release gate for each advertised target | OS and dependency coverage | Execute the final package on every claimed Windows edition/build. Only Windows 10 Pro 19045.6466 has been exercised; the declared minimum build 17763, Windows 11 and Server/Desktop/Core targets still need execution. Compiler checks for older targets do not qualify those operating systems |
 | Release validation | Recovery and sustained operation | Test interrupted updater recovery, disconnected-network boot and the required power-cycle behavior; extend the short stability checks to the release soak/load target with multiple PTs, reconnects, bounded resource use and service stop during traffic |
@@ -664,8 +672,8 @@ PAL APIs require separate feature work if promised. They need not block a releas
 whose documented scope excludes them. Actual Intune/SCCM deployment is a gate
 if that delivery channel is promised; MSI is a possible later packaging format.
 
-The Windows PT SDK remains on the backlog in a separate repository. Named-pipe
-production support remains a subsequent Edge transport milestone; its C
-prototype and [implementation plan](windows-pt-transports.md#native-c-prototype-and-implementation-plan)
-are committed for that work. Neither is required for the initial TCP/AF_UNIX
-release.
+The Windows PT SDK remains on the backlog in a separate repository. Native
+named-pipe server support is implemented behind a default-ON Windows build flag,
+with runtime activation and TCP isolation settings. Its transport and C tests
+are described in [the pipe guide](../test/windows-core/NAMED-PIPE-PT.md).
+The SDK is not required to qualify or release the Edge server transport.

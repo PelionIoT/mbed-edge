@@ -24,6 +24,9 @@
 #include <windows.h>
 #include <process.h>
 #include "windows/edge_runtime_config.h"
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+#include "windows/edge_pt_pipe.h"
+#endif
 #ifdef MBED_EDGE_WINDOWS_AF_UNIX
 #include "windows/edge_pt_unix.h"
 #endif
@@ -119,6 +122,7 @@ static struct connection *initialize_client_connection(client_data_t *client_dat
     struct connection *connection = (struct connection *) calloc(1, sizeof(struct connection));
     if (!connection) {
         tr_err("Could not allocate connection structure.");
+        return NULL;
     }
     connection->client_data = client_data;
     connection->id = g_connection_id_counter;
@@ -180,7 +184,7 @@ transport_connection_t *initialize_transport_connection(websocket_connection_t *
         return NULL;
     }
 
-    transport_connection_t *transport_connection = (transport_connection_t*) malloc(sizeof(transport_connection_t));
+    transport_connection_t *transport_connection = (transport_connection_t*) calloc(1, sizeof(transport_connection_t));
     if (!transport_connection) {
         tr_err("Could not allocate transport connection structure.");
         return NULL;
@@ -472,6 +476,60 @@ EDGE_LOCAL bool setup_signal_handler(struct event *event,
     }
     return true;
 }
+
+#endif /* !_WIN32: Unix signal registration */
+
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+static void pipe_transport_destroy(void *transport)
+{
+    (void)transport; /* Native peer lifetime belongs to the listener. */
+}
+
+static int pipe_write(struct connection *connection, char *data, size_t length)
+{
+    return edge_pt_pipe_send(connection->transport_connection->transport, data, length);
+}
+
+static void *pipe_opened(void *context, struct edge_pt_pipe_connection *peer)
+{
+    (void)context;
+    client_data_t *client = edge_core_create_client(PT);
+    if (!client) return NULL;
+    connection_t *connection = initialize_client_connection(client);
+    transport_connection_t *transport = calloc(1, sizeof(*transport));
+    if (!connection || !transport) {
+        edge_core_client_data_destroy(&client);
+        free(connection); free(transport);
+        return NULL;
+    }
+    transport->transport = peer;
+    transport->write_function = pipe_write;
+    transport->close_function = edge_pt_pipe_close;
+    /* The listener owns the native peer and tears down pending I/O. */
+    transport->destroy_function = pipe_transport_destroy;
+    connection->transport_connection = transport;
+    connection->connected = true;
+    return connection;
+}
+
+static void pipe_received(void *session, const char *data, size_t length)
+{
+    connection_t *connection = session;
+    bool protocol_error = false;
+    edge_core_process_data_frame(connection, &protocol_error, length, data);
+    if (protocol_error || !connection->connected)
+        close_connection_trigger(connection);
+}
+
+static void pipe_closed(void *session)
+{
+    connection_t *connection = session;
+    connection->connected = false;
+    rpc_remote_disconnected(connection);
+    close_connection(connection);
+}
+
+static const edge_pt_pipe_callbacks pipe_callbacks = {pipe_opened, pipe_received, pipe_closed};
 #endif
 
 #ifndef BUILD_TYPE_TEST
@@ -687,16 +745,16 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
 #ifdef _WIN32
     /* Local RPC retains WebSocket/JSON framing on IPv4 loopback. */
     char *end;
-    if (strncmp(edge_pt_socket, "127.0.0.1:", 10) != 0) {
+    if (edge_pt_socket && strncmp(edge_pt_socket, "127.0.0.1:", 10) != 0) {
         tr_err("Protocol API address must be 127.0.0.1:<port> on Windows.");
         return NULL;
     }
-    unsigned long port = strtoul(edge_pt_socket + 10, &end, 10);
-    if (*end || port == 0 || port > 65535) {
+    unsigned long port = edge_pt_socket ? strtoul(edge_pt_socket + 10, &end, 10) : 0;
+    if (edge_pt_socket && (*end || port == 0 || port > 65535)) {
         tr_err("Invalid Protocol API port: %s", edge_pt_socket);
         return NULL;
     }
-    info.port = (int)port;
+    info.port = edge_pt_socket ? (int)port : CONTEXT_PORT_NO_LISTEN;
     info.iface = "127.0.0.1";
 #else
     info.port = 7681;
@@ -764,6 +822,9 @@ int testable_main(int argc, char **argv)
 #ifdef _WIN32
     edge_runtime_config runtime_config;
     edge_runtime_config_defaults(&runtime_config);
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+    struct edge_pt_pipe_listener *pipe_listener = NULL;
+#endif
     if (args.runtime_config && !edge_runtime_config_load(&runtime_config, args.runtime_config)) return EXIT_FAILURE;
     bool tcp_override = false;
     for (int i = 1; i < argc; ++i)
@@ -901,7 +962,11 @@ int testable_main(int argc, char **argv)
 #endif
         websocket_set_log_level_and_emit_function();
         lwsc = initialize_libwebsocket_context(g_program_context->ev_base,
+#ifdef _WIN32
+                                               runtime_config.tcp_enabled ? edge_pt_socket : NULL,
+#else
                                                edge_pt_socket,
+#endif
                                                edge_server_protocols,
                                                &lock_fd);
 #ifdef _WIN32
@@ -913,6 +978,13 @@ int testable_main(int argc, char **argv)
         if (runtime_config.af_unix_enabled) {
             unix_listener = edge_pt_unix_start(g_program_context->ev_base, lwsc, runtime_config.af_unix_path);
             if (!unix_listener) { rc = 1; break; }
+        }
+#endif
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+        if (runtime_config.named_pipe_enabled) {
+            pipe_listener = edge_pt_pipe_start(g_program_context->ev_base, &runtime_config,
+                                               &pipe_callbacks, NULL);
+            if (!pipe_listener) { rc = 1; break; }
         }
 #endif
 #endif
@@ -931,6 +1003,9 @@ int testable_main(int argc, char **argv)
     }
     crypto_api_protocol_destroy();
     rpc_request_timeout_api_stop(timeout_handler);
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+    edge_pt_pipe_stop(pipe_listener);
+#endif
 #ifdef MBED_EDGE_WINDOWS_AF_UNIX
     edge_pt_unix_stop(unix_listener);
 #endif

@@ -23,7 +23,8 @@ int wmain(int argc, wchar_t **argv)
     CHECK(WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, sizeof(utf8), NULL, NULL));
     edge_runtime_config config;
     edge_runtime_config_defaults(&config);
-    CHECK(!config.af_unix_enabled && !strcmp(config.tcp_address, "127.0.0.1:7681"));
+    CHECK(config.tcp_enabled && !config.af_unix_enabled && !config.named_pipe_enabled &&
+          config.named_pipe_max_clients == 16 && !strcmp(config.tcp_address, "127.0.0.1:7681"));
     write_config(path, "{\"schemaVersion\":1,\"pt\":{\"tcpAddress\":\"127.0.0.1:17777\",\"afUnix\":{\"enabled\":false}}}");
     CHECK(edge_runtime_config_load(&config, utf8));
     CHECK(!config.af_unix_enabled && !strcmp(config.tcp_address, "127.0.0.1:17777"));
@@ -42,7 +43,20 @@ int wmain(int argc, wchar_t **argv)
         "{\"schemaVersion\":1,\"pt\":{\"afUnix\":{\"enabled\":true,\"path\":\"relative.sock\"}}}",
         "{\"schemaVersion\":1,\"pt\":{\"afUnix\":{\"enabled\":true,\"path\":\"C:/pt.sock:stream\"}}}",
         "{\"schemaVersion\":1,\"pt\":{\"afUnix\":{\"enabled\":false,\"path\":42}}}",
-        "{\"schemaVersion\":1,\"pt\":{\"afUnix\":{\"enabled\":false,\"paths\":\"C:/pt.sock\"}}}"
+        "{\"schemaVersion\":1,\"pt\":{\"afUnix\":{\"enabled\":false,\"paths\":\"C:/pt.sock\"}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"tcpEnabled\":1}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":\"true\"}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"name\":\"relative\"}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"name\":\"\\\\\\\\remote\\\\pipe\\\\PT\"}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"name\":\"\\\\\\\\.\\\\pipe\\\\sub/path\"}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"maxClients\":0}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"maxClients\":33}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"maxClients\":1.5}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"clientSids\":\"S-1-5-32-544\"}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"clientSids\":[\"invalid\"]}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"clientSids\":[\"S-1-5-32-544\",\"S-1-5-32-544\"]}}}",
+        "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":false,\"other\":true}}}"
     };
     for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
         edge_runtime_config before = config;
@@ -56,6 +70,16 @@ int wmain(int argc, wchar_t **argv)
     CHECK(config.af_unix_enabled && !strcmp(config.af_unix_path, "C:/ipc/pt.sock"));
 #else
     CHECK(!edge_runtime_config_load(&config, utf8));
+#endif
+    write_config(path, "{\"schemaVersion\":1,\"pt\":{\"tcpEnabled\":false,\"namedPipe\":{\"enabled\":false,\"name\":\"\\\\\\\\.\\\\pipe\\\\TestPT\",\"maxClients\":2,\"clientSids\":[\"S-1-5-32-544\"]}}}");
+    CHECK(edge_runtime_config_load(&config, utf8));
+    CHECK(!config.tcp_enabled && !config.named_pipe_enabled && config.named_pipe_max_clients == 2 &&
+          !strcmp(config.named_pipe_name, "\\\\.\\pipe\\TestPT") && config.named_pipe_client_sid_count == 1);
+    write_config(path, "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":true}}}");
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+    CHECK(edge_runtime_config_load(&config, utf8) && config.named_pipe_enabled);
+#else
+    CHECK(!edge_runtime_config_load(&config, utf8) && !config.named_pipe_enabled);
 #endif
     CHECK(DeleteFileW(path));
     CHECK(!edge_runtime_config_load(&config, utf8));

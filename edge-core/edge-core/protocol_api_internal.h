@@ -28,6 +28,8 @@
 typedef struct transport_connection {
     void *transport;
     write_func write_function;
+    void (*close_function)(void *transport);
+    void (*destroy_function)(void *transport);
 } transport_connection_t;
 
 

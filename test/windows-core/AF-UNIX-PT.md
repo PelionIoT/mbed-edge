@@ -51,6 +51,9 @@ arguments. This file is separate from `--json-conf`/`--cbor-conf`, which contain
 cloud provisioning input. Settings are read at startup; restart to apply edits.
 An explicit `--edge-pt-address` argument overrides the settings file's TCP
 address. Neither transport falls back to the other after a failure.
+Set `pt.tcpEnabled` to `false` to run AF_UNIX without a TCP WebSocket listener;
+a CLI TCP address does not override this disable setting. Named pipes can also
+be enabled independently through the [named-pipe runtime settings](NAMED-PIPE-PT.md).
 
 The configuration reader rejects unknown keys, duplicate keys, invalid types,
 invalid ports, missing enabled-path values and unreadable files before cloud

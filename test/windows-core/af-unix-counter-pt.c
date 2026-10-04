@@ -1,10 +1,15 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Minimal Windows AF_UNIX PT. WebSocket framing is bounded to 16 KiB. */
+/* Minimal C PT test client, built for AF_UNIX/WebSocket or native pipe records.
+ * This bounded counter example is not the deferred Windows PT SDK. */
+#ifndef EDGE_COUNTER_NAMED_PIPE
 #include <winsock2.h>
+#endif
 #include <windows.h>
+#ifndef EDGE_COUNTER_NAMED_PIPE
 #include <afunix.h>
 #include <bcrypt.h>
 #include <wincrypt.h>
+#endif
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -13,15 +18,48 @@
 #include <jansson.h>
 
 #define MESSAGE_LIMIT 16384
+#ifdef EDGE_COUNTER_NAMED_PIPE
+#define PT_BINARY "named-pipe-counter-pt"
+#define PT_OPTION "--pipe"
+#define PT_WIDE_OPTION L"--pipe"
+#define PT_PREFIX "named-pipe-counter"
+static HANDLE connection = INVALID_HANDLE_VALUE;
+#else
+#define PT_BINARY "af-unix-counter-pt"
+#define PT_OPTION "--socket"
+#define PT_WIDE_OPTION L"--socket"
+#define PT_PREFIX "af-unix-counter"
 static SOCKET connection = INVALID_SOCKET;
-static int next_id;
 static bool closing;
+#endif
+static int next_id;
 
 static bool transfer(char *data, int length, bool writing)
 {
     while (length > 0) {
+#ifdef EDGE_COUNTER_NAMED_PIPE
+        OVERLAPPED operation = {0};
+        DWORD bytes = 0;
+        operation.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+        if (!operation.hEvent) return false;
+        BOOL ok = writing ? WriteFile(connection, data, (DWORD)length, &bytes, &operation) :
+                            ReadFile(connection, data, (DWORD)length, &bytes, &operation);
+        if (!ok && GetLastError() == ERROR_IO_PENDING) {
+            if (WaitForSingleObject(operation.hEvent, 5000) == WAIT_OBJECT_0)
+                ok = GetOverlappedResult(connection, &operation, &bytes, FALSE);
+            else {
+                CancelIoEx(connection, &operation);
+                GetOverlappedResult(connection, &operation, &bytes, TRUE);
+                ok = FALSE;
+            }
+        }
+        CloseHandle(operation.hEvent);
+        if (!ok || !bytes) { fprintf(stderr, "Pipe I/O failed.\n"); return false; }
+        int count = (int)bytes;
+#else
         int count = writing ? send(connection, data, length, 0) : recv(connection, data, length, 0);
         if (count <= 0) { fprintf(stderr, "Socket %s failed: %d\n", writing ? "send" : "receive", WSAGetLastError()); return false; }
+#endif
         data += count; length -= count;
     }
     return true;
@@ -43,6 +81,7 @@ static void base64(const unsigned char *bytes, size_t length, char *result)
     result[out] = 0;
 }
 
+#ifndef EDGE_COUNTER_NAMED_PIPE
 static bool header_equals(const char *headers, const char *name, const char *expected)
 {
     int matches = 0;
@@ -147,6 +186,41 @@ static int receive_message(char *message, size_t *length)
     }
 }
 
+#else
+static bool send_frame(unsigned opcode, const char *payload, size_t length)
+{
+    unsigned char header[4] = {(unsigned char)(length >> 24), (unsigned char)(length >> 16),
+                               (unsigned char)(length >> 8), (unsigned char)length};
+    return opcode == 1 && length > 0 && length <= MESSAGE_LIMIT &&
+           transfer((char *)header, 4, true) && transfer((char *)payload, (int)length, true);
+}
+
+static int receive_message(char *message, size_t *length)
+{
+    unsigned char header[4];
+    if (!transfer((char *)header, 4, false)) return -1;
+    uint32_t count = ((uint32_t)header[0] << 24) | ((uint32_t)header[1] << 16) |
+                     ((uint32_t)header[2] << 8) | header[3];
+    if (!count || count > MESSAGE_LIMIT || !transfer(message, (int)count, false) || memchr(message, 0, count)) return -1;
+    message[count] = 0; *length = count;
+    return 0;
+}
+
+static bool handshake(void)
+{
+    const char *hello = "{\"protocol\":\"edge-pt\",\"version\":1}";
+    char response[MESSAGE_LIMIT + 1]; size_t length;
+    if (!send_frame(1, hello, strlen(hello)) || receive_message(response, &length)) return false;
+    json_error_t error;
+    json_t *reply = json_loadb(response, length, JSON_REJECT_DUPLICATES, &error);
+    const char *protocol = json_string_value(json_object_get(reply, "protocol"));
+    bool ok = protocol && !strcmp(protocol, "edge-pt") && json_integer_value(json_object_get(reply, "version")) == 1 &&
+              json_integer_value(json_object_get(reply, "maxFrameSize")) >= MESSAGE_LIMIT;
+    json_decref(reply);
+    return ok;
+}
+#endif
+
 static bool send_json(json_t *document)
 {
     char *encoded = document ? json_dumps(document, JSON_COMPACT) : NULL;
@@ -198,7 +272,7 @@ static json_t *counter_params(const char *device, unsigned value)
     memcpy(&bits, &number, sizeof(bits));
     for (int i = 0; i < 8; ++i) binary[i] = (unsigned char)(bits >> (56 - i * 8));
     base64(binary, sizeof(binary), encoded);
-    json_t *resource = json_pack("{s:i,s:s,s:i,s:s,s:s}", "resourceId", 5700, "resourceName", "Windows AF_UNIX counter",
+    json_t *resource = json_pack("{s:i,s:s,s:i,s:s,s:s}", "resourceId", 5700, "resourceName", "Windows " PT_PREFIX,
                                 "operations", 1, "type", "float", "value", encoded);
     json_t *instance = json_pack("{s:i,s:[o]}", "objectInstanceId", 0, "resources", resource);
     json_t *object = json_pack("{s:i,s:[o]}", "objectId", 3300, "objectInstances", instance);
@@ -220,25 +294,41 @@ int wmain(int argc, wchar_t **argv)
     const wchar_t *path = NULL;
     unsigned initial = 1001, steps = 2, interval = 1000;
     bool automatic = false, registered = false, ok = false;
+#ifndef EDGE_COUNTER_NAMED_PIPE
     WSADATA startup;
     SOCKADDR_UN address = {0};
+#endif
     char device[64], translator[64];
     for (int i = 1; i < argc; ++i) {
         if (!wcscmp(argv[i], L"--help")) {
-            puts("af-unix-counter-pt --socket <absolute path> [--initial <integer>] [--auto --steps <count> --interval-ms <ms>]\n"
+            puts(PT_BINARY " " PT_OPTION " <endpoint> [--initial <integer>] [--auto --steps <count> --interval-ms <ms>]\n"
                  "Without --auto, press Enter to increment or enter q to unregister and stop.");
             return 0;
         }
         if (!wcscmp(argv[i], L"--auto")) { automatic = true; continue; }
         if (i + 1 == argc) return 2;
-        if (!wcscmp(argv[i], L"--socket") && !path) path = argv[++i];
+        if (!wcscmp(argv[i], PT_WIDE_OPTION) && !path) path = argv[++i];
         else {
             unsigned *target = !wcscmp(argv[i], L"--initial") ? &initial : !wcscmp(argv[i], L"--steps") ? &steps :
                 !wcscmp(argv[i], L"--interval-ms") ? &interval : NULL;
             if (!target || !number_option(argv[++i], target)) return 2;
         }
     }
-    if (!path || steps > 1000 || interval > 60000 || initial + steps > 1000000 ||
+    if (!path || steps > 1000 || interval > 60000 || initial + steps > 1000000) return 2;
+#ifdef EDGE_COUNTER_NAMED_PIPE
+    if (wcslen(path) <= 9 || wcslen(path) >= 256 || wcsncmp(path, L"\\\\.\\pipe\\", 9) ||
+        wcsspn(path + 9, L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-") != wcslen(path + 9)) return 2;
+    ULONGLONG deadline = GetTickCount64() + 5000;
+    do {
+        connection = CreateFileW(path, (FILE_GENERIC_READ | FILE_GENERIC_WRITE) & ~FILE_CREATE_PIPE_INSTANCE,
+                                 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+        if (connection != INVALID_HANDLE_VALUE) break;
+        if (GetLastError() != ERROR_PIPE_BUSY && GetLastError() != ERROR_FILE_NOT_FOUND) goto done;
+        WaitNamedPipeW(path, 50); Sleep(10);
+    } while (GetTickCount64() < deadline);
+    if (connection == INVALID_HANDLE_VALUE || !handshake()) goto done;
+#else
+    if (
         wcslen(path) < 4 || !((path[0] >= L'A' && path[0] <= L'Z') || (path[0] >= L'a' && path[0] <= L'z')) ||
         path[1] != L':' || (path[2] != L'\\' && path[2] != L'/') || wcschr(path + 2, L':') ||
         !WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, path, -1, address.sun_path, sizeof(address.sun_path), NULL, NULL)) {
@@ -252,8 +342,9 @@ int wmain(int argc, wchar_t **argv)
         setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) ||
         setsockopt(connection, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) ||
         connect(connection, (struct sockaddr *)&address, sizeof(address)) || !handshake()) goto done;
-    sprintf_s(device, sizeof(device), "windows-af-unix-counter-%lu-%llu", GetCurrentProcessId(), GetTickCount64());
-    sprintf_s(translator, sizeof(translator), "af-unix-counter-%lu-%llu", GetCurrentProcessId(), GetTickCount64());
+#endif
+    sprintf_s(device, sizeof(device), "windows-" PT_PREFIX "-%lu-%llu", GetCurrentProcessId(), GetTickCount64());
+    sprintf_s(translator, sizeof(translator), PT_PREFIX "-%lu-%llu", GetCurrentProcessId(), GetTickCount64());
     if (!rpc("protocol_translator_register", json_pack("{s:s}", "name", translator)) ||
         !rpc("device_register", counter_params(device, initial))) goto done;
     registered = true;
@@ -274,6 +365,9 @@ int wmain(int argc, wchar_t **argv)
     ok = true;
 done:
     if (registered && !rpc("device_unregister", json_pack("{s:s}", "deviceId", device))) ok = false;
+#ifdef EDGE_COUNTER_NAMED_PIPE
+    if (connection != INVALID_HANDLE_VALUE) CloseHandle(connection);
+#else
     if (connection != INVALID_SOCKET) {
         if (ok) {
             char message[MESSAGE_LIMIT + 1]; size_t length;
@@ -284,6 +378,7 @@ done:
         closesocket(connection);
     }
     WSACleanup();
-    puts(ok ? "PASS PT registration, counter writes, unregister and WebSocket close" : "FAIL AF_UNIX PT run");
+#endif
+    puts(ok ? "PASS PT registration, counter writes, unregister and close" : "FAIL " PT_BINARY " run");
     return ok ? 0 : 1;
 }

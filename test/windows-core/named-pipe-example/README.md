@@ -8,6 +8,8 @@ It is a server transport test with a small command protocol. It does not use
 the PT JSON-RPC API or verify cloud values. The production Windows PT SDK is on
 the backlog; its supported client example will live in a separate repository, following
 [the implementation plan](../../../docs/windows-pt-transports.md#native-c-prototype-and-implementation-plan).
+For the implemented Edge Core PT listener and its JSON-RPC C test client, use
+[NAMED-PIPE-PT.md](../NAMED-PIPE-PT.md).
 
 ## Build and run
 

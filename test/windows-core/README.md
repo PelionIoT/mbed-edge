@@ -33,6 +33,9 @@ The tests verify:
 - Runtime PT settings, Unicode config filenames and build capability checks.
 - On supported Windows targets, the native C AF_UNIX PT against the production
   listener: registration, counter writes, errors, ownership and cleanup.
+- With named pipes compiled, the native C PT against the production adapter:
+  framing, concurrent clients, bounded queues/I/O deadlines, restricted-token
+  allow/deny checks, reconnects and pending-I/O cleanup.
 - Fresh BYOC startup: storage initializes and the timestamp logger prints a
   missing-configuration error, then the process exits normally with code 1.
   This catches startup crashes and missing DLLs without cloud credentials.
@@ -53,13 +56,16 @@ ctest --test-dir build/windows-x64 -C Debug --output-on-failure
 ```
 
 The AF_UNIX fixture validates local PT JSON-RPC, independently of the cloud.
-With AF_UNIX compiled, the BYOC profile has ten tests and the developer profile
-has eight; older Windows targets omit the AF_UNIX test. For the portal-assisted PT counter
+With AF_UNIX and named pipes compiled, the BYOC profile has eleven tests and the
+developer profile has nine; omitted transports omit their corresponding tests.
+For the portal-assisted PT counter
 test against a real cloud-connected Edge Core, follow [PT-CLOUD-TEST.md](PT-CLOUD-TEST.md).
 For the native C AF_UNIX PT and its JSON configuration, follow [AF-UNIX-PT.md](AF-UNIX-PT.md).
 The independent [native C named-pipe transport example](named-pipe-example/README.md)
-has its own build and tests; it is a local counter experiment pending the Edge
-pipe adapter. The separate Windows PT SDK is backlog work.
+has its own build and tests; it is the earlier local transport experiment.
+The implemented Edge adapter, runtime TCP-disable control and native C PT test
+client are described in [NAMED-PIPE-PT.md](NAMED-PIPE-PT.md). The separate Windows
+PT SDK is backlog work.
 The portal-assisted cloud tests require the baseline and two resource changes to be verified in the portal
 before reporting a pass. The elevated service tests below
 validate the native Windows service separately. Run

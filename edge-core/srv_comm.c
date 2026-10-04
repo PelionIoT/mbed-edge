@@ -94,7 +94,9 @@ static uint32_t accepted_connection_count(struct connection *connection)
 bool close_connection(struct connection *connection)
 {
     tr_debug("close_connection %p", connection);
-    websocket_server_connection_destroy((websocket_connection_t *) connection->transport_connection->transport);
+    transport_connection_t *transport = connection->transport_connection;
+    if (transport->destroy_function) transport->destroy_function(transport->transport);
+    else websocket_server_connection_destroy((websocket_connection_t *) transport->transport);
     transport_connection_t_destroy(&connection->transport_connection);
 
     bool result = close_connection_common(connection, false);
@@ -119,8 +121,9 @@ void close_connection_trigger(struct connection *connection)
 {
     tr_debug("close_connection_trigger %p", connection);
 
-    struct websocket_connection *websocket_conn = (websocket_connection_t*) connection->transport_connection->transport;
-    websocket_close_connection_trigger(websocket_conn);
+    transport_connection_t *transport = connection->transport_connection;
+    if (transport->close_function) transport->close_function(transport->transport);
+    else websocket_close_connection_trigger((websocket_connection_t *) transport->transport);
 }
 
 static bool close_connection_common(struct connection *connection, bool free_connection)
@@ -146,11 +149,17 @@ void edge_core_process_data_frame_websocket(struct connection *connection,
                                             size_t len,
                                             const char *data)
 {
+    edge_core_process_data_frame(connection, protocol_error, len, data);
+}
+
+void edge_core_process_data_frame(struct connection *connection, bool *protocol_error, size_t len, const char *data)
+{
     (void) rpc_handle_message(data,
                               len,
                               connection,
                               connection->client_data->method_table,
-                              edge_core_write_data_frame_websocket,
+                              connection->transport_connection->write_function ?
+                                  connection->transport_connection->write_function : edge_core_write_data_frame_websocket,
                               protocol_error,
                               false /* mutex_acquired */);
 }

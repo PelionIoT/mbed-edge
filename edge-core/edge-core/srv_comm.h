@@ -26,6 +26,7 @@
 struct connection;
 
 int edge_core_write_data_frame_websocket(struct connection *connection, char *data, size_t len);
+void edge_core_process_data_frame(struct connection *connection, bool *protocol_error, size_t len, const char *data);
 void edge_core_process_data_frame_websocket(struct connection *connection,
                                             bool *protocol_error,
                                             size_t len,

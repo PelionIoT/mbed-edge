@@ -30,6 +30,15 @@ if(NOT AFUNIX)
         message(FATAL_ERROR "Compiled-out AF_UNIX was not rejected: ${result}: ${errors}")
     endif()
 endif()
+if(NOT NAMEDPIPE)
+    file(WRITE "${root}/pipe-enabled.json" "{\"schemaVersion\":1,\"pt\":{\"namedPipe\":{\"enabled\":true}}}")
+    execute_process(COMMAND "${EDGE_EXE}" --config "${root}/pipe-enabled.json" --data-dir "${root}/config-state"
+        WORKING_DIRECTORY "${root}" TIMEOUT 5 RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors)
+    if(NOT "${result}" STREQUAL "1" OR NOT errors MATCHES "Named pipes are unavailable in this Windows build" OR
+            EXISTS "${root}/config-state/mcc_config")
+        message(FATAL_ERROR "Compiled-out named pipe was not rejected before cloud initialization: ${result}: ${errors}")
+    endif()
+endif()
 execute_process(COMMAND "${EDGE_EXE}" --service --data-dir "${root}/state with spaces-é"
     WORKING_DIRECTORY "${root}" TIMEOUT 5 RESULT_VARIABLE result
     OUTPUT_VARIABLE output ERROR_VARIABLE errors)
