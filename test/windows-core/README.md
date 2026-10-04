@@ -30,6 +30,9 @@ The tests verify:
 - Real client endpoint creation, resource lookup/updates, and all packed
   base/data types, including the MSVC endpoint-directory sign-extension regression.
 - Windows service option validation and isolation of explicit state directories.
+- Runtime PT settings, Unicode config filenames and build capability checks.
+- On supported Windows targets, the native C AF_UNIX PT against the production
+  listener: registration, counter writes, errors, ownership and cleanup.
 - Fresh BYOC startup: storage initializes and the timestamp logger prints a
   missing-configuration error, then the process exits normally with code 1.
   This catches startup crashes and missing DLLs without cloud credentials.
@@ -49,11 +52,15 @@ To rerun after building:
 ctest --test-dir build/windows-x64 -C Debug --output-on-failure
 ```
 
-These checks do not validate a connected protocol translator, JSON RPC
-registration or real cloud provisioning. The BYOC profile has eight tests;
-the developer profile has six. For the separate, portal-assisted PT counter
+The AF_UNIX fixture validates local PT JSON-RPC, independently of the cloud.
+With AF_UNIX compiled, the BYOC profile has ten tests and the developer profile
+has eight; older Windows targets omit the AF_UNIX test. For the portal-assisted PT counter
 test against a real cloud-connected Edge Core, follow [PT-CLOUD-TEST.md](PT-CLOUD-TEST.md).
-It requires the baseline and two resource changes to be verified in the portal
+For the native C AF_UNIX PT and its JSON configuration, follow [AF-UNIX-PT.md](AF-UNIX-PT.md).
+The independent [native C named-pipe transport example](named-pipe-example/README.md)
+has its own build and tests; it is a local counter experiment pending the Edge
+pipe adapter. The separate Windows PT SDK is backlog work.
+The portal-assisted cloud tests require the baseline and two resource changes to be verified in the portal
 before reporting a pass. The elevated service tests below
 validate the native Windows service separately. Run
 the [PAL/common suite](../windows-pal/README.md) separately and follow the
@@ -69,7 +76,8 @@ To build that developer profile with the downloaded C credential:
 ```
 
 The helper checks the expected credential fields without printing their values,
-builds with the shared OpenSSL backend, and runs the six CLI/options/transport/timer/endpoint tests.
+builds with the shared OpenSSL backend, and runs the local CLI, transport, config,
+timer and endpoint tests.
 It disables firmware updates, file-based RoT and CoAP payload dumps. It does
 not start the cloud client automatically. The executable includes the developer
 private key; keep the build output and identity storage private and out of Git.

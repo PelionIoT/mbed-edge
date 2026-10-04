@@ -43,6 +43,9 @@ typedef struct {
     char *json_conf;
 #endif
     char *edge_pt_domain_socket;
+#ifdef _WIN32
+    char *runtime_config;
+#endif
     char *http_port;
     /* special */
     const char *usage_pattern;
@@ -63,6 +66,7 @@ const char help_message[] =
 "  --color-log                          Use ANSI colors in log.\n"
 #ifdef _WIN32
 "  -p --edge-pt-address <string>        Protocol API loopback address [default: 127.0.0.1:7681].\n"
+"  --config <path>                     JSON runtime settings (separate from cloud provisioning).\n"
 #else
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
 #endif
@@ -335,6 +339,11 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
 #endif
             if (option->argument)
                 args->edge_pt_domain_socket = option->argument;
+#ifdef _WIN32
+        } else if (!strcmp(option->olong, "--config")) {
+            if (option->argument)
+                args->runtime_config = option->argument;
+#endif
         } else if (!strcmp(option->olong, "--http-port")) {
             if (option->argument)
                 args->http_port = option->argument;
@@ -402,6 +411,7 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
 #endif
 #ifdef _WIN32
         {"-p", "--edge-pt-address", 1, 0, NULL},
+        {NULL, "--config", 1, 0, NULL},
 #else
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
 #endif

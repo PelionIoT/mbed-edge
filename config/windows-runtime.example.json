@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "pt": {
+    "tcpAddress": "127.0.0.1:7681",
+    "afUnix": {
+      "enabled": false,
+      "path": "C:/ProgramData/Izuma/EdgeCoreIPC/pt.sock"
+    }
+  }
+}

@@ -23,6 +23,10 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <process.h>
+#include "windows/edge_runtime_config.h"
+#ifdef MBED_EDGE_WINDOWS_AF_UNIX
+#include "windows/edge_pt_unix.h"
+#endif
 #ifndef BUILD_TYPE_TEST
 #include "windows/edge_service.h"
 #endif
@@ -757,6 +761,23 @@ int testable_main(int argc, char **argv)
     struct lws_context *lwsc = NULL;
     memset(&edgeclient_create_params, 0, sizeof(edgeclient_create_parameters_t));
     DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ VERSION_STRING);
+#ifdef _WIN32
+    edge_runtime_config runtime_config;
+    edge_runtime_config_defaults(&runtime_config);
+    if (args.runtime_config && !edge_runtime_config_load(&runtime_config, args.runtime_config)) return EXIT_FAILURE;
+    bool tcp_override = false;
+    for (int i = 1; i < argc; ++i)
+        if (!strcmp(argv[i], "--edge-pt-address") || !strncmp(argv[i], "--edge-pt-address=", 18) ||
+            !strcmp(argv[i], "-p") || (!strncmp(argv[i], "-p", 2) && argv[i][2])) tcp_override = true;
+    if (args.runtime_config && !tcp_override) args.edge_pt_domain_socket = runtime_config.tcp_address;
+#ifdef MBED_EDGE_WINDOWS_AF_UNIX
+    struct edge_pt_unix_listener *unix_listener = NULL;
+    if (runtime_config.af_unix_enabled && !edge_pt_unix_path_valid(runtime_config.af_unix_path)) {
+        fprintf(stderr, "Invalid AF_UNIX path: use an absolute local path shorter than 108 UTF-8 bytes.\n");
+        return EXIT_FAILURE;
+    }
+#endif
+#endif
 #if defined(_WIN32) && defined(MBED_EDGE_ENABLE_BYOC_JSON)
     if (args.cbor_conf && args.json_conf) {
         fprintf(stderr, "Specify only one runtime provisioning file: CBOR or JSON.\n");
@@ -888,6 +909,12 @@ int testable_main(int argc, char **argv)
             rc = 1;
             break;
         }
+#ifdef MBED_EDGE_WINDOWS_AF_UNIX
+        if (runtime_config.af_unix_enabled) {
+            unix_listener = edge_pt_unix_start(g_program_context->ev_base, lwsc, runtime_config.af_unix_path);
+            if (!unix_listener) { rc = 1; break; }
+        }
+#endif
 #endif
         /* Readiness is local initialization; cloud reachability is asynchronous. */
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
@@ -904,6 +931,9 @@ int testable_main(int argc, char **argv)
     }
     crypto_api_protocol_destroy();
     rpc_request_timeout_api_stop(timeout_handler);
+#ifdef MBED_EDGE_WINDOWS_AF_UNIX
+    edge_pt_unix_stop(unix_listener);
+#endif
     clean_resources(lwsc, edge_pt_socket, lock_fd);
     libevent_global_shutdown();
     edge_trace_destroy();

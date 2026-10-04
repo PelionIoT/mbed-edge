@@ -5,9 +5,20 @@ and Release. Windows selects the same OpenSSL crypto and TLS sources as
 upstream, with the existing PAL interfaces for operating-system services.
 The developer cloud flow passes bootstrap, registration, fresh resource reads,
 identity persistence, network recovery and stability checks on Windows 10 Pro.
-The native SCM adapter and restricted-service setup are described below.
-Translator integration, release packaging and broader Windows qualification
-remain incomplete.
+The native SCM adapter, restricted-service lifecycle, machine restart and
+installer upgrade/rollback have passed qualification on this host. TCP and
+AF_UNIX PT counter changes have been verified through fresh cloud reads in
+Debug and Release. The remaining production release work is recorded in
+[Windows release readiness](#windows-release-readiness).
+
+Windows PT transports include the existing loopback TCP/WebSocket interface and
+Winsock AF_UNIX on supported build targets. `EDGE_WINDOWS_TARGET_BUILD` declares
+the minimum deployment build (default 17763); targets at least 17134 with a
+compatible SDK compile AF_UNIX automatically. Older targets omit it. At runtime
+AF_UNIX defaults to disabled and is enabled through `--config <JSON file>`.
+See the [AF_UNIX PT and settings guide](../test/windows-core/AF-UNIX-PT.md) and
+[example config](../config/windows-runtime.example.json). This operational file
+is separate from the cloud provisioning JSON supplied with `--json-conf`.
 
 ## Source baseline
 
@@ -203,8 +214,9 @@ SCM adapter described below.
 The protocol API listens on IPv4 loopback. Use
 `--edge-pt-address 127.0.0.1:<port>` (default `127.0.0.1:7681`), with the
 existing WebSocket/JSON RPC framing. The Linux Unix-socket option is unchanged.
-Local TCP currently has no per-user authentication. Restricted Windows IPC
-and translator SDK support remain follow-up work before production use.
+Local TCP currently has no per-user authentication. AF_UNIX service access
+controls still need qualification. The separate Windows PT SDK is backlog work;
+the native C AF_UNIX example supports the current transport qualification.
 
 The bundled libwebsockets/libevent adapter is compiled from a Windows-only
 build-directory copy that uses `evutil_socket_t` for callbacks and native
@@ -289,10 +301,11 @@ without storage resets or manual restarts. A 901-second stability check and
 fresh final reads passed, followed by clean stops with exit code 0. Both the
 normal firewall cleanup and its independent watchdog verified rule removal.
 
-Production Event Viewer/rotating-file logging and offline/headless release
-packaging remain follow-up work. Firmware updating and privileged reboot
-handling remain later work. Windows 11, Server Core and other required editions
-still need their own build/runtime validation.
+Offline packaging and silent setup are now provided by the separate installer
+repository. Production Event Viewer/rotating-file logging remains follow-up
+work. Firmware updating and privileged reboot handling remain later work.
+Windows 11, Server Core and other required editions still need their own
+build/runtime validation.
 
 ## Runtime CBOR and JSON provisioning
 
@@ -421,9 +434,11 @@ relative PAL mount configuration when building this profile. Writable data
 directories are excluded from subsequent DLL searches.
 Console runs without `--data-dir` also lock their existing working directory.
 
-`mbed-edge-windows-installer/windows/install-service.ps1` is an offline service-registration/setup helper,
-not an MSI or a completed upgrade installer. Run it from elevated Windows
-PowerShell 5.1+ after building and staging the runtime dependencies:
+`mbed-edge-windows-installer/windows/install-service.ps1` is the low-level
+offline service-registration/setup helper. The installer repository also
+provides ordinary Inno Setup installation and administrative upgrade/rollback.
+Run the helper from elevated Windows PowerShell 5.1+ after building and staging
+the runtime dependencies:
 
 ```powershell
 ..\mbed-edge-windows-installer\windows\install-service.ps1 `
@@ -603,3 +618,54 @@ tests now live in [mbed-edge-windows-installer](https://github.com/IzumaNetworks
 Native runtime, service adapter and PAL implementation remain in Edge.
 Runtime service/boot tests accept `-InstallerRepositoryDirectory`, defaulting
 to a sibling checkout. See [the deployment pointer](../windows/README.md).
+
+## Windows release readiness
+
+Status on 2026-10-03. Identity validation is complete, as confirmed by the project
+owner; it is not an outstanding release gate. Existing local evidence also
+covers identity persistence across service restart, real machine reboot and
+package upgrade/rollback.
+
+The Windows 10 Pro 22H2 x64 host has qualified developer cloud connectivity,
+network recovery and registration renewal; restricted LocalService lifecycle;
+runtime CBOR/JSON provisioning; four real reboot cases; and TCP/AF_UNIX PT
+counter changes read through the cloud. Developer Debug/Release now pass eight
+local tests each, and BYOC Debug/Release pass ten each. The standalone C pipe
+prototype passes two tests in each configuration. It is not a production PT
+adapter.
+
+The separate installer repository records 23 provisioning checks and 25
+installer lifecycle checks passing against setup versions 0.21.1005/0.21.1006,
+plus package/bundle integrity checks. These cover protected file staging,
+deferred provisioning, identity-replacement rejection, optional monitor setup,
+service-control permissions, upgrade, activated-core rollback and uninstall.
+Its older references to production identity validation being pending are
+superseded by the owner's confirmation above. Other installer qualification
+gaps below are unchanged.
+
+For an initial production release using TCP and optional AF_UNIX, the remaining
+work is:
+
+| Priority | Gap | Completion evidence |
+| --- | --- | --- |
+| Release gate | Final artifact integration | Build a versioned Release BYOC package containing the PT enum fix, AF_UNIX listener and runtime configuration; qualify the exact packaged binaries under restricted LocalService, including PT-to-cloud changes, retained identity and upgrade/rollback. The installed EdgeCore still points to 0.21.1002 and has not received these changes |
+| Release gate | Signing and clean-machine setup | Qualify the production signing path and trusted offline delivery, install the bundled VC++ prerequisite on a clean image, verify restart-required return handling, and exercise ordinary interactive and silent setup. Existing installer tests used unsigned qualification artifacts on a host with a newer runtime already installed |
+| Release gate | Local PT/admin access policy | Define and enforce the supported local trust boundary. Loopback TCP does not authenticate users. If shipping AF_UNIX as supported, configure its separate IPC directory and qualify intended/denied PT identities against the restricted service SID without granting access to cloud state. Keep AF_UNIX disabled in deployments until those grants are qualified |
+| Release gate | Complete PT/cloud behavior | Qualify cloud observation/notifications and cloud-originated writable/execute resources through a C or existing TCP test PT. Current counter evidence proves fresh cloud reads. Diagnose the portal's automatic HTTP 400 request and establish whether it affects the supported observation flow |
+| Release gate for each advertised target | OS and dependency coverage | Execute the final package on every claimed Windows edition/build. Only Windows 10 Pro 19045.6466 has been exercised; the declared minimum build 17763, Windows 11 and Server/Desktop/Core targets still need execution. Compiler checks for older targets do not qualify those operating systems |
+| Release validation | Recovery and sustained operation | Test interrupted updater recovery, disconnected-network boot and the required power-cycle behavior; extend the short stability checks to the release soak/load target with multiple PTs, reconnects, bounded resource use and service stop during traffic |
+| Release validation | Build and regression evidence | Reproduce the package from a clean checkout with recorded dependency/runtime versions, retain release test evidence and notices, and run Linux regression checks for the shared core/cloud-client changes |
+| Operational readiness | Bounded diagnostics | Provide log rotation/retention or an equivalent deployment policy, useful failure/status reporting and an operator recovery procedure. The service currently appends console diagnostics without rotation or an Event Viewer provider |
+
+The first release should explicitly state its supported OS list, local-user
+trust boundary and TLS-over-TCP cloud profile. Firmware updating/FOTA, privileged
+host reboot, native TPM/factory-server enrollment, Windows 8/XP and unsupported
+PAL APIs require separate feature work if promised. They need not block a release
+whose documented scope excludes them. Actual Intune/SCCM deployment is a gate
+if that delivery channel is promised; MSI is a possible later packaging format.
+
+The Windows PT SDK remains on the backlog in a separate repository. Named-pipe
+production support remains a subsequent Edge transport milestone; its C
+prototype and [implementation plan](windows-pt-transports.md#native-c-prototype-and-implementation-plan)
+are committed for that work. Neither is required for the initial TCP/AF_UNIX
+release.

@@ -1,5 +1,24 @@
 message(STATUS "Building native Windows x64 target")
 
+# The SDK version is not the minimum deployment OS. Declare that separately
+# so an older Windows target does not acquire an AF_UNIX dependency.
+set(EDGE_WINDOWS_TARGET_BUILD "17763" CACHE STRING "Minimum supported Windows 10/11 build number")
+if (NOT EDGE_WINDOWS_TARGET_BUILD MATCHES "^[0-9]+$")
+    message(FATAL_ERROR "EDGE_WINDOWS_TARGET_BUILD must be a Windows build number")
+endif ()
+set(EDGE_WINDOWS_AF_UNIX_AVAILABLE OFF)
+if (EDGE_WINDOWS_TARGET_BUILD GREATER_EQUAL 17134)
+    include(CheckCSourceCompiles)
+    check_c_source_compiles("#include <winsock2.h>\n#include <afunix.h>\nint main(void) { SOCKADDR_UN address = {0}; return sizeof(address.sun_path) != 108; }"
+        EDGE_WINDOWS_SDK_HAS_AFUNIX_WITH_WINSOCK)
+    if (EDGE_WINDOWS_SDK_HAS_AFUNIX_WITH_WINSOCK)
+        set(EDGE_WINDOWS_AF_UNIX_AVAILABLE ON)
+    else ()
+        message(FATAL_ERROR "The selected Windows target supports AF_UNIX, but the SDK lacks afunix.h")
+    endif ()
+endif ()
+message(STATUS "Windows target build ${EDGE_WINDOWS_TARGET_BUILD}: AF_UNIX=${EDGE_WINDOWS_AF_UNIX_AVAILABLE}")
+
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "The Windows target requires an x64 compiler. Use -A x64 with Visual Studio.")
 endif ()
