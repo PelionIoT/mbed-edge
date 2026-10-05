@@ -13,7 +13,7 @@ typedef struct {
 
 /* Owned by the server event thread. Addresses remain valid until shutdown. */
 typedef struct edge_listener_status {
-    edge_listener_entry http, tcp, af_unix, named_pipe;
+    edge_listener_entry http, tcp, af_unix, named_pipe, status_pipe;
     uint64_t started_ms;
     unsigned pipe_max_clients, pipe_connected_clients, pipe_client_sid_count;
     struct edge_pt_pipe_listener *pipe_listener;

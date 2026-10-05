@@ -23,14 +23,17 @@ int main(void)
     json_t *entries = json_object_get(result, "listeners");
     CHECK(!strcmp(json_string_value(json_object_get(json_object_get(entries, "http"), "address")), address));
     CHECK(json_is_false(json_object_get(json_object_get(entries, "namedPipe"), "available")));
+    CHECK(json_is_false(json_object_get(json_object_get(entries, "statusPipe"), "available")));
     CHECK(json_is_true(json_object_get(json_object_get(entries, "afUnix"), "listening")));
     json_decref(result);
     state.tcp = (edge_listener_entry){true, false, false, "127.0.0.1:7681"};
     state.named_pipe = (edge_listener_entry){true, true, true, "\\\\.\\pipe\\EdgePT"};
+    state.status_pipe = (edge_listener_entry){true, true, true, "\\\\.\\pipe\\IzumaEdgeCoreStatus"};
     state.pipe_max_clients = 16; state.pipe_connected_clients = 2; state.pipe_client_sid_count = 1;
     result = edge_listener_status_json(&state, 0, 1, 2, 0); CHECK(result);
     entries = json_object_get(result, "listeners");
     CHECK(json_is_false(json_object_get(json_object_get(entries, "tcp"), "listening")));
+    CHECK(json_is_true(json_object_get(json_object_get(entries, "statusPipe"), "listening")));
     json_t *pipe = json_object_get(entries, "namedPipe");
     CHECK(json_integer_value(json_object_get(pipe, "connectedClients")) == 2);
     CHECK(json_is_false(json_object_get(pipe, "remoteClientsAllowed")) && !json_object_get(pipe, "clientSids"));

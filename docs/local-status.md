@@ -1,12 +1,14 @@
 # Local status and listener details
 
-`GET /status` retains its existing fields and request/response behavior on Linux
-and Windows. Production builds add an optional `connectivity` object with
+`GET /status` retains its existing fields and request/response behavior on Linux.
+On Windows, status JSON is available through `\\.\pipe\IzumaEdgeCoreStatus`
+by default. The Windows TCP `GET /status` listener remains available when
+`"status": {"tcpEnabled": true}` is set in the runtime configuration; it is
+disabled when the setting is omitted. Production builds add an optional `connectivity` object with
 `schemaVersion: 1`. Consumers that only use `status`, device identity, version,
-cloud server or error fields can continue to do so. The Windows monitor accepts
-older responses without this object and explains that listener details are not
-reported; missing or malformed optional details do not change a valid basic
-cloud status.
+cloud server or error fields can continue to do so. The Windows monitor's
+diagnostic parser accepts older responses without this object, but normal pipe
+polling requires `connectivity.processId` to verify the service identity.
 
 The extension contains `processId`, `uptimeSeconds`, `registeredPtCount`,
 `registeredDeviceCount` and `listeners`. Uptime uses the existing monotonic Edge
@@ -24,14 +26,17 @@ addresses may describe configuration and must not be displayed as active.
 
 | Listener key | Linux | Windows | Address format |
 | --- | --- | --- | --- |
-| `http` | HTTP status server | HTTP status server | Bound numeric IP and port; IPv6 is bracketed |
+| `http` | HTTP status server | Optional TCP status server, disabled by default | Bound numeric IP and port when listening; IPv6 is bracketed |
 | `tcp` | Unavailable in the current Unix-socket server profile | Optional loopback PT WebSocket | `127.0.0.1:<port>` |
 | `afUnix` | Existing PT Unix socket | Optional Winsock AF_UNIX WebSocket | Local socket path |
 | `namedPipe` | Unavailable | Optional Win32 PT byte pipe | `\\.\pipe\<name>` |
+| `statusPipe` | Unavailable | Default Win32 status pipe | `\\.\pipe\IzumaEdgeCoreStatus` |
 
 The HTTP address is read from the bound socket, so an OS-selected port is
-reported correctly. TCP uses the effective CLI/config address; `tcpEnabled:
-false` keeps it non-listening even if a CLI address is supplied. Linux retains
+reported correctly. Windows reports `http.enabled: false` and
+`http.listening: false` when the TCP status listener is disabled. PT TCP uses
+the effective CLI/config address; `pt.tcpEnabled: false` keeps it non-listening
+even if a CLI address is supplied. Linux retains
 its existing Unix-socket listener, framing, configuration and cloud backend.
 This change introduces no Win32 dependency into Linux sources.
 
@@ -47,11 +52,19 @@ PT/device counts and pipe usage/access. Cloud URI user information, path, query
 and fragment are removed from its display and copied text. Details refresh with
 each three-second poll. Failed/invalid polls clear current listener rows;
 previous successful data is not shown as currently listening. Service state is
-queried independently from SCM, and a differing status-process PID is identified.
+queried independently from SCM. On Windows, the monitor verifies that the
+status pipe server and the JSON process ID match the running SCM service before
+showing a connected state. It shows whether the optional TCP status endpoint is
+listening and only enables its browser link when it is.
 
 The status endpoint reports Edge's own cloud connection state. It does not
 perform an independent cloud resource read or confirm a PT client's access
-rights. The existing local HTTP access policy remains applicable to this data.
+rights. The Windows pipe permits local interactive users to read status and
+rejects remote clients. Enabling TCP status exposes the existing HTTP response
+on the configured local address.
+The pipe response limits `lwm2m-server-uri` to scheme and host/port, omitting
+URI user information, path, query and fragment. The optional TCP endpoint
+retains its existing response fields, including the full URI.
 
 ## Regression coverage
 

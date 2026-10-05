@@ -54,9 +54,16 @@ bool edge_runtime_config_load(edge_runtime_config *config, const char *filename)
     size_t bom = bytes >= 3 && (unsigned char)data[0] == 0xef && (unsigned char)data[1] == 0xbb &&
         (unsigned char)data[2] == 0xbf ? 3 : 0;
     root = json_loadb(data + bom, bytes - bom, JSON_REJECT_DUPLICATES, &error);
-    if (!root || !keys_allowed(root, "schemaVersion", "pt", NULL, NULL) ||
+    if (!root || !keys_allowed(root, "schemaVersion", "pt", "status", NULL) ||
         !json_is_integer(json_object_get(root, "schemaVersion")) ||
         json_integer_value(json_object_get(root, "schemaVersion")) != 1) goto done;
+    json_t *status = json_object_get(root, "status");
+    if (status) {
+        if (!keys_allowed(status, "tcpEnabled", NULL, NULL, NULL)) goto done;
+        json_t *enabled = json_object_get(status, "tcpEnabled");
+        if (!json_is_boolean(enabled)) goto done;
+        parsed.status_tcp_enabled = json_is_true(enabled);
+    }
     json_t *pt = json_object_get(root, "pt");
     if (pt) {
         if (!keys_allowed(pt, "tcpAddress", "tcpEnabled", "afUnix", "namedPipe")) goto done;

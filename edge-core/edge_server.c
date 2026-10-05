@@ -24,6 +24,7 @@
 #include <windows.h>
 #include <process.h>
 #include "windows/edge_runtime_config.h"
+#include "windows/edge_status_pipe.h"
 #ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
 #include "windows/edge_pt_pipe.h"
 #endif
@@ -427,6 +428,24 @@ json_t *http_state_in_json(struct context *ctx)
     }
     return res;
 }
+
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+static char *status_pipe_snapshot(void *context)
+{
+    struct context *ctx = context;
+    json_t *status = http_state_in_json(ctx);
+    if (!status) return NULL;
+    /* The pipe is readable by local interactive users. Keep only the URI
+     * scheme and host/port; user info, path, query and fragment may be secret. */
+    const char *uri = json_string_value(json_object_get(status, "lwm2m-server-uri"));
+    char redacted[1025];
+    if (!edge_status_public_uri(uri, redacted, sizeof(redacted))) redacted[0] = '\0';
+    json_object_set_new(status, "lwm2m-server-uri", json_string(redacted));
+    char *reply = json_dumps(status, JSON_COMPACT);
+    json_decref(status);
+    return reply;
+}
+#endif
 
 EDGE_LOCAL void shutdown_handler(evutil_socket_t s, short x, void * args)
 {
@@ -852,6 +871,9 @@ int testable_main(int argc, char **argv)
 #ifdef _WIN32
     edge_runtime_config runtime_config;
     edge_runtime_config_defaults(&runtime_config);
+#ifndef BUILD_TYPE_TEST
+    struct edge_status_pipe *status_pipe = NULL;
+#endif
 #ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
     struct edge_pt_pipe_listener *pipe_listener = NULL;
 #endif
@@ -886,6 +908,9 @@ int testable_main(int argc, char **argv)
 
     char* edge_pt_socket = args.edge_pt_domain_socket;
     int http_port = atoi(args.http_port);
+#ifdef _WIN32
+    if (!runtime_config.status_tcp_enabled) http_port = -1;
+#endif
     int lock_fd = -1;
     rpc_request_timeout_hander_t *timeout_handler = NULL;
 
@@ -909,14 +934,19 @@ int testable_main(int argc, char **argv)
 #endif
 
         if (!create_server_event_loop(g_program_context, http_port, args.bind)) {
-            tr_err("Could not create http server.");
+            tr_err("Could not create server event loop.");
             rc = 1;
             break;
         }
 #ifndef BUILD_TYPE_TEST
-        edge_listener_http_address(ctx_data->http_server->bound_socket, http_listener_address, sizeof(http_listener_address));
-        listeners.http = (edge_listener_entry){true, true, true, http_listener_address};
 #ifdef _WIN32
+        if (runtime_config.status_tcp_enabled && ctx_data->http_server) {
+            edge_listener_http_address(ctx_data->http_server->bound_socket,
+                                       http_listener_address, sizeof(http_listener_address));
+        }
+        listeners.http = (edge_listener_entry){true, runtime_config.status_tcp_enabled,
+            ctx_data->http_server != NULL, http_listener_address};
+        listeners.status_pipe = (edge_listener_entry){true, true, false, EDGE_STATUS_PIPE_NAME};
         listeners.tcp = (edge_listener_entry){true, runtime_config.tcp_enabled, false, edge_pt_socket};
         listeners.af_unix = (edge_listener_entry){false, runtime_config.af_unix_enabled, false, runtime_config.af_unix_path};
         listeners.named_pipe = (edge_listener_entry){false, runtime_config.named_pipe_enabled, false, runtime_config.named_pipe_name};
@@ -929,6 +959,8 @@ int testable_main(int argc, char **argv)
         listeners.pipe_client_sid_count = runtime_config.named_pipe_client_sid_count;
 #endif
 #else
+        edge_listener_http_address(ctx_data->http_server->bound_socket, http_listener_address, sizeof(http_listener_address));
+        listeners.http = (edge_listener_entry){true, true, true, http_listener_address};
         listeners.af_unix = (edge_listener_entry){true, true, false, edge_pt_socket};
 #endif
 #endif
@@ -1054,6 +1086,12 @@ int testable_main(int argc, char **argv)
         }
 #endif
 #endif
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+        status_pipe = edge_status_pipe_start(g_program_context->ev_base,
+                                             status_pipe_snapshot, g_program_context);
+        if (!status_pipe) { rc = 1; break; }
+        listeners.status_pipe.listening = true;
+#endif
         /* Readiness is local initialization; cloud reachability is asynchronous. */
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
         if (!edge_windows_service_ready()) {
@@ -1069,6 +1107,9 @@ int testable_main(int argc, char **argv)
     }
     crypto_api_protocol_destroy();
     rpc_request_timeout_api_stop(timeout_handler);
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+    edge_status_pipe_stop(status_pipe);
+#endif
 #ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
     edge_pt_pipe_stop(pipe_listener);
 #endif

@@ -6,6 +6,7 @@
 #define EDGE_PIPE_MAX_CLIENT_SIDS 16
 #define EDGE_PIPE_SID_CAPACITY 192
 typedef struct {
+    bool status_tcp_enabled;
     bool tcp_enabled;
     char tcp_address[32];
     bool af_unix_enabled;

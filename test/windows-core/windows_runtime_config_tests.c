@@ -23,16 +23,23 @@ int wmain(int argc, wchar_t **argv)
     CHECK(WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, sizeof(utf8), NULL, NULL));
     edge_runtime_config config;
     edge_runtime_config_defaults(&config);
-    CHECK(config.tcp_enabled && !config.af_unix_enabled && !config.named_pipe_enabled &&
+    CHECK(!config.status_tcp_enabled && config.tcp_enabled && !config.af_unix_enabled && !config.named_pipe_enabled &&
           config.named_pipe_max_clients == 16 && !strcmp(config.tcp_address, "127.0.0.1:7681"));
     write_config(path, "{\"schemaVersion\":1,\"pt\":{\"tcpAddress\":\"127.0.0.1:17777\",\"afUnix\":{\"enabled\":false}}}");
     CHECK(edge_runtime_config_load(&config, utf8));
     CHECK(!config.af_unix_enabled && !strcmp(config.tcp_address, "127.0.0.1:17777"));
+    write_config(path, "{\"schemaVersion\":1,\"status\":{\"tcpEnabled\":true}}");
+    CHECK(edge_runtime_config_load(&config, utf8) && config.status_tcp_enabled);
+    write_config(path, "{\"schemaVersion\":1,\"status\":{\"tcpEnabled\":false}}");
+    CHECK(edge_runtime_config_load(&config, utf8) && !config.status_tcp_enabled);
     write_config(path, "\xef\xbb\xbf{\"schemaVersion\":1}");
     CHECK(edge_runtime_config_load(&config, utf8));
     const char *invalid[] = {
         "{}", "[]", "{\"schemaVersion\":2}", "{\"schemaVersion\":1,\"unknown\":true}",
         "{\"schemaVersion\":1,\"schemaVersion\":1}",
+        "{\"schemaVersion\":1,\"status\":{}}",
+        "{\"schemaVersion\":1,\"status\":{\"tcpEnabled\":1}}",
+        "{\"schemaVersion\":1,\"status\":{\"tcpEnabled\":false,\"other\":true}}",
         "{\"schemaVersion\":1,\"pt\":{\"tcpAddress\":\"0.0.0.0:7681\"}}",
         "{\"schemaVersion\":1,\"pt\":{\"tcpAddress\":\"127.0.0.1:0\"}}",
         "{\"schemaVersion\":1,\"pt\":{\"tcpAddress\":\"127.0.0.1:+7681\"}}",

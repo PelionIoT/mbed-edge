@@ -10,7 +10,8 @@ else ()
     # resolves DER paths against the JSON file and uses PAL file I/O.
     list(FILTER SOURCES EXCLUDE REGEX "/common/json2cbor(_utils)?\\.c$")
     list(APPEND SOURCES ../common/edge-io-lib/edge_io_windows.c)
-    list(APPEND SOURCES windows/edge_service.c windows/json2cbor_windows.c windows/edge_runtime_config.c)
+    list(APPEND SOURCES windows/edge_service.c windows/json2cbor_windows.c
+         windows/edge_runtime_config.c windows/edge_status_pipe.c)
     if (EDGE_WINDOWS_AF_UNIX_AVAILABLE)
       list(APPEND SOURCES windows/edge_pt_unix.c)
     endif ()

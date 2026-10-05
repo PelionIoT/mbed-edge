@@ -681,6 +681,13 @@ The SDK is not required to qualify or release the Edge server transport.
 
 ## Local listener diagnostics
 
+The current Windows status transport uses `\\.\pipe\IzumaEdgeCoreStatus` by
+default. Runtime JSON `"status": {"tcpEnabled": true}` opts into the existing
+TCP `/status` endpoint at the configured HTTP port. Omitting the setting leaves
+that TCP listener off; Linux still uses its existing loopback HTTP status
+listener. The monitor reads the pipe and reports whether TCP status is
+listening. Installer readiness and cloud qualification read the pipe as well.
+
 On October 4, 2026, the additive local status extension was qualified in
 developer Debug/Release (10/10 tests each) and BYOC Debug/Release (12/12 each).
 The separate Windows monitor now has Status and Details tabs and reads the
@@ -695,6 +702,21 @@ HTTP `127.0.0.1:8080` and TCP PT `127.0.0.1:7681` are listening; compiled AF_UNI
 and named-pipe transports remain disabled by the retained startup selection.
 Previous binaries are retained for rollback. Older responses remain usable for
 basic status monitoring.
+
+The Windows status-pipe change passed its complete isolated end-to-end suite
+on October 4, 2026, using unsigned BYOC/OpenSSL Release packages 0.21.1016 and
+0.21.1017 and the native monitor. The run passed 27 status/lifecycle checks,
+23 provisioning checks and 25 native installer checks, including real cloud
+identity retention, ordinary interactive-user pipe access, TCP off/on/off,
+monitor recovery, upgrade/rollback, migration from HTTP-only 0.21.1005,
+spoof HTTP/pipe rejection and fail-closed startup on a preclaimed pipe.
+The core Release suite passed 13/13 and the monitor suite 2/2. The test also
+verified fixes for queued service recovery racing with uninstall and strict
+PowerShell handling of legacy responses without PID metadata. All temporary
+services and the monitor were removed; the existing EdgeCore service retained
+its original process/configuration. Evidence is in
+`build/windows-status-e2e-20261004-211411/e2e-attempt-1/results.json`.
+Linux runtime and machine-reboot qualification were not repeated in this run.
 
 The same status contract is implemented for Linux, preserving its existing
 HTTP and Unix-socket behavior. Linux unit coverage has been added, but execution

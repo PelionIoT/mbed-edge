@@ -1,5 +1,8 @@
 {
   "schemaVersion": 1,
+  "status": {
+    "tcpEnabled": false
+  },
   "pt": {
     "tcpAddress": "127.0.0.1:7681",
     "afUnix": {

@@ -23,6 +23,9 @@ json_t *edge_listener_status_json(const edge_listener_status *state, uint64_t no
     json_object_set_new(pipe, "remoteClientsAllowed", json_false());
     json_object_set_new(pipe, "maxFrameBytes", json_integer(65536));
     json_object_set_new(listeners, "namedPipe", pipe);
+#ifdef _WIN32
+    json_object_set_new(listeners, "statusPipe", listener_json(&state->status_pipe, "edge-status-v1"));
+#endif
     return json_pack("{s:i,s:I,s:I,s:i,s:i,s:o}", "schemaVersion", 1,
         "processId", (json_int_t)process_id,
         "uptimeSeconds", (json_int_t)(now_ms >= state->started_ms ? (now_ms - state->started_ms) / 1000 : 0),

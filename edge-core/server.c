@@ -106,6 +106,11 @@ bool create_server_event_loop(struct context *ctx, int http_port, char *http_add
         return false;
     }
 
+    /* Windows uses a status pipe by default. A negative port is its explicit
+     * disabled sentinel; Linux always takes the existing HTTP path. */
+#ifdef _WIN32
+    if (http_port < 0) return true;
+#endif
     bool http_server_init_ok = http_server_init(ctx, http_port, http_address);
     if (!http_server_init_ok) {
         tr_err("Cannot create http server to port %d.", http_port);
