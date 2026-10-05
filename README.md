@@ -41,6 +41,10 @@ The contents of the repository.
 
 ## Build and run
 
+For native Windows installation, the Edge Core Monitor and tray, and headless
+service management, see the [Windows service guide](docs/windows-service-guide.md).
+Source-build instructions are in the [Windows build guide](docs/windows-build.md).
+
 1. Directly on Ubuntu 22.04 or 20.04, or
 1. Using Docker.
 

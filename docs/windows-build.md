@@ -1,5 +1,8 @@
 # Native Windows build experiment
 
+For installation, desktop monitoring, and headless service management, see the
+[Windows service guide](windows-service-guide.md).
+
 `edge-core.exe` now builds as a native MSVC x64 console application in Debug
 and Release. Windows selects the same OpenSSL crypto and TLS sources as
 upstream, with the existing PAL interfaces for operating-system services.
