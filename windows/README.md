@@ -13,6 +13,20 @@ instructions. The local checkout is `D:\work\mbed-edge-windows-installer`.
 Core service tests accept `-InstallerRepositoryDirectory`; the default is a
 sibling checkout named `mbed-edge-windows-installer`.
 
+The manual `.github/workflows/windows-release.yml` builds/tests Release Edge
+Core with checksum-pinned OpenSSL 3.5.9, signs the five runtime EXE/DLL files
+using Azure Artifact Signing, and uploads `edge-core-windows-x64-signed` only
+after checking the publisher subject and timestamp. Configure the protected
+`windows-signing` environment before running it. The confirmed account and
+certificate profile are both `izumaedgesigning`, with East US endpoint
+`https://eus.codesigning.azure.net/`. Azure authentication uses GitHub OIDC.
+See the installer's
+[MSI/signing setup guide](https://github.com/IzumaNetworks/mbed-edge-windows-installer/blob/main/windows/installer/MSI.md)
+for environment variables, signing-role permissions and the subsequent MSI
+workflow. Leaf certificate thumbprints rotate and are not permanent release
+configuration. `windows/verify-signatures.ps1` records each release's actual
+signers; `windows/build-openssl.ps1` prepares its build dependency.
+
 The installer consumes a native Release BYOC/OpenSSL build and an independently
 built monitor from `edge-core-monitor`. It embeds no tenant or device identity.
 The tray monitor remains optional and selected by default. Developer and
