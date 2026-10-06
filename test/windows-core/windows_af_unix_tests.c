@@ -100,7 +100,7 @@ static void run_pt(const wchar_t *executable, const wchar_t *socket_path, DWORD 
 
 int wmain(int argc, wchar_t **argv)
 {
-    CHECK(argc == 3);
+    CHECK(argc == 2);
     WSADATA startup; CHECK(WSAStartup(MAKEWORD(2,2), &startup) == 0);
     CHECK(evthread_use_windows_threads() == 0);
     struct event_base *base = event_base_new(); CHECK(base);
@@ -112,8 +112,11 @@ int wmain(int argc, wchar_t **argv)
     info.options = LWS_SERVER_OPTION_LIBEVENT; info.gid = info.uid = -1;
     lws_set_log_level(LLL_ERR | LLL_WARN, NULL);
     struct lws_context *context = lws_create_context(&info); CHECK(context);
-    wchar_t directory[512], path[512], lock[520]; char utf8[1024];
-    swprintf_s(directory, 512, L"%ls/af-unix-%lu-\x00e9", argv[2], GetCurrentProcessId());
+    wchar_t temporary[MAX_PATH], directory[512], path[512], lock[520]; char utf8[1024];
+    /* A checkout path can exceed AF_UNIX's 108-byte socket address limit. */
+    DWORD temporary_length = GetTempPathW(MAX_PATH, temporary);
+    CHECK(temporary_length > 0 && temporary_length < MAX_PATH);
+    swprintf_s(directory, 512, L"%lsaf-unix-%lu-\x00e9", temporary, GetCurrentProcessId());
     CHECK(CreateDirectoryW(directory, NULL));
     swprintf_s(path, 512, L"%ls/pt.sock", directory);
     swprintf_s(lock, 520, L"%ls.lock", path);
