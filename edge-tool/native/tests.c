@@ -7,6 +7,7 @@
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 static int failures;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"Failed at line %d: %s\n",__LINE__,#x); ++failures; } } while(0)
@@ -89,7 +90,11 @@ int main(int argc, char **argv)
     CHECK(X509_set_version(cert,2)); CHECK(ASN1_INTEGER_set(X509_get_serialNumber(cert),1));
     CHECK(X509_gmtime_adj(X509_getm_notBefore(cert),0)); CHECK(X509_gmtime_adj(X509_getm_notAfter(cert),86400));
     CHECK(X509_set_pubkey(cert,key)); name = X509_get_subject_name(cert);
-    CHECK(X509_NAME_add_entry_by_txt(name,"CN",MBSTRING_ASC,(const unsigned char *)"Synthetic conversion test",-1,-1,0));
+    CHECK(X509_NAME_add_entry_by_txt(name,"CN",MBSTRING_ASC,(const unsigned char *)"0123456789abcdef0123456789abcdef",-1,-1,0));
+    {
+        X509_EXTENSION *usage = X509V3_EXT_conf_nid(NULL,NULL,NID_ext_key_usage,"clientAuth");
+        CHECK(usage); if (usage) { CHECK(X509_add_ext(cert,usage,-1)); X509_EXTENSION_free(usage); }
+    }
     CHECK(X509_set_issuer_name(cert,name)); CHECK(X509_sign(cert,key,EVP_sha256()) > 0);
     if (argc == 3 && !strcmp(argv[1],"--write-fixture")) {
         char *s = fixture(key,cert,"",-1); FILE *file = fopen(argv[2],"wb");
