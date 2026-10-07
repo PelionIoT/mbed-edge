@@ -49,7 +49,7 @@ jobs:
       - name: Stage runtime files only
         run: |
           $stage = New-Item -ItemType Directory build/runtime
-          foreach ($name in @('edge-core.exe','event.dll','event_core.dll','libcrypto-3-x64.dll','libssl-3-x64.dll')) {
+          foreach ($name in @('edge-core.exe','edge-provision.exe','event.dll','event_core.dll','libcrypto-3-x64.dll','libssl-3-x64.dll')) {
             Copy-Item -LiteralPath "build/windows-x64/bin/Release/$name" -Destination $stage
           }
           Copy-Item LICENSE "$stage/edge-LICENSE.txt"
