@@ -45,7 +45,7 @@ function Invoke-EdgeCMake {
 }
 
 $sourceDirectory = $PSScriptRoot
-$buildTargets = @('edge-core')
+$buildTargets = @('edge-core','edge-provision')
 $profileArguments = @(
     '-DTARGET_TOOLCHAIN=mcc-windows-x64', '-DBYOC_MODE=ON', '-DDEVELOPER_MODE=OFF',
     '-DFIRMWARE_UPDATE=OFF', '-DFOTA_ENABLE=OFF', '-DBUILD_DOCUMENTATION=OFF',
