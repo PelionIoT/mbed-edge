@@ -1,0 +1,147 @@
+name: macOS port regression checks
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master, 'port/macos-arm64']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-26]
+        configuration: [Debug, Release]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '3'
+      CONFIGURATION: ${{ matrix.configuration }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Check native toolchain and published Darwin PAL
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == arm64 ]]
+          test -f lib/mbed-cloud-client/mbed-client-pal/Source/Port/Reference-Impl/OS_Specific/Darwin/RTOS/pal_plat_rtos.c
+          mkdir -p build/evidence
+          {
+            sw_vers
+            xcodebuild -version
+            xcrun --sdk macosx --show-sdk-path
+            cmake --version
+            git rev-parse HEAD
+            git submodule status --recursive
+          } > build/evidence/toolchain.log
+      - name: Build pinned static OpenSSL
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          bash macos/build-openssl.sh .build-cache/macos-openssl 2>&1 | tee build/evidence/openssl.log
+      - name: Build Core and run native checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          bash build-macos.sh build/macos-ci \
+            -DCMAKE_BUILD_TYPE="$CONFIGURATION" \
+            -DOPENSSL_ROOT_DIR="$PWD/.build-cache/macos-openssl/install" 2>&1 | tee build/evidence/core.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: core-${{ matrix.os }}-${{ matrix.configuration }}
+          path: |
+            build/evidence/
+            build/macos-ci/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Build historical Linux BYOC mock suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev libcurl4-openssl-dev python3
+          cmake -S . -B build-test -DBUILD_TARGET=test -DBYOC_MODE=ON \
+            -DFOTA_ENABLE=OFF -DFIRMWARE_UPDATE=ON -DTRACE_LEVEL=DEBUG \
+            -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCUMENTATION=OFF
+          cmake --build build-test --parallel 3
+      - name: Run all Linux unit executables
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, subprocess
+          binaries = sorted(Path('build-test/bin').resolve().glob('*-test'))
+          if not binaries:
+              raise SystemExit('No Linux test executables found')
+          results = []
+          for binary in binaries:
+              with binary.with_suffix('.log').open('wb') as output:
+                  process = subprocess.run([str(binary)], cwd=binary.parent, stdout=output,
+                                           stderr=subprocess.STDOUT, timeout=180)
+              results.append({'suite': binary.name, 'exit': process.returncode})
+              print(binary.name, process.returncode, flush=True)
+          Path('build-test/results.json').write_text(json.dumps(results, indent=2) + '\n')
+          raise SystemExit(1 if any(item['exit'] for item in results) else 0)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: linux-unit-tests
+          path: |
+            build-test/results.json
+            build-test/bin/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    defaults:
+      run:
+        shell: powershell
+    env:
+      CONFIGURATION: ${{ matrix.configuration }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
+        with:
+          arch: x64
+      - name: Build pinned OpenSSL and run native Windows regression checks
+        run: |
+          ./windows/build-openssl.ps1 -OutputDirectory ./build/openssl
+          ./build-windows.ps1 -Configuration $env:CONFIGURATION -CoreTests -OpenSSLRoot "$pwd/build/openssl/install" -Jobs 3 -CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5'
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows regression checks failed.' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: windows-${{ matrix.configuration }}
+          path: build/windows-x64/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 14

@@ -47,6 +47,10 @@ typedef struct {
     char *runtime_config;
 #endif
     char *http_port;
+#ifdef __APPLE__
+    char *status_socket;
+    bool status_tcp;
+#endif
     /* special */
     const char *usage_pattern;
     const char *help_message;
@@ -72,14 +76,19 @@ const char help_message[] =
 #endif
 "  -b --bind <string>                   HTTP bind address [default: 127.0.0.1].\n"
 "  -o --http-port <int>                 HTTP port number [default: 8080].\n"
+#ifdef __APPLE__
+"  --status-socket <path>              Protected Unix status socket [default: edge-status/status.sock].\n"
+"  --status-tcp                        Enable loopback TCP status (disabled by default).\n"
+#endif
 "  -r --reset-storage                   Before starting the server, clean the old Device Management Client\n"
 "                                       configuration.\n"
 "  -c --cbor-conf <cbor>                The CBOR configuration file path.\n"
 #ifdef MBED_EDGE_ENABLE_BYOC_JSON
-"  -j --json-conf <cbor>                The JSON configuration file path.\n"
+"  -j --json-conf <json>                The JSON configuration file path.\n"
 "                                       The CBOR or JSON configuration option is mandatory for the first\n"
-#endif
+#else
 "                                       The CBOR configuration option is mandatory for the first\n"
+#endif
 "                                       start of the Edge Core when it is built with BYOC_MODE.\n"
 "                                       This option cannot be used if built with DEVELOPER_MODE or FACTORY_MODE.\n"
 "                                       If this option is given second time (without --reset-storage) the current\n"
@@ -153,6 +162,8 @@ Tokens* tokens_move(Tokens *ts) {
  */
 
 int parse_doubledash(Tokens *ts, Elements *elements) {
+    (void)ts;
+    (void)elements;
     //int n_commands = elements->n_commands;
     //int n_arguments = elements->n_arguments;
     //Command *commands = elements->commands;
@@ -171,11 +182,7 @@ int parse_long(Tokens *ts, Elements *elements) {
     Option *option = NULL;
     Option *options = elements->options;
 
-#ifdef _WIN32
     len_prefix = eq ? (int)(eq - ts->current) : (int)strlen(ts->current);
-#else
-    len_prefix = (eq-(ts->current))/sizeof(char);
-#endif
     for (i=0; i < n_options; i++) {
         option = &options[i];
         if (!strncmp(ts->current, option->olong, len_prefix))
@@ -347,6 +354,12 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
         } else if (!strcmp(option->olong, "--http-port")) {
             if (option->argument)
                 args->http_port = option->argument;
+#ifdef __APPLE__
+        } else if (!strcmp(option->olong, "--status-socket")) {
+            if (option->argument) args->status_socket = option->argument;
+        } else if (!strcmp(option->olong, "--status-tcp")) {
+            args->status_tcp = option->value;
+#endif
         }
     }
     /* commands */
@@ -366,26 +379,20 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
  */
 
 DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
-#ifdef _WIN32
     DocoptArgs args = {
         .bind = (char*)"127.0.0.1",
+#ifdef _WIN32
         .edge_pt_domain_socket = (char*)"127.0.0.1:7681",
+#else
+        .edge_pt_domain_socket = (char*)"/tmp/edge.sock",
+#endif
         .http_port = (char*)"8080",
+#ifdef __APPLE__
+        .status_socket = (char*)"edge-status/status.sock",
+#endif
         .usage_pattern = usage_pattern,
         .help_message = help_message
     };
-#elif defined(MBED_EDGE_ENABLE_BYOC_JSON)
-    DocoptArgs args = {
-        0, 0, 0, 0, NULL, NULL, (char*) "/tmp/edge.sock", (char*) "8080",
-        usage_pattern, help_message
-    };
-#else
-    DocoptArgs args = {
-        0, 0, 0, 0, (char*) "127.0.0.1", NULL, (char*) "/tmp/edge.sock", (char*)
-        "8080",
-        usage_pattern, help_message
-    };
-#endif
     Tokens ts;
     Command commands[] = {
 #ifdef _WIN32
@@ -415,7 +422,11 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
 #else
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
 #endif
-        {"-o", "--http-port", 1, 0, NULL}
+        {"-o", "--http-port", 1, 0, NULL},
+#ifdef __APPLE__
+        {NULL, "--status-socket", 1, 0, NULL},
+        {NULL, "--status-tcp", 0, 0, NULL}
+#endif
     };
     Elements elements = {0, 0, sizeof(options) / sizeof(options[0]), commands, arguments, options};
 

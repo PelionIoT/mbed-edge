@@ -190,14 +190,12 @@ TEST(edge_client_mgmt, m2m_device_list_has_resources)
     m2m_devices.push_back(ep1);
 
     String obj1_name = String("obj1");
-    M2MObject *obj1 = ep1->create_object(obj1_name);
+    M2MObject *obj1 = TestFactory::create_object(obj1_name, strdup("/ep1/obj1"), false);
     m2m_objects.push_back(obj1);
-    M2MObjectInstance *ins1 = obj1->create_object_instance((uint16_t) 0);
+    M2MObjectInstance *ins1 = TestFactory::create_object_instance(*obj1);
     m2m_instances.push_back(ins1);
     String res1_name = String("res1");
-    M2MResource *res1 = ins1->create_dynamic_resource(res1_name, "",
-                                                      M2MResourceBase::STRING,
-                                                      true, false, false);
+    M2MResource *res1 = TestFactory::create_resource(*ins1, res1_name, strdup("/ep1/obj1/0/res1"), false, false);
     m2m_resources.push_back(res1);
 
     // This endpoint is deleted and must not be in the returned results
@@ -220,10 +218,6 @@ TEST(edge_client_mgmt, m2m_device_list_has_resources)
         .withPointerParameter("this", ep1)
         .andReturnValue(ep1_name.c_str());
 
-    // CppuMock does not match the calls with pointer parameter and
-    // therefore does return correct value unless ordered manually.
-    // This is why the res1 name call is mocked first and the obj1
-    // name call is last.
     mock().expectOneCall("M2MBase::name")
         .withPointerParameter("this", res1)
         .andReturnValue(res1_name.c_str());
@@ -265,6 +259,12 @@ TEST(edge_client_mgmt, m2m_device_list_has_resources)
     CHECK_EQUAL(OPERATION_READ, resource->operation);
 
     edgeclient_destroy_device_list(devices);
+
+    mock().disable();
+    TestFactory::delete_resource(res1);
+    TestFactory::delete_object_instance(ins1);
+    TestFactory::delete_object(obj1);
+    mock().enable();
 
     mock().expectOneCall("M2MEndpoint::~M2MEndpoint")
         .withPointerParameter("this", ep1);
@@ -308,22 +308,20 @@ TEST(edge_client_mgmt, m2m_device_list_has_empty_structures)
     m2m_devices.push_back(ep1);
 
     String obj_empty_name = String("empty_obj");
-    M2MObject *obj_empty = ep1->create_object(obj_empty_name);
+    M2MObject *obj_empty = TestFactory::create_object(obj_empty_name, strdup("/ep1/empty_obj"), false);
     m2m_objects.push_back(obj_empty);
 
     String obj1_name = String("obj1");
-    M2MObject *obj1 = ep1->create_object(obj1_name);
+    M2MObject *obj1 = TestFactory::create_object(obj1_name, strdup("/ep1/obj1"), false);
     m2m_objects.push_back(obj1);
 
-    M2MObjectInstance *empty_ins = obj1->create_object_instance((uint16_t) 0);
+    M2MObjectInstance *empty_ins = TestFactory::create_object_instance(*obj1);
     m2m_instances.push_back(empty_ins);
 
-    M2MObjectInstance *ins1 = obj1->create_object_instance((uint16_t) 1);
+    M2MObjectInstance *ins1 = TestFactory::create_object_instance(*obj1);
     m2m_instances.push_back(ins1);
     String res1_name = String("res1");
-    M2MResource *res1 = ins1->create_dynamic_resource(res1_name, "",
-                                                      M2MResourceBase::STRING,
-                                                      true, false, false);
+    M2MResource *res1 = TestFactory::create_resource(*ins1, res1_name, strdup("/ep1/obj1/1/res1"), false, false);
     m2m_resources.push_back(res1);
     mock().enable();
 
@@ -391,6 +389,14 @@ TEST(edge_client_mgmt, m2m_device_list_has_empty_structures)
     STRCMP_EQUAL("/obj1/1/res1", resource->uri);
     CHECK_EQUAL((int32_t) M2MBase::STRING, (int) resource->type);
     CHECK_EQUAL(OPERATION_READ, resource->operation);
+
+    mock().disable();
+    TestFactory::delete_resource(res1);
+    TestFactory::delete_object_instance(ins1);
+    TestFactory::delete_object_instance(empty_ins);
+    TestFactory::delete_object(obj1);
+    TestFactory::delete_object(obj_empty);
+    mock().enable();
 
     mock().expectOneCall("M2MEndpoint::~M2MEndpoint")
         .withPointerParameter("this", ep_empty);

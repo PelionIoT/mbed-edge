@@ -26,6 +26,8 @@
 extern "C" {
 #endif
 
+#include "edge-client/reset_factory_settings.h"
+
 typedef struct x_rfs_thread_param {
     edgeclient_request_context_t *ctx;
     edge_rfs_thread_t *thread;

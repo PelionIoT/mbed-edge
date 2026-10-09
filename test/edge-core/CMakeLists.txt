@@ -18,8 +18,8 @@ target_include_directories (edge-core-test PUBLIC ${CPPUTEST_HOME}/include)
 target_include_directories (edge-core-test PUBLIC ${ROOT_HOME}/test/test-lib)
 
 target_link_libraries (edge-core-test edge-msg-api edge-websocket-common
-  test-lib libwebsocket-mock-lib libevent-mock-lib pal-mock-lib edge-client-mock-lib edge-core
+  test-lib libwebsocket-mock-lib pal-mock-lib edge-client-mock-lib edge-core
+  libevent-mock-lib edge-mutex-mock
   event-os-mock-lib kcm-mock-lib CppUTest CppUTestExt)
 
 add_definitions(-DTEST_DATA_DIR="${TEST_DATA_DIR}")
-

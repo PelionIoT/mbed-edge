@@ -663,6 +663,9 @@ EDGE_LOCAL void clean(struct context *ctx)
         event_free(ctx->ev_sighup);
     }
     http_server_clean(&((ctx->ctx_data)->http_server));
+#ifdef __APPLE__
+    http_server_clean(&ctx->ctx_data->status_unix_server);
+#endif
     if (ctx->ev_base != NULL) {
         event_base_free(ctx->ev_base);
     }
@@ -907,7 +910,23 @@ int testable_main(int argc, char **argv)
     }
 
     char* edge_pt_socket = args.edge_pt_domain_socket;
+#ifdef __APPLE__
+    int http_port;
+    if (!args.status_tcp) {
+        http_port = -1;
+    } else {
+        char *end = NULL;
+        long port = strtol(args.http_port, &end, 10);
+        if (!*args.http_port || *end || port < 0 || port > 65535 ||
+            (strcmp(args.bind, "127.0.0.1") && strcmp(args.bind, "::1"))) {
+            fprintf(stderr, "TCP status requires port 0..65535 and bind address 127.0.0.1 or ::1.\n");
+            return EXIT_FAILURE;
+        }
+        http_port = (int)port;
+    }
+#else
     int http_port = atoi(args.http_port);
+#endif
 #ifdef _WIN32
     if (!runtime_config.status_tcp_enabled) http_port = -1;
 #endif
@@ -958,6 +977,13 @@ int testable_main(int argc, char **argv)
         listeners.pipe_max_clients = runtime_config.named_pipe_max_clients;
         listeners.pipe_client_sid_count = runtime_config.named_pipe_client_sid_count;
 #endif
+#elif defined(__APPLE__)
+        if (ctx_data->http_server) {
+            edge_listener_http_address(ctx_data->http_server->bound_socket, http_listener_address, sizeof(http_listener_address));
+        }
+        listeners.http = (edge_listener_entry){true, args.status_tcp, ctx_data->http_server != NULL, http_listener_address};
+        listeners.status_unix = (edge_listener_entry){true, true, false, args.status_socket};
+        listeners.af_unix = (edge_listener_entry){true, true, false, edge_pt_socket};
 #else
         edge_listener_http_address(ctx_data->http_server->bound_socket, http_listener_address, sizeof(http_listener_address));
         listeners.http = (edge_listener_entry){true, true, true, http_listener_address};
@@ -1086,6 +1112,13 @@ int testable_main(int argc, char **argv)
         }
 #endif
 #endif
+#ifdef __APPLE__
+        if (!lwsc || !http_server_init_unix(g_program_context, args.status_socket)) { rc = 1; break; }
+#ifndef BUILD_TYPE_TEST
+        listeners.status_unix.address = ctx_data->status_unix_server->status_path;
+        listeners.status_unix.listening = true;
+#endif
+#endif
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
         status_pipe = edge_status_pipe_start(g_program_context->ev_base,
                                              status_pipe_snapshot, g_program_context);
@@ -1124,4 +1157,3 @@ int testable_main(int argc, char **argv)
 #endif
     return rc;
 }
-

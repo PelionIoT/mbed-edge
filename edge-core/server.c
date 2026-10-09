@@ -106,9 +106,8 @@ bool create_server_event_loop(struct context *ctx, int http_port, char *http_add
         return false;
     }
 
-    /* Windows uses a status pipe by default. A negative port is its explicit
-     * disabled sentinel; Linux always takes the existing HTTP path. */
-#ifdef _WIN32
+    /* A negative port disables TCP status on platforms with local status. */
+#if defined(_WIN32) || defined(__APPLE__)
     if (http_port < 0) return true;
 #endif
     bool http_server_init_ok = http_server_init(ctx, http_port, http_address);

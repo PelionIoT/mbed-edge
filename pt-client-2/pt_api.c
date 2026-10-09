@@ -46,7 +46,11 @@
 
 // bad: shouldn't really use static initializer - portability!
 // this is basically a recursive mutex but will make e.g. sanitizer squeal
+#ifdef __APPLE__
+EDGE_LOCAL edge_mutex_t api_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER;
+#else
 EDGE_LOCAL edge_mutex_t api_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP; //PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+#endif
 
 EDGE_LOCAL void device_list_set_changed(pt_devices_data_t *devices_data, pt_changed_status_e changed_status);
 EDGE_LOCAL void device_set_changed(pt_device_t *device, pt_changed_status_e changed_status);

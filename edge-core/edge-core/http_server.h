@@ -29,9 +29,19 @@
 struct http_server {
     struct evhttp *http;
     struct evhttp_bound_socket *bound_socket;
+#ifdef __APPLE__
+    int status_directory;
+    int status_lock;
+    unsigned long long socket_device, socket_inode;
+    char status_path[104];
+    char status_name[104];
+#endif
 };
 
 bool http_server_init(struct context *ctx, int port, char *http_address);
+#ifdef __APPLE__
+bool http_server_init_unix(struct context *ctx, const char *path);
+#endif
 void http_server_clean(struct http_server **server);
 json_t *http_state_in_json(struct context *ctx);
 
