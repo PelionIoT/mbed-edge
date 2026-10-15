@@ -3,6 +3,9 @@
 #define EDGE_NETWORK_RECOVERY_H
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 struct event_base;
 struct edge_network_watch;
 enum { EDGE_NETWORK_ROUTE = 1, EDGE_NETWORK_ADDRESS = 2,
@@ -20,4 +23,7 @@ struct edge_network_watch *edge_network_watch_start(struct event_base *base,
     void (*reconnect)(unsigned reason, void *context), void *context);
 void edge_network_watch_cloud(struct edge_network_watch *watch, bool connected, bool transient);
 void edge_network_watch_stop(struct edge_network_watch *watch);
+#ifdef __cplusplus
+}
+#endif
 #endif

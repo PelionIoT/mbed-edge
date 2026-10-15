@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <wchar.h>
 #include <event2/event.h>
-#include "edge_network_recovery.h"
+#include "../edge_network_recovery.h"
 struct edge_network_watch {
     struct event *timer;
     HANDLE route, address, interface_change;

@@ -186,12 +186,12 @@ public:
         tr_debug("Start update registration");
         _cloud_client.register_update();
     }
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     void reconnect_network()
     {
         // Reuse the existing client, identity and object lists. Pause closes
         // the stale socket and cancels its long retry timer; resume resolves
-        // the server again through the current Windows network configuration.
+        // the server again through the current platform network configuration.
         _registered = false;
         _cloud_client.pause();
         _cloud_client.resume((void *)_network_interface);

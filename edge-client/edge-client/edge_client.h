@@ -28,7 +28,7 @@ extern "C" {
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 bool edgeclient_reconnect_network(void);
 bool edgeclient_transient_network_error(int error_code);
 #endif

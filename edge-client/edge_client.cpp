@@ -65,7 +65,7 @@ extern "C" {
 #include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mvector.h"
 #include "ns_event_loop.h"
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 #include "eventOS_scheduler.h"
 #endif
 #include "include/m2mcallbackstorage.h"
@@ -746,7 +746,7 @@ void edgeclient_connect() {
     }
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 bool edgeclient_transient_network_error(int code)
 {
     return code == MbedCloudClient::ConnectTimeout || code == MbedCloudClient::ConnectNetworkError ||
@@ -755,8 +755,8 @@ bool edgeclient_transient_network_error(int code)
 bool edgeclient_reconnect_network(void)
 {
     if (!client || client->is_interrupt_received()) return false;
-    // Serialize against the cloud client's timer/socket tasklets. The Windows
-    // scheduler uses a recursive mutex, as required by the client's APIs.
+    // Serialize against the cloud client's timer/socket tasklets. Both native
+    // platform schedulers provide the recursive mutex required by these APIs.
     eventOS_scheduler_mutex_wait();
     client_data->edgeclient_status = REGISTERING;
     client->reconnect_network();
