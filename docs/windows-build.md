@@ -739,3 +739,24 @@ The same status contract is implemented for Linux, preserving its existing
 HTTP and Unix-socket behavior. Linux unit coverage has been added, but execution
 on a Linux host/CI remains a regression requirement. See
 [the status contract and validation record](local-status.md).
+
+## Network recovery
+
+The native Windows Core watches IPv4/IPv6 route, address, adapter and power
+resume notifications. A five-second configuration check also detects DNS
+server/suffix and route metric changes. Routine route lifetime refreshes do
+not reset a healthy connection. Notifications only set atomic flags; the
+application event loop coalesces them for two seconds (ten seconds maximum)
+before refreshing the cloud socket and resolving the server again.
+
+Transport, timeout, TLS transport and DNS failures receive bounded retries
+(15 seconds initially, increasing to 120 seconds). A network change or resume
+resets that backoff. Authentication/configuration failures are not forced into
+a retry loop. A successful registration clears the previous cloud error.
+Recovery reuses the existing cloud client, device identity and protocol
+translator objects; it does not restart the Windows service or reprovision.
+
+The service log reports notification registration results and each recovery's
+reason mask: route=1, address=2, configuration/DNS=4, resume=8, retry=16.
+`windows-core-network-recovery` covers debounce, rate limits, sustained outage,
+resume during backoff, permanent error handling and native watcher teardown.

@@ -28,6 +28,10 @@ extern "C" {
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
+#ifdef _WIN32
+bool edgeclient_reconnect_network(void);
+bool edgeclient_transient_network_error(int error_code);
+#endif
 #include "common/constants.h"
 #include "common/pt_api_error_codes.h"
 #ifdef MBED_EDGE_ENABLE_BYOC_JSON

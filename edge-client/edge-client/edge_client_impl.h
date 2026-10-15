@@ -186,6 +186,17 @@ public:
         tr_debug("Start update registration");
         _cloud_client.register_update();
     }
+#ifdef _WIN32
+    void reconnect_network()
+    {
+        // Reuse the existing client, identity and object lists. Pause closes
+        // the stale socket and cancels its long retry timer; resume resolves
+        // the server again through the current Windows network configuration.
+        _registered = false;
+        _cloud_client.pause();
+        _cloud_client.resume((void *)_network_interface);
+    }
+#endif
     void client_registered()
     {
         _registered = true;

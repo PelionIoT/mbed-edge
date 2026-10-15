@@ -25,6 +25,7 @@
 #include <process.h>
 #include "windows/edge_runtime_config.h"
 #include "windows/edge_status_pipe.h"
+#include "windows/edge_network_recovery.h"
 #ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
 #include "windows/edge_pt_pipe.h"
 #endif
@@ -87,6 +88,19 @@
 
 EDGE_LOCAL connection_id_t g_connection_id_counter = 1;
 EDGE_LOCAL struct context *g_program_context = NULL;
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+static struct edge_network_watch *network_watch;
+EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data);
+static void reconnect_cloud_network(unsigned reason, void *context)
+{
+    (void)context;
+    if (edgeclient_reconnect_network()) {
+        tr_info("Network recovery: refreshing cloud socket and DNS; reason mask=%u (route=1 address=2 config/DNS=4 resume=8 retry=16)", reason);
+        free_old_cloud_error(g_program_context->ctx_data);
+        g_program_context->ctx_data->cloud_connection_status = EDGE_STATE_CONNECTING;
+    }
+}
+#endif
 #ifdef _WIN32
 static struct event *console_shutdown_event;
 static SRWLOCK console_shutdown_lock = SRWLOCK_INIT;
@@ -676,11 +690,18 @@ EDGE_LOCAL void clean(struct context *ctx)
 void register_cb(void)
 {
     (g_program_context->ctx_data)->cloud_connection_status = EDGE_STATE_CONNECTED;
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+    free_old_cloud_error(g_program_context->ctx_data);
+    edge_network_watch_cloud(network_watch, true, false);
+#endif
 }
 
 void unregister_cb(void)
 {
     (g_program_context->ctx_data)->cloud_connection_status = EDGE_STATE_CONNECTING;
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+    edge_network_watch_cloud(network_watch, false, true);
+#endif
 }
 
 EDGE_LOCAL void free_old_cloud_error(struct ctx_data *ctx_data)
@@ -701,6 +722,9 @@ void error_cb(int error_code, const char *error_description)
     free_old_cloud_error(ctx_data);
     ctx_data->cloud_error = ce;
     ctx_data->cloud_connection_status = EDGE_STATE_ERROR;
+#if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
+    edge_network_watch_cloud(network_watch, false, edgeclient_transient_network_error(error_code));
+#endif
 }
 
 int32_t edgeserver_get_number_registered_endpoints_count()
@@ -1091,6 +1115,10 @@ int testable_main(int argc, char **argv)
                                              status_pipe_snapshot, g_program_context);
         if (!status_pipe) { rc = 1; break; }
         listeners.status_pipe.listening = true;
+        network_watch = edge_network_watch_start(g_program_context->ev_base, reconnect_cloud_network, NULL);
+        if (!network_watch) { rc = 1; break; }
+        if (g_program_context->ctx_data->cloud_connection_status == EDGE_STATE_CONNECTED)
+            edge_network_watch_cloud(network_watch, true, false);
 #endif
         /* Readiness is local initialization; cloud reachability is asynchronous. */
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
@@ -1109,6 +1137,8 @@ int testable_main(int argc, char **argv)
     rpc_request_timeout_api_stop(timeout_handler);
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
     edge_status_pipe_stop(status_pipe);
+    edge_network_watch_stop(network_watch);
+    network_watch = NULL;
 #endif
 #ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
     edge_pt_pipe_stop(pipe_listener);

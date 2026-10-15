@@ -11,7 +11,8 @@ else ()
     list(FILTER SOURCES EXCLUDE REGEX "/common/json2cbor(_utils)?\\.c$")
     list(APPEND SOURCES ../common/edge-io-lib/edge_io_windows.c)
     list(APPEND SOURCES windows/edge_service.c windows/json2cbor_windows.c
-         windows/edge_runtime_config.c windows/edge_status_pipe.c)
+         windows/edge_runtime_config.c windows/edge_status_pipe.c
+         windows/edge_network_recovery.c windows/edge_network_policy.c)
     if (EDGE_WINDOWS_AF_UNIX_AVAILABLE)
       list(APPEND SOURCES windows/edge_pt_unix.c)
     endif ()
@@ -67,7 +68,7 @@ if (WIN32 AND NOT TARGET_GROUP STREQUAL test)
   if (EDGE_WINDOWS_AF_UNIX_AVAILABLE)
     target_compile_definitions(edge-core PRIVATE MBED_EDGE_WINDOWS_AF_UNIX=1)
   endif ()
-  target_link_libraries(edge-core advapi32 shell32)
+  target_link_libraries(edge-core advapi32 shell32 iphlpapi powrprof)
   if (MSVC)
     # An implicit C declaration can truncate returned pointers on Windows x64.
     target_compile_options(edge-core PRIVATE /we4013)
