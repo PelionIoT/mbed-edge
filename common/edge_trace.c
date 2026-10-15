@@ -27,7 +27,12 @@
 #else
 #include <unistd.h>
 #include <sys/types.h>
+#ifdef __APPLE__
+#include <pthread.h>
+#include <inttypes.h>
+#else
 #include <sys/syscall.h>
+#endif
 #endif
 #include <assert.h>
 #include <stdlib.h>
@@ -42,7 +47,11 @@
  * \brief Trace prefix string length. Trace prefix format: YYYY-MM-DD hh:mm:ss.mmm tid:xxxxxxxxxx with one trailing
  * whitespace (39 chars + trailing nil)
  */
+#ifdef __APPLE__
+#define TRACE_PREFIX_SIZE 56
+#else
 #define TRACE_PREFIX_SIZE 40
+#endif
 
 /*
  * \brief holds the current timestamp string
@@ -109,12 +118,19 @@ EDGE_LOCAL char *edge_trace_prefix(size_t size)
 #ifdef _WIN32
         unsigned long tid = GetCurrentThreadId();
         strftime(trace_prefix, TRACE_PREFIX_SIZE, "%Y-%m-%d %H:%M:%S.", t);
+#elif defined(__APPLE__)
+        uint64_t tid = 0;
+        pthread_threadid_np(NULL, &tid);
+        strftime(trace_prefix, TRACE_PREFIX_SIZE, "%F %H:%M:%S.", t);
 #else
         pid_t tid = syscall(__NR_gettid);
         strftime(trace_prefix, TRACE_PREFIX_SIZE, "%F %H:%M:%S.", t);
 #endif
 #ifdef _WIN32
         snprintf(trace_prefix + 19, TRACE_PREFIX_SIZE - 19, ".%03u tid:%7lu ",
+                 (unsigned)(ns / 1000000), tid);
+#elif defined(__APPLE__)
+        snprintf(trace_prefix + 19, TRACE_PREFIX_SIZE - 19, ".%03u tid:%7" PRIu64 " ",
                  (unsigned)(ns / 1000000), tid);
 #else
         sprintf(trace_prefix + 19, ".%03d tid:%7d ", (int) (ns / 1.0e6), (int) tid);

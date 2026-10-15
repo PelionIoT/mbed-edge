@@ -32,6 +32,65 @@ addresses may describe configuration and must not be displayed as active.
 | `namedPipe` | Unavailable | Optional Win32 PT byte pipe | `\\.\pipe\<name>` |
 | `statusPipe` | Unavailable | Default Win32 status pipe | `\\.\pipe\IzumaEdgeCoreStatus` |
 
+## macOS Unix status
+
+On Apple Silicon macOS 14+, `GET /status` uses a separate AF_UNIX HTTP socket.
+The PT WebSocket socket keeps its existing `afUnix` entry. macOS adds
+`connectivity.listeners.statusUnix`, with protocol `http` and an absolute local
+socket path. TCP status is disabled by default; `--status-tcp` enables it with
+`--bind 127.0.0.1` or `--bind ::1` and `--http-port`. Other bind addresses and
+invalid ports are rejected. The `http` entry describes this optional TCP listener.
+
+The foreground default is `edge-status/status.sock` beneath the working
+directory. Use `--status-socket <path>` to select another path. Relative paths
+resolve beneath the working directory; the absolute UTF-8 path must fit in 103
+bytes plus its terminating NUL. Path components cannot be symlinks, `.` or `..`.
+Use `/private/tmp` explicitly for temporary development paths because `/tmp` is
+a system symlink. Installed deployments should use:
+
+```text
+/Library/Application Support/Izuma/EdgeCore/run/status/status.sock
+```
+
+Only the final status directory may be created by Core. It must be owned by
+the running service UID, permit owner writes, and have no group write or world
+permissions; `0750` or `0700` are suitable. Ancestors must belong to root or the
+service UID and exclude group/world writes, apart from root-owned sticky
+temporary directories. Extended ACL write grants are refused. These checks
+also apply to the persistent lock file, which must be a regular owner-private
+file with one link. Core holds an exclusive lock until shutdown and leaves the
+lock file in place so future processes lock the same inode.
+
+The socket has mode `0660` and inherits the protected status directory's group.
+The installer selects that reader group, normally `staff`, and gives the
+service permission to use it. Group readers require search access through the
+parent path; they cannot replace the socket. Connecting requires socket write
+permission even though the API is read-only. [Darwin's Unix socket access check](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/uipc_usrreq.c).
+
+Startup refuses an active listener, regular file, symlink, or unexpected owner
+at the socket path. A socket owned by the service is removed as stale only when
+a nonblocking connection reports `ECONNREFUSED` and its inode still matches.
+Shutdown removes only the socket inode created by this instance. The Unix
+listener starts after local credential and PT initialization, so an
+unprovisioned startup does not create a status socket.
+
+Each macOS HTTP listener permits at most eight active connections. Connections
+have a fixed five-second lifetime, including clients that keep sending partial
+headers. Headers are limited to 8 KiB, request bodies to 1 KiB, and serialized
+status JSON to 64 KiB. Responses close the connection and valid status replies
+use `Cache-Control: no-store`. Oversized JSON returns HTTP 500 without a partial
+snapshot. The Unix response uses the same URI redaction as the Windows pipe;
+optional TCP retains the full URI as on Windows/Linux.
+
+Native Debug/Release coverage includes real Unix HTTP requests, malformed and
+oversized requests, slow clients, event-loop responsiveness, socket write
+permission denial, ACL and symlink rejection, duplicate startup, stale/crashed
+listener recovery, replacement-safe cleanup, URI redaction, kernel peer UID/PID,
+and simultaneous optional TCP status. Cross-account/group access and the monitor's
+launchd service-identity verification remain deployment qualification work.
+
+## Linux and Windows listener details
+
 The HTTP address is read from the bound socket, so an OS-selected port is
 reported correctly. Windows reports `http.enabled: false` and
 `http.listening: false` when the TCP status listener is disabled. PT TCP uses

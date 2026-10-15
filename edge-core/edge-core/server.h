@@ -100,6 +100,9 @@ struct cloud_error {
 
 struct ctx_data {
     struct http_server *http_server;
+#ifdef __APPLE__
+    struct http_server *status_unix_server;
+#endif
     struct edge_listener_status *listener_status;
     edge_state cloud_connection_status;
     struct cloud_error *cloud_error;

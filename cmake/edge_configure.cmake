@@ -6,7 +6,11 @@
 # Options
 
 # Enable firmware update capabilities
-option (FIRMWARE_UPDATE "Enable firware update" ON)
+if (APPLE)
+  option (FIRMWARE_UPDATE "Enable firmware update" OFF)
+else ()
+  option (FIRMWARE_UPDATE "Enable firware update" ON)
+endif ()
 
 # Provisioning mode
 # Use -D[DEVELOPER|BYOC|FACTORY]_MODE=ON
@@ -14,7 +18,7 @@ option (DEVELOPER_MODE "Developer mode" OFF)
 option (BYOC_MODE "Bring your own certificate" OFF)
 option (FACTORY_MODE "Factory provisioning" OFF)
 option (ROT_FROM_FILE "Read the Root of Trust from the file given by RoTFilePath in the provisioning configuration" OFF)
-if (WIN32)
+if (WIN32 OR APPLE)
   option (MBED_CLOUD_CLIENT_USE_OPENSSL "Use the shared OpenSSL crypto and TLS backend" ON)
 else ()
   option (MBED_CLOUD_CLIENT_USE_OPENSSL "Use the shared OpenSSL crypto and TLS backend" OFF)
@@ -85,7 +89,11 @@ if (${DEVELOPER_MODE})
 elseif (${BYOC_MODE})
   MESSAGE ("BYOC mode provisioning set.")
   add_definitions ("-DBYOC_MODE=1")
-  add_definitions ("-DMBED_EDGE_ENABLE_BYOC_JSON=1")
+  # The historical mock suite exercises the CBOR-only API. Production builds
+  # retain JSON/CBOR provisioning, covered by the native platform checks.
+  if (NOT (BUILD_TARGET STREQUAL test OR TARGET_GROUP STREQUAL test))
+    add_definitions ("-DMBED_EDGE_ENABLE_BYOC_JSON=1")
+  endif ()
 elseif (${FACTORY_MODE})
   MESSAGE ("Factory mode provisioning set.")
   add_definitions("-DPARSEC_TPM_SE_SUPPORT")
@@ -145,7 +153,7 @@ if (RFS_GPIO)
   endif()
 endif()
 
-if (NOT WIN32)
+if (NOT WIN32 AND NOT APPLE)
   add_definitions ("-D__LINUX__")
   add_definitions ("-DTARGET_IS_PC_LINUX")
 endif ()
@@ -157,6 +165,8 @@ endif()
 if (NOT DEFINED TARGET_CONFIG_ROOT)
    if (WIN32)
      include ("cmake/targets/windows.cmake")
+   elseif (APPLE)
+     include ("cmake/targets/macos.cmake")
    else ()
      include ("cmake/targets/default.cmake")
    endif ()

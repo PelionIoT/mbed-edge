@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "edge-core/status_public.h"
 
 #ifdef EDGE_STATUS_PIPE_TEST_NAMESPACE
 /* Only the standalone test target defines this; live service IPC stays fixed. */
@@ -23,6 +24,5 @@ typedef char *(*edge_status_snapshot_fn)(void *context);
 struct edge_status_pipe *edge_status_pipe_start(struct event_base *base,
     edge_status_snapshot_fn snapshot, void *context);
 void edge_status_pipe_stop(struct edge_status_pipe *listener);
-bool edge_status_public_uri(const char *uri, char *result, size_t capacity);
 
 #endif

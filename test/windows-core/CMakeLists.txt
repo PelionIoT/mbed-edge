@@ -48,7 +48,9 @@ target_link_libraries(windows-listener-status-tests event jansson ws2_32)
 target_compile_options(windows-listener-status-tests PRIVATE /W4 /WX)
 add_test(NAME windows-core-listener-status COMMAND windows-listener-status-tests)
 set_tests_properties(windows-core-listener-status PROPERTIES TIMEOUT 10)
-add_executable(windows-status-pipe-tests windows_status_pipe_tests.c ../../edge-core/windows/edge_status_pipe.c)
+add_executable(windows-status-pipe-tests windows_status_pipe_tests.c ../../edge-core/windows/edge_status_pipe.c
+    ../../edge-core/status_public.c)
+target_include_directories(windows-status-pipe-tests PRIVATE ../../edge-core)
 # Isolate this listener from an installed service and other compiler build trees.
 string(SHA256 status_test_namespace "${CMAKE_BINARY_DIR}")
 string(SUBSTRING "${status_test_namespace}" 0 16 status_test_namespace)

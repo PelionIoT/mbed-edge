@@ -1520,7 +1520,7 @@ EDGE_LOCAL void edgeclient_setup_credentials(bool reset_storage, byoc_data_t *by
     tr_debug("fcc_verify_device_configured_4mbed_cloud  = %d", status);
     tr_debug("reset_storage  = %d", reset_storage);
     if (reset_storage || status != FCC_STATUS_SUCCESS) {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
         if (edgeclient_inject_byoc(byoc_data) != 0) {
             tr_err("Runtime provisioning could not be read or converted - exit");
             edgeclient_destroy_byoc_data(byoc_data);

@@ -1,19 +1,23 @@
 /* SPDX-License-Identifier: Apache-2.0
- * Windows JSON provisioning adapter for the existing FCC bundle schema.
+ * Desktop JSON provisioning adapter for the existing FCC bundle schema.
  */
+#ifdef _WIN32
 #include <windows.h>
+#include <wchar.h>
+#else
+#include <unistd.h>
+#endif
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 #include <jansson.h>
 #include "tinycbor.h"
 #include "common/json2cbor.h"
 #include "common/read_file.h"
 #include "mbed-trace/mbed_trace.h"
 
-#define TRACE_GROUP "winbyoc"
+#define TRACE_GROUP "byoc"
 #define MAX_JSON_BYTES (1024u * 1024u)
 #define MAX_BUNDLE_BYTES (16u * 1024u * 1024u)
 typedef struct { uint8_t *data; size_t length; char *path; } der_blob;
@@ -28,6 +32,7 @@ static const char *string_field(json_t *object, const char *name)
 
 static char *absolute_path(const char *path)
 {
+#ifdef _WIN32
     int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, NULL, 0);
     wchar_t *wide = count ? calloc((size_t)count, sizeof(wchar_t)) : NULL;
     wchar_t *full = NULL;
@@ -43,16 +48,25 @@ static char *absolute_path(const char *path)
 done:
     free(full); free(wide);
     return result;
+#else
+    return realpath(path, NULL);
+#endif
 }
 
 static char *der_path(const char *json_path, const char *reference)
 {
     if (!reference || !*reference) return NULL;
+#ifdef _WIN32
     if (strlen(reference) >= 3 && reference[1] == ':' &&
         (reference[2] == '/' || reference[2] == '\\')) return absolute_path(reference);
     /* Reject drive-relative and remote paths; factory bundles use local files. */
     if (strchr(reference, ':') || reference[0] == '/' || reference[0] == '\\') return NULL;
     const char *slash = strrchr(json_path, '\\');
+#else
+    if (strchr(reference, ':') || strchr(reference, '\\')) return NULL;
+    if (reference[0] == '/') return absolute_path(reference);
+    const char *slash = strrchr(json_path, '/');
+#endif
     if (!slash) return NULL;
     size_t prefix = (size_t)(slash + 1 - json_path);
     char *joined = malloc(prefix + strlen(reference) + 1);
@@ -64,10 +78,20 @@ static char *der_path(const char *json_path, const char *reference)
     return full;
 }
 
+static void clear_bytes(void *data, size_t length)
+{
+#ifdef _WIN32
+    SecureZeroMemory(data, length);
+#else
+    volatile uint8_t *bytes = data;
+    while (length--) *bytes++ = 0;
+#endif
+}
+
 static void free_group(credential_group *group)
 {
     if (group->blobs) for (size_t i = 0; i < group->count; ++i) {
-        if (group->blobs[i].data) SecureZeroMemory(group->blobs[i].data, group->blobs[i].length);
+        if (group->blobs[i].data) clear_bytes(group->blobs[i].data, group->blobs[i].length);
         free(group->blobs[i].data); free(group->blobs[i].path);
     }
     free(group->blobs);
@@ -220,7 +244,7 @@ int json_to_cbor(const char *input_path, uint8_t **out_buf, size_t *buf_size)
     *out_buf = buffer; buffer = NULL;
     result = 0;
 done:
-    if (buffer) SecureZeroMemory(buffer,capacity);
+    if (buffer) clear_bytes(buffer,capacity);
     free(buffer); free(json_data); free(full_path); json_decref(root);
     free_group(&certs); free_group(&keys);
     if (result) tr_err("Invalid JSON provisioning or unreadable DER file; credentials were not imported.");
