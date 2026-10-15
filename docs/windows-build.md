@@ -54,7 +54,7 @@ Edge gitlink points to the resulting cloud-client merge, preserving Windows PAL.
 
 ## Build commands
 
-Prerequisites are Visual Studio 2022 C++ Build Tools, a Windows SDK, CMake 3.22
+Prerequisites are Visual Studio 2022 or 2026 C++ Build Tools, a Windows SDK, CMake 3.22
 or newer, a native x64 OpenSSL 3.x development SDK (headers, import libraries
 and DLLs), and the repository's initialized submodules. The helper can locate
 CMake bundled with Visual Studio when it is absent from `PATH`. For the main
@@ -62,6 +62,20 @@ project's older dependencies, use CMake 3.x or pass
 `-CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5'` with CMake 4.x.
 
 From PowerShell at the repository root:
+
+`-CMakeGenerator 'Visual Studio 17 2022'` and
+`-CMakeGenerator 'Visual Studio 18 2026'` explicitly select either compiler.
+The default `Auto` selects the newest installed supported C++ Build Tools.
+Use separate `-BuildDirectory` values when building both generators. Visual
+Studio 2026 requires a CMake version with its generator (validated with 4.4.4).
+The deployment target remains Windows 10 build 17763 or newer, independently
+of the build host, SDK and Visual Studio version. Both builds need runtime
+qualification on the advertised Windows editions.
+
+`-TestTemporaryDirectory C:/short/test-temp` overrides TEMP/TMP only for the
+native test process. Use a short, writable location that supports AF_UNIX socket
+reparse points; Windows AF_UNIX addresses have a 108-byte limit. The installer's
+full local build helper uses `edge-tests-temp` under the checkouts' workspace.
 
 ```powershell
 $openssl = 'C:/path/to/native-openssl-sdk'

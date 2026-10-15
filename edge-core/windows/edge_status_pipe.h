@@ -5,8 +5,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifdef EDGE_STATUS_PIPE_TEST_NAMESPACE
+/* Only the standalone test target defines this; live service IPC stays fixed. */
+#define EDGE_STATUS_PIPE_NAME "\\\\.\\pipe\\IzumaEdgeCoreStatusTest-" EDGE_STATUS_PIPE_TEST_NAMESPACE
+#define EDGE_STATUS_PIPE_NAME_W L"\\\\.\\pipe\\IzumaEdgeCoreStatusTest-" EDGE_STATUS_PIPE_TEST_NAMESPACE_W
+#else
 #define EDGE_STATUS_PIPE_NAME "\\\\.\\pipe\\IzumaEdgeCoreStatus"
 #define EDGE_STATUS_PIPE_NAME_W L"\\\\.\\pipe\\IzumaEdgeCoreStatus"
+#endif
 
 struct event_base;
 struct edge_status_pipe;

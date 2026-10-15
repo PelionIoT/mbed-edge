@@ -1,11 +1,14 @@
 # Build tools run on the developer machine; the application remains native Win32.
 [CmdletBinding(DefaultParameterSetName = 'Edge')]
 param(
-    [string]$BuildDirectory = (Join-Path $PSScriptRoot 'build/windows-x64'),
+    [string]$BuildDirectory,
     [ValidateSet('Debug', 'Release', 'RelWithDebInfo')]
     [string]$Configuration = 'Debug',
     [string]$CMakePath,
+    [ValidateSet('Auto', 'Visual Studio 17 2022', 'Visual Studio 18 2026')]
+    [string]$CMakeGenerator = 'Auto',
     [string]$OpenSSLRoot,
+    [string]$TestTemporaryDirectory,
     [switch]$ConfigureOnly,
     [Parameter(ParameterSetName = 'PalTests')]
     [switch]$PalTests,
@@ -19,6 +22,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if (-not $BuildDirectory) { $BuildDirectory = Join-Path $PSScriptRoot 'build/windows-x64' }
+if ($CMakeGenerator -eq 'Auto') {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    $vsVersion = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -version '[17.0,19.0)' -property installationVersion
+    if (-not $vsVersion) { throw 'Install Visual Studio 2022 or 2026 C++ Build Tools.' }
+    $CMakeGenerator = if (([version]$vsVersion).Major -eq 18) { 'Visual Studio 18 2026' } else { 'Visual Studio 17 2022' }
+}
 if (-not $CMakePath) {
     $cmakeCommand = Get-Command cmake -ErrorAction SilentlyContinue
     if ($cmakeCommand) {
@@ -71,7 +81,7 @@ if ($OpenSSLRoot) {
 }
 $configureArguments = @(
     '-S', $sourceDirectory, '-B', $BuildDirectory,
-    '-G', 'Visual Studio 17 2022', '-A', 'x64'
+    '-G', $CMakeGenerator, '-A', 'x64'
 ) + $profileArguments + $CMakeArgument
 Invoke-EdgeCMake -Arguments $configureArguments
 if (-not $ConfigureOnly) {
@@ -80,7 +90,12 @@ if (-not $ConfigureOnly) {
     Invoke-EdgeCMake -Arguments $buildArguments
     if ($PalTests -or $CoreTests) {
         $ctestPath = Join-Path (Split-Path -Parent $CMakePath) 'ctest.exe'
-        & $ctestPath --test-dir $BuildDirectory -C $Configuration --output-on-failure
+        if ($TestTemporaryDirectory) {
+            $testTemporary = [IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($TestTemporaryDirectory)).FullName
+            & $CMakePath -E env "TEMP=$testTemporary" "TMP=$testTemporary" $ctestPath --test-dir $BuildDirectory -C $Configuration --output-on-failure
+        } else {
+            & $ctestPath --test-dir $BuildDirectory -C $Configuration --output-on-failure
+        }
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 }

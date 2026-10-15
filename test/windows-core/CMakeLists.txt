@@ -49,6 +49,12 @@ target_compile_options(windows-listener-status-tests PRIVATE /W4 /WX)
 add_test(NAME windows-core-listener-status COMMAND windows-listener-status-tests)
 set_tests_properties(windows-core-listener-status PROPERTIES TIMEOUT 10)
 add_executable(windows-status-pipe-tests windows_status_pipe_tests.c ../../edge-core/windows/edge_status_pipe.c)
+# Isolate this listener from an installed service and other compiler build trees.
+string(SHA256 status_test_namespace "${CMAKE_BINARY_DIR}")
+string(SUBSTRING "${status_test_namespace}" 0 16 status_test_namespace)
+target_compile_definitions(windows-status-pipe-tests PRIVATE
+  "EDGE_STATUS_PIPE_TEST_NAMESPACE=\"${status_test_namespace}\""
+  "EDGE_STATUS_PIPE_TEST_NAMESPACE_W=L\"${status_test_namespace}\"")
 target_link_libraries(windows-status-pipe-tests event advapi32 ws2_32)
 target_compile_options(windows-status-pipe-tests PRIVATE /W4 /WX)
 add_test(NAME windows-core-status-pipe COMMAND windows-status-pipe-tests)
