@@ -20,6 +20,12 @@
 
 #define TRACE_GROUP "edgecc"
 
+#ifdef __APPLE__
+// libwebsockets includes C++ standard headers. Load it before the C linkage
+// block below so older Apple libc++ headers keep their C++ template linkage.
+#include "libwebsockets.h"
+#endif
+
 extern "C" {
 #include "common/integer_length.h"
 #include "edge-core/edge_server.h"
