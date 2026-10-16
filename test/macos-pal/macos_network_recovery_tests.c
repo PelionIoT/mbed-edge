@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <event2/event.h>
+#include <event2/thread.h>
 #include "edge_network_recovery.h"
 #include "macos/edge_network_config.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
@@ -41,6 +42,15 @@ static void configuration_tests(void)
     CFDictionarySetValue(ipv4, CFSTR("InterfaceName"), CFSTR("en0"));
     CFDictionaryRef path = edge_macos_network_snapshot(values); CHECK(path && !CFEqual(before, path));
     CFRelease(path);
+    CFMutableDictionaryRef setup_dns = CFDictionaryCreateMutableCopy(NULL, 0, dns);
+    CFDictionarySetValue(values, CFSTR("Setup:/Network/Service/test-vpn/DNS"), setup_dns);
+    CFDictionaryRef setup = edge_macos_network_snapshot(values); CHECK(setup);
+    CFDictionarySetValue(setup_dns, CFSTR("SearchDomains"), CFSTR("setup.example"));
+    CFDictionaryRef setup_changed = edge_macos_network_snapshot(values);
+    CHECK(setup_changed && !CFEqual(setup, setup_changed));
+    CFRelease(setup_changed); CFRelease(setup);
+    CFDictionaryRemoveValue(values, CFSTR("Setup:/Network/Service/test-vpn/DNS"));
+    CFRelease(setup_dns);
     CFDictionaryRemoveAllValues(values);
     CFDictionaryRef empty = edge_macos_network_snapshot(values); CHECK(empty && !CFEqual(before, empty));
     CHECK(!edge_macos_network_snapshot(NULL));
@@ -69,6 +79,8 @@ static void route_tests(void)
 #endif
     route.rtm_type = RTM_GET; route.rtm_flags = RTF_UP;
     CHECK(!edge_macos_network_route_changes(&route, sizeof(route)));
+    route.rtm_type = RTM_MISS;
+    CHECK(!edge_macos_network_route_changes(&route, sizeof(route)));
     route.rtm_type = RTM_IFINFO;
     CHECK(edge_macos_network_route_changes(&route, sizeof(route)) == EDGE_MACOS_NETWORK_RECHECK);
     struct ifa_msghdr address = {0};
@@ -87,10 +99,17 @@ static void unexpected(unsigned reason, void *context)
 int main(void)
 {
     configuration_tests(); route_tests();
+    CHECK(!evthread_use_pthreads());
     struct event_base *base = event_base_new(); CHECK(base);
     for (int i = 0; i < 3; ++i) {
         struct edge_network_watch *watch = edge_network_watch_start(base, unexpected, NULL); CHECK(watch);
+        CHECK(edge_network_watch_test_timer_pending(watch));
         edge_network_watch_cloud(watch, true, false);
+        CHECK(!edge_network_watch_test_timer_pending(watch));
+        edge_network_watch_cloud(watch, false, true);
+        CHECK(edge_network_watch_test_timer_pending(watch));
+        edge_network_watch_cloud(watch, true, false);
+        CHECK(!edge_network_watch_test_timer_pending(watch));
         struct timeval delay = {0, 10000};
         CHECK(!event_base_loopexit(base, &delay));
         CHECK(!event_base_dispatch(base));

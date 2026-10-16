@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <event2/event.h>
+#include <event2/thread.h>
 #include "edge_network_recovery.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 static void unexpected(unsigned reason, void *context)
@@ -13,6 +14,7 @@ int main(void)
     edge_network_policy p;
     edge_network_policy_init(&p, 1000);
     edge_network_policy_cloud(&p, 1001, true, false);
+    CHECK(edge_network_policy_deadline(&p) == UINT64_MAX);
     CHECK(!edge_network_policy_step(&p, 1000000)); /* Healthy clients remain undisturbed. */
     edge_network_policy_change(&p, 1000000, EDGE_NETWORK_ROUTE);
     edge_network_policy_change(&p, 1001000, EDGE_NETWORK_DNS);
@@ -51,10 +53,17 @@ int main(void)
     CHECK(edge_network_policy_step(&p, 20000) == EDGE_NETWORK_ADDRESS); /* Debounce has an upper bound. */
     /* Register/cancel actual native watchers repeatedly; teardown must not race callbacks. */
     WSADATA sockets; CHECK(!WSAStartup(MAKEWORD(2,2), &sockets));
+    CHECK(!evthread_use_windows_threads());
     struct event_base *base = event_base_new(); CHECK(base);
     for (int i = 0; i < 10; ++i) {
         struct edge_network_watch *watch = edge_network_watch_start(base, unexpected, NULL); CHECK(watch);
+        CHECK(edge_network_watch_test_timer_pending(watch));
         edge_network_watch_cloud(watch, true, false);
+        CHECK(!edge_network_watch_test_timer_pending(watch));
+        edge_network_watch_cloud(watch, false, true);
+        CHECK(edge_network_watch_test_timer_pending(watch));
+        edge_network_watch_cloud(watch, true, false);
+        CHECK(!edge_network_watch_test_timer_pending(watch));
         event_base_loop(base, EVLOOP_NONBLOCK);
         edge_network_watch_stop(watch);
     }

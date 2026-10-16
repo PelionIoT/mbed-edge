@@ -47,3 +47,17 @@ unsigned edge_network_policy_step(edge_network_policy *p, uint64_t now)
     if (p->retry_ms > 120000) p->retry_ms = 120000;
     return reason;
 }
+uint64_t edge_network_policy_deadline(const edge_network_policy *p)
+{
+    if (p->blocked || (!p->pending && !p->recovering)) return UINT64_MAX;
+    uint64_t deadline = p->recovering ? p->next_retry : UINT64_MAX;
+    if (p->pending) {
+        uint64_t settle = p->changed_at + 2000;
+        uint64_t bound = p->first_change + 10000;
+        if (settle > bound) settle = bound;
+        if (deadline > settle) deadline = settle;
+    }
+    if (p->last_attempt && deadline < p->last_attempt + 10000)
+        deadline = p->last_attempt + 10000;
+    return deadline;
+}

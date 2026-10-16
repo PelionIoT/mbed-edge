@@ -6,6 +6,13 @@ Continue on `codex/shared-network-recovery` in `PelionIoT/mbed-edge`.
 The user requested code changes, this Markdown handoff, a new commit and a push;
 the macOS agent will perform native compilation and runtime validation.
 
+**Latest requirement: network/DNS discovery must be entirely OS-event driven
+on both Windows and macOS.** The follow-up to `50bb40e` removes the periodic
+watcher timers and snapshot scans from that earlier implementation. Fetch the
+latest branch before continuing. One-shot event debounce and known connection
+failure retries remain; a healthy watcher has no recovery timer armed when
+there is no pending OS event. See [the four-project source comparison](network-change-open-source-review.md).
+
 This branch integrates the existing macOS port (`4dd884af8746b63aaa26fa51aba1a5984074c2ba`)
 with the Windows recovery prerequisite (`b9416983101c21b56e85398b6e4ccc75cd9bbbe7`).
 The integration merge is `4d97778`. Check out the complete branch rather than
@@ -40,17 +47,32 @@ failure. No provisioning material is included in this branch or handoff.
   SystemConfiguration and IOKit. The Core libevent thread receives atomic reason
   flags and runs recovery. System callbacks never perform DNS queries, cloud
   registration or credential changes. IOKit sleep messages are acknowledged
-  promptly; wake schedules recovery. A continuous-clock gap provides a fallback.
+  promptly; wake schedules recovery. `CFRunLoopRun` blocks for OS events, with
+  custom run-loop sources for explicit configuration rechecks and shutdown.
+  There is no heartbeat or clock-gap sleep detector. Required configuration
+  and power subscription failures cause watcher initialization to fail.
 - `edge-core/macos/edge_network_config.c`: normalized current-state snapshots
   include global/per-service DNS, scoped VPN DNS domains, resolver order,
   IPv4/IPv6 path fields and interface Link state. Lease timestamps and counters
-  are excluded. Notifications are backed by a five-second snapshot check.
-  Inspection failures preserve the old snapshot and retry the store session.
+  are excluded. Initial inspection and OS notifications are the only snapshot
+  triggers. Both `State:` and `Setup:` per-service DNS keys are subscribed,
+  including manual resolver changes; the latter was added after reviewing
+  Firefox. Inspection failures preserve the old snapshot and subscription,
+  request recovery for the known event and await a new OS notification.
 - A nonblocking read-only `PF_ROUTE` socket watches route add/delete/change and
   address notifications, including split-tunnel changes. Neighbor/cache clones,
   failed route requests and `RTM_GET` replies are ignored. `RTM_IFINFO` causes a
   configuration recheck rather than reconnecting on traffic counters. Routing
-  reads are bounded per event-loop turn. The socket is reopened after errors.
+  reads are bounded per event-loop turn. `RTM_MISS` is also ignored: failed
+  lookups must not create a reconnect feedback loop. A failed socket can reopen
+  on another OS event or a known connection-failure deadline; no reopen scan
+  runs while the connection is healthy.
+- Windows uses IP Helper route/address/interface callbacks, power callbacks and
+  four DNS registry subscriptions. Its DNS worker uses
+  `WaitForMultipleObjects(..., INFINITE)` and rearms each registry subscription
+  before requesting inspection. Missing policy keys are watched through an
+  existing ancestor. Both platforms wake libevent directly and schedule only
+  the next policy deadline with a one-shot timer.
 - `edge-client/edge_client.cpp` and `edge_client_impl.h`: native Windows/macOS
   recovery serializes with the cloud scheduler, pauses the old cloud connection,
   then resumes using the current platform resolver and routing configuration.
@@ -63,7 +85,7 @@ failure. No provisioning material is included in this branch or handoff.
   reconnect behavior is retained. The shared policy itself is portable C.
 
 Reason mask: route=1, address=2, configuration/DNS=4, resume=8, fallback retry=16.
-The internal macOS recheck flag (32) is consumed before policy processing.
+The internal configuration-recheck flag (32) is consumed before policy processing.
 Connected still requires the cloud client's successful registration callback.
 
 ## Tests added and local checks
@@ -71,18 +93,30 @@ Connected still requires the cloud client's successful registration callback.
 - `test/network-recovery`: standalone portable policy tests, including initial
   registration deadline, burst coalescing, sustained storms, bounded backoff,
   resume while backing off, permanent-error suppression and recovery thereafter.
+  Deadline assertions verify that healthy/blocked states have no pending work.
 - `test/macos-pal/macos_network_recovery_tests.c`: scoped DNS changes, resolver
   ordering, primary-interface changes, ignored lease metadata, empty snapshots,
-  unaligned/truncated route frames, neighbor filtering and repeated native
-  watcher start/stop. These tests are wired into the full macOS test build.
+  unaligned/truncated route frames, neighbor/failed-lookup filtering, `Setup:`
+  DNS snapshots and repeated native watcher start/stop. Lifecycle assertions
+  verify the timer is armed for startup/failure and disarmed after connection.
+  These tests are wired into the full macOS test build.
 - Portable policy tests: **1/1 passed** with MSVC 2026 on the Windows host.
 - Windows native Core regression suite: **16/16 passed** with VS2026 and
-  **16/16 passed** with VS2022 after the shared refactor and macOS-port merge.
+  **16/16 passed** with VS2022 after the event-driven rewrite, including native
+  registry subscription lifecycle and no-idle-timer assertions. Monitor/CLI
+  regression checks passed **3/3** with each compiler. The unified 0.21.1035
+  qualification MSI passed seven delivery checks and three branding checks.
   Commands used `build-windows.ps1 -Configuration Release -CoreTests -Jobs 4`,
   the matching generator, pinned OpenSSL SDK and workspace-local test temporary
-  directory. Local logs are `build/shared-recovery-vs2026.log` and
-  `build/shared-recovery-vs2022.log` (ignored build outputs, not pushed).
+  directory. The combined local log is in the sibling installer checkout at
+  `build/logs/event-installer-0.21.1035.log` (ignored output, not pushed).
 - The macOS-specific sources/tests have not been compiled or run here.
+- Windows laptop: the event-driven 0.21.1035 qualification MSI installed with
+  exit code 0, retained provisioning, matched the built executable hash and
+  recovered from a controlled cloud TCP reset in 16.4 seconds in the same
+  process (PID 28324). Subsequent live status was Connected. Startup logged
+  successful route/address/interface/power and four DNS registry subscriptions.
+  This is not a substitute for native DNS/VPN/wake event qualification.
 
 ## Continue on the Mac
 
@@ -152,8 +186,11 @@ but it does not automatically exercise VPN, route or sleep recovery.
 1. Establish a real cloud connection and record Core's PID, cloud identity and
    status socket. Confirm native DNS and power notifications register, and
    check whether routing notifications work under the intended daemon account.
+   Prove the worker remains blocked without periodic timer wakeups while healthy.
 2. Toggle the target VPN on/off repeatedly, including its scoped DNS and
-   split-tunnel modes; switch Wi-Fi/Ethernet; change DNS and restore it.
+   split-tunnel modes; switch Wi-Fi/Ethernet; change DNS and restore it. Exercise
+   DNS-only edits to `Setup:` as well as effective `State:` changes. Test a
+   notification that precedes publication of the final resolver state.
 3. Suspend/wake repeatedly, including wake with networking unavailable and
    restoring connectivity afterwards. Sleep must not gain a 30-second delay
    from missed IOKit acknowledgements.
@@ -166,6 +203,8 @@ but it does not automatically exercise VPN, route or sleep recovery.
 6. Confirm translator registrations and device identity survive recovery, stale
    error status clears after registration, retries remain bounded, and no
    credential material is exposed in logs. Capture actual reconnection times.
+7. Review subscription loss and route-socket failure behavior against the open
+   source comparison's remaining gaps. Do not add a periodic scan fallback.
 
 Do not label macOS recovery validated until these checks run on a real Mac.
 The existing `.github/workflows/macos-checks.yml` covers macOS 14/26 Debug and

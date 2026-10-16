@@ -64,7 +64,8 @@ if(TARGET event)
         "${EDGE_ROOT}/edge-core/macos/edge_network_recovery.c")
     target_include_directories(macos-network-recovery-tests PRIVATE "${EDGE_ROOT}/edge-core")
     target_compile_options(macos-network-recovery-tests PRIVATE -Wall -Wextra -Werror)
-    target_link_libraries(macos-network-recovery-tests PRIVATE event Threads::Threads
+    target_compile_definitions(macos-network-recovery-tests PRIVATE EDGE_NETWORK_RECOVERY_TESTING=1)
+    target_link_libraries(macos-network-recovery-tests PRIVATE event event_pthreads Threads::Threads
         ${PAL_SYSTEM_CONFIGURATION} ${PAL_CORE_FOUNDATION} ${PAL_IOKIT})
     add_test(NAME macos-core-network-recovery COMMAND macos-network-recovery-tests)
     set_tests_properties(macos-core-network-recovery PROPERTIES TIMEOUT 30)

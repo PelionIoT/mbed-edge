@@ -19,10 +19,15 @@ void edge_network_policy_init(edge_network_policy *policy, uint64_t now);
 void edge_network_policy_change(edge_network_policy *policy, uint64_t now, unsigned reason);
 void edge_network_policy_cloud(edge_network_policy *policy, uint64_t now, bool connected, bool transient);
 unsigned edge_network_policy_step(edge_network_policy *policy, uint64_t now);
+/* UINT64_MAX means completely idle: no heartbeat or network polling timer. */
+uint64_t edge_network_policy_deadline(const edge_network_policy *policy);
 struct edge_network_watch *edge_network_watch_start(struct event_base *base,
     void (*reconnect)(unsigned reason, void *context), void *context);
 void edge_network_watch_cloud(struct edge_network_watch *watch, bool connected, bool transient);
 void edge_network_watch_stop(struct edge_network_watch *watch);
+#ifdef EDGE_NETWORK_RECOVERY_TESTING
+bool edge_network_watch_test_timer_pending(struct edge_network_watch *watch);
+#endif
 #ifdef __cplusplus
 }
 #endif

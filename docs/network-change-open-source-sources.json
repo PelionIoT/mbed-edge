@@ -1,0 +1,118 @@
+{
+  "reviewedOn": "2026-10-15",
+  "purpose": "Pinned primary implementation sources for network change comparison",
+  "sources": [
+    {
+      "project": "chromium",
+      "repo": "chromium/chromium",
+      "revision": "4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e",
+      "path": "net/base/network_change_notifier_win.cc",
+      "url": "https://github.com/chromium/chromium/blob/4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e/net/base/network_change_notifier_win.cc",
+      "sha256": "DA974314A76BAC84CB3884CDD95B7D5DE4C3A20805C4865EADD079166716854C"
+    },
+    {
+      "project": "chromium",
+      "repo": "chromium/chromium",
+      "revision": "4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e",
+      "path": "net/base/network_change_notifier_apple.mm",
+      "url": "https://github.com/chromium/chromium/blob/4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e/net/base/network_change_notifier_apple.mm",
+      "sha256": "12183EDB7ABF0BE7CF8E162815BFD13318C8BD56639191007EBD4F48A2078D55"
+    },
+    {
+      "project": "chromium",
+      "repo": "chromium/chromium",
+      "revision": "4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e",
+      "path": "net/dns/dns_config_service_win.cc",
+      "url": "https://github.com/chromium/chromium/blob/4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e/net/dns/dns_config_service_win.cc",
+      "sha256": "203D2E363EFA24AD22410B225559A20DA34D79730BEB7E8AF4FD7E4075098753"
+    },
+    {
+      "project": "chromium",
+      "repo": "chromium/chromium",
+      "revision": "4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e",
+      "path": "net/dns/dns_config_watcher_mac.cc",
+      "url": "https://github.com/chromium/chromium/blob/4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e/net/dns/dns_config_watcher_mac.cc",
+      "sha256": "0E6E008FABFAAFC96E3A5A2781CAB157579366EA1C3929A1C75446CECB8EC2DB"
+    },
+    {
+      "project": "chromium",
+      "repo": "chromium/chromium",
+      "revision": "4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e",
+      "path": "net/dns/notify_watcher_mac.cc",
+      "url": "https://github.com/chromium/chromium/blob/4d8446cfe178eafd3fa1b905af7e1d6fe9c6860e/net/dns/notify_watcher_mac.cc",
+      "sha256": "C485A8B71DBB05EFD938BC7C2D789CE65D30E522516254AFD2C485C3BE1A8C99"
+    },
+    {
+      "project": "firefox",
+      "repo": "mozilla-firefox/firefox",
+      "revision": "751f5671de2d327ff436154dfca6ed1733809163",
+      "path": "netwerk/system/win32/nsNotifyAddrListener.cpp",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/751f5671de2d327ff436154dfca6ed1733809163/netwerk/system/win32/nsNotifyAddrListener.cpp",
+      "sha256": "2FDE461778A3328421B46BB7EE3BA3F59C130DBE7EB5884A4A3E5743970430D9"
+    },
+    {
+      "project": "firefox",
+      "repo": "mozilla-firefox/firefox",
+      "revision": "751f5671de2d327ff436154dfca6ed1733809163",
+      "path": "netwerk/system/mac/nsNetworkLinkService.mm",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/751f5671de2d327ff436154dfca6ed1733809163/netwerk/system/mac/nsNetworkLinkService.mm",
+      "sha256": "37D5E4805BEC5873985892BDF70775413845FF384E7C96E33EAFCD7FA86A9A48"
+    },
+    {
+      "project": "tailscale",
+      "repo": "tailscale/tailscale",
+      "revision": "e9d5cdc3231edd3f93254c16f505fd86344a9faf",
+      "path": "net/netmon/netmon_windows.go",
+      "url": "https://github.com/tailscale/tailscale/blob/e9d5cdc3231edd3f93254c16f505fd86344a9faf/net/netmon/netmon_windows.go",
+      "sha256": "E2BE78E283633967FA87570A4B39A8B65BBA41E8E974A3B5A0D529ACA129DCDD"
+    },
+    {
+      "project": "tailscale",
+      "repo": "tailscale/tailscale",
+      "revision": "e9d5cdc3231edd3f93254c16f505fd86344a9faf",
+      "path": "net/netmon/netmon_darwin.go",
+      "url": "https://github.com/tailscale/tailscale/blob/e9d5cdc3231edd3f93254c16f505fd86344a9faf/net/netmon/netmon_darwin.go",
+      "sha256": "806FA097B172D3BB2393E3B139453116506D3FC8D540F4F2DB797E4369AE2FA2"
+    },
+    {
+      "project": "tailscale",
+      "repo": "tailscale/tailscale",
+      "revision": "e9d5cdc3231edd3f93254c16f505fd86344a9faf",
+      "path": "net/netmon/netmon.go",
+      "url": "https://github.com/tailscale/tailscale/blob/e9d5cdc3231edd3f93254c16f505fd86344a9faf/net/netmon/netmon.go",
+      "sha256": "FE353CB9C8921768105B65C19E8143EAA92D1FECD4EE6A4A9A279362BA151139"
+    },
+    {
+      "project": "qt",
+      "repo": "qt/qtbase",
+      "revision": "ef648c80f7d8466425bd50ca453ccf934e7f34d5",
+      "path": "src/plugins/networkinformation/networklistmanager/qnetworklistmanagerevents.cpp",
+      "url": "https://github.com/qt/qtbase/blob/ef648c80f7d8466425bd50ca453ccf934e7f34d5/src/plugins/networkinformation/networklistmanager/qnetworklistmanagerevents.cpp",
+      "sha256": "D3FF1405898F2D0D672180B29CEF2225F12CFC5F3EB4EAB1CAA3ABAA25264F9D"
+    },
+    {
+      "project": "qt",
+      "repo": "qt/qtbase",
+      "revision": "ef648c80f7d8466425bd50ca453ccf934e7f34d5",
+      "path": "src/plugins/networkinformation/networklistmanager/qnetworklistmanagerevents.h",
+      "url": "https://github.com/qt/qtbase/blob/ef648c80f7d8466425bd50ca453ccf934e7f34d5/src/plugins/networkinformation/networklistmanager/qnetworklistmanagerevents.h",
+      "sha256": "9FDD03FC69C567B6C749A6986BD2A80F8EE1D32E555599C0172F1F5687BA5FBB"
+    },
+    {
+      "project": "qt",
+      "repo": "qt/qtbase",
+      "revision": "ef648c80f7d8466425bd50ca453ccf934e7f34d5",
+      "path": "src/plugins/networkinformation/networklistmanager/qnetworklistmanagernetworkinformationbackend.cpp",
+      "url": "https://github.com/qt/qtbase/blob/ef648c80f7d8466425bd50ca453ccf934e7f34d5/src/plugins/networkinformation/networklistmanager/qnetworklistmanagernetworkinformationbackend.cpp",
+      "sha256": "F937B1F8C840F1F70D17E4EF689D21478B2833C87F7E7111F8D5BA3F86D57F88"
+    },
+    {
+      "project": "qt",
+      "repo": "qt/qtbase",
+      "revision": "ef648c80f7d8466425bd50ca453ccf934e7f34d5",
+      "path": "src/plugins/networkinformation/apple/qapplenetworkinformationbackend.mm",
+      "url": "https://github.com/qt/qtbase/blob/ef648c80f7d8466425bd50ca453ccf934e7f34d5/src/plugins/networkinformation/apple/qapplenetworkinformationbackend.mm",
+      "sha256": "764D5ABFCBE304101CC3D587E0E91851345029C4B801C9B824B3E662056FB4E9"
+    }
+  ]
+}

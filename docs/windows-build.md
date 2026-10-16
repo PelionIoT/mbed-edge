@@ -743,16 +743,26 @@ on a Linux host/CI remains a regression requirement. See
 ## Network recovery
 
 The native Windows Core watches IPv4/IPv6 route, address, adapter and power
-resume notifications. A five-second configuration check also detects DNS
-server/suffix and route metric changes. Routine route lifetime refreshes do
-not reset a healthy connection. Notifications only set atomic flags; the
-application event loop coalesces them for two seconds (ten seconds maximum)
-before refreshing the cloud socket and resolving the server again.
+resume notifications. DNS changes use `RegNotifyChangeKeyValue` subscriptions
+on the IPv4/IPv6 TCP/IP, DNS Client and DNS policy registry subtrees. The DNS
+worker waits indefinitely for OS events. It rearms each one-shot registry
+notification before requesting inspection; Core never creates registry keys.
+Missing DNS policy keys are covered by subscribing to an existing ancestor.
+
+Configuration snapshots run at initialization and after OS notifications,
+including DNS-only notifications; there is no periodic network/DNS scan or
+sleep-gap timer. Stable snapshots filter routine route lifetime refreshes and
+traffic counters. Callbacks wake libevent using atomic reason flags. The
+application coalesces changes for two seconds (ten seconds maximum) before
+refreshing the cloud socket and resolving the server again.
 
 Transport, timeout, TLS transport and DNS failures receive bounded retries
 (15 seconds initially, increasing to 120 seconds). A network change or resume
 resets that backoff. Authentication/configuration failures are not forced into
-a retry loop. A successful registration clears the previous cloud error.
+a retry loop. These connection deadlines, failure retries and event debounce
+use one-shot timers, not periodic network inspection. A successful registration
+clears the previous cloud error and leaves no recovery timer armed when there
+is no pending OS change.
 Recovery reuses the existing cloud client, device identity and protocol
 translator objects; it does not restart the Windows service or reprovision.
 
