@@ -220,10 +220,45 @@ static void test_tls(bool trust_certificate, bool client_auth)
         "PASS shared OpenSSL: untrusted certificate rejected");
 }
 
+/* Reconnects destroy/recreate TLS contexts but retain the PAL-owned socket.
+ * BIO_get_new_index has a process-wide limit of 127: a new type per context
+ * makes an otherwise healthy long-running Core permanently unable to connect. */
+static void test_reconnect_socket_binding(void)
+{
+    palTLSConfHandle_t configuration = 0;
+    palTLSSocket_t transport = {0};
+    palSocket_t socket;
+    HANDLE ready = CreateEventW(NULL, FALSE, FALSE, NULL);
+    CHECK(ready != NULL);
+    OK(pal_asynchronousSocketWithArgument(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, notify, ready, &socket));
+    transport.socket = socket; transport.transportationMode = PAL_TLS_MODE;
+    OK(pal_plat_initTLSConf(&configuration, PAL_TLS_MODE, PAL_TLS_IS_CLIENT));
+    for (unsigned i = 0; i < 1024; ++i) {
+        palTLSHandle_t tls = 0;
+        palStatus_t status;
+        bool nonblocking = false;
+        OK(pal_plat_initTLS(configuration, &tls));
+        OK(pal_plat_sslSetup(tls, configuration));
+        status = pal_plat_tlsSetSocket(configuration, &transport);
+        if (status != PAL_SUCCESS) {
+            fprintf(stderr, "Reconnect socket binding %u failed: 0x%08lx\n", i + 1, (unsigned long)status);
+            fail("pal_plat_tlsSetSocket reconnect", __LINE__);
+        }
+        /* Replacing a BIO and freeing TLS must both preserve socket ownership. */
+        OK(pal_plat_tlsSetSocket(configuration, &transport));
+        OK(pal_plat_freeTLS(&tls));
+        OK(pal_isNonBlocking(socket, &nonblocking)); CHECK(nonblocking);
+    }
+    OK(pal_plat_tlsConfigurationFree(&configuration));
+    OK(pal_close(&socket)); CloseHandle(ready);
+    puts("PASS 1024 TLS reconnect contexts and BIO replacements without type-ID exhaustion or socket ownership transfer");
+}
+
 int main(void)
 {
     puts(OpenSSL_version(OPENSSL_VERSION));
     OK(pal_plat_socketsInit(NULL)); OK(pal_plat_initTLSLibrary());
+    test_reconnect_socket_binding();
     test_tls(true, false); test_tls(false, false); test_tls(true, true);
     OK(pal_plat_cleanupTLS()); OK(pal_plat_socketsTerminate(NULL));
     return 0;
