@@ -41,3 +41,49 @@ Validate the deployed executable hash, live cloud registration and device identi
 Record real adapter, DNS and route changes plus an actual suspend/resume, and
 verify reconnects without restarting Core. Keep test evidence separate from
 credential files, and restore every temporary network setting.
+
+## Completed laptop qualification: 2026-10-18
+
+Version 0.21.1039 was installed on the existing Windows laptop qualification
+service. Core source was 7ea81c736d2c61f1d88d199e39324b8585b3bfeb, with
+Cloud Client ec0a104 and monitor f2fc9bf (monitor version 0.1.2).
+The service used automatic delayed startup and the deployed Core hash matched
+the tested build. All 31 retained configuration/state files matched their
+pre-install hashes before the updated service started.
+
+The following checks used the same running Core PID and the original device
+identity throughout; none restarted Core or reprovisioned it:
+
+| Case | Result | Observed time to verified connectivity |
+| --- | --- | --- |
+| DNS connection-specific suffix changed | Passed; new authenticated cloud socket | 3.8 seconds |
+| Original DNS suffix restored | Passed; new authenticated cloud socket | 9.4 seconds |
+| Temporary split route added | Passed; new authenticated cloud socket | 8.8 seconds |
+| Temporary split route removed | Passed; new authenticated cloud socket | 9.6 seconds |
+| Wi-Fi disabled for 12 seconds, then enabled | Passed; new authenticated cloud socket | 17.6 seconds after re-enabling |
+| Actual S3 suspend/resume, manually awakened on battery | Passed; Kernel-Power events 42/107 and new authenticated socket | 6.1 seconds after the suspend call returned |
+| Settled idle observation | Passed; same authenticated socket for 30 seconds | No replacement during the interval |
+
+The original provisioning CBOR hash still matched the protected backup after all
+tests. DNS configuration and Wi-Fi state were restored, the test route was
+removed, and all qualification helper processes exited. Core was connected at
+completion. The collected post-upgrade log contained no new pal_tlsSetSocket
+failures.
+
+Test limitations and evidence: startup and recovery log notifications were not
+reliable enough to drive the observer, so qualification used service-verified
+local IPC status plus Windows TCP socket creation timestamps. Local status/table
+observations were confined to the test harness; no production network discovery
+polling was added. An early post-resume idle check saw one further socket refresh;
+a fresh interval after settling passed. This is a functional qualification,
+not a long-duration endurance run. Earlier failed observer attempts were retained
+with the final evidence rather than overwritten.
+
+Both Visual Studio 2022 and 2026 passed 16 Core and five PAL suites, including
+the 1,024-context TLS regression and real verified/mutual TLS handshakes.
+The Windows 10 build target remains 17763; this laptop run was on Windows 11.
+Cross-platform CI passed all seven Windows, Linux, macOS 14 and macOS 26 jobs:
+https://github.com/PelionIoT/mbed-edge/actions/runs/39059861107
+
+Local detailed results:
+D:/work/mbed-edge-windows-installer/build/tls-reconnect-laptop-20261017/result.json
