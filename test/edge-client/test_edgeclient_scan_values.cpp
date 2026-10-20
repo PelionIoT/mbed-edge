@@ -376,3 +376,36 @@ TEST(edgeclient_scan_values, test_scan_objlink)
     MEMCMP_EQUAL(value_buffer, buf, buf_len);
     free(buf);
 }
+
+TEST(edgeclient_scan_values, signed_integer_boundaries)
+{
+    const char *values[] = {"2147483648", "68719476736", "9223372036854775807",
+                            "-2147483649", "-9223372036854775808"};
+    const uint8_t expected[][8] = {
+        {0, 0, 0, 0, 0x80, 0, 0, 0},
+        {0, 0, 0, 0x10, 0, 0, 0, 0},
+        {0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+        {0xff, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff},
+        {0x80, 0, 0, 0, 0, 0, 0, 0}
+    };
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+        uint8_t *buffer = NULL;
+        size_t length = text_format_to_value(LWM2M_INTEGER, (const uint8_t *) values[i],
+                                              strlen(values[i]), &buffer);
+        UNSIGNED_LONGS_EQUAL(8, length);
+        MEMCMP_EQUAL(expected[i], buffer, 8);
+        free(buffer);
+    }
+}
+
+TEST(edgeclient_scan_values, reject_signed_integer_overflow)
+{
+    const char *values[] = {"9223372036854775808", "-9223372036854775809"};
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+        uint8_t *buffer = NULL;
+        size_t length = text_format_to_value(LWM2M_INTEGER, (const uint8_t *) values[i],
+                                              strlen(values[i]), &buffer);
+        UNSIGNED_LONGS_EQUAL(0, length);
+        POINTERS_EQUAL(NULL, buffer);
+    }
+}
