@@ -217,6 +217,9 @@ EDGE_LOCAL coap_response_code_e map_to_coap_error(int16_t jsonrpc_error_code)
 {
     coap_response_code_e resp;
     switch (jsonrpc_error_code) {
+        case PT_API_ILLEGAL_VALUE:
+            resp = COAP_RESPONSE_BAD_REQUEST;
+            break;
         case PT_API_REQUEST_TIMEOUT:
             resp = COAP_RESPONSE_GATEWAY_TIMEOUT;
             break;
