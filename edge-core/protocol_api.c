@@ -1030,7 +1030,7 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
         // Allocate just an empty string. This signifies no data.
         json_value = (unsigned char *) calloc(1, 1);
     } else {
-        json_value = (unsigned char *) calloc(1, out_size);
+        json_value = (unsigned char *) calloc(1, out_size + 1);
     }
     if (!json_value) {
         tr_error("allocating value base64 buffer failed");
@@ -1052,7 +1052,7 @@ int write_to_pt(edgeclient_request_context_t *request_ctx, void *userdata)
             ret_val = 1;
             goto write_to_pt_cleanup;
         }
-        // EVP_EncodeBlock does not write a null terminator, but we allocated with calloc so it's safe.
+        // EVP_EncodeBlock includes a terminating byte beyond the encoded characters.
     }
 #endif
     if (json_object_set_new(params, "value", json_string((const char *) json_value))) {
