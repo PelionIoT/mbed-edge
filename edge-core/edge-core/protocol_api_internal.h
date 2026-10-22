@@ -40,6 +40,9 @@ typedef struct connection {
     void *userdata;
     connection_id_t id;
     bool connected;
+    bool credential_active;
+    uint8_t credential_challenge[32];
+    uint64_t credential_sequence;
 } connection_t;
 
 typedef struct protocol_api_async_request_context_ {

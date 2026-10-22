@@ -39,7 +39,7 @@ cd build/macos-run
 
 First enrollment requires a test CBOR or JSON provisioning bundle supplied through `--cbor-conf` or `--json-conf`. Keep that identity separate from production identities. Do not pass `--reset-storage` for a retained identity.
 
-The PT transport remains the existing Unix domain socket. Give concurrent development instances separate PT socket paths with `--edge-pt-domain-socket`. Status now uses a separate protected Unix HTTP socket, defaulting to `edge-status/status.sock` under the working directory. Its absolute path must fit in 103 UTF-8 bytes. Pass `--status-socket` for a protected directory elsewhere; Core can create its final parent directory, while earlier parents must already exist. TCP status requires explicit `--status-tcp` and a loopback bind address. See [local status](local-status.md) for permissions, limits, and metadata.
+The default PT transport is the Unix domain socket. Optional IPv4 loopback PT uses `--edge-pt-address 127.0.0.1:<port>`; it does not enable TCP status. Give concurrent development instances separate PT socket paths with `--edge-pt-domain-socket`. Status now uses a separate protected Unix HTTP socket, defaulting to `edge-status/status.sock` under the working directory. Its absolute path must fit in 103 UTF-8 bytes. Pass `--status-socket` for a protected directory elsewhere; Core can create its final parent directory, while earlier parents must already exist. TCP status requires explicit `--status-tcp` and a loopback bind address. See [local status](local-status.md) for permissions, limits, and metadata.
 
 After provisioning and local startup:
 

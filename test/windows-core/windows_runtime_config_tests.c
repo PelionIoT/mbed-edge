@@ -23,7 +23,12 @@ int wmain(int argc, wchar_t **argv)
     CHECK(WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, sizeof(utf8), NULL, NULL));
     edge_runtime_config config;
     edge_runtime_config_defaults(&config);
-    CHECK(!config.status_tcp_enabled && config.tcp_enabled && !config.af_unix_enabled && !config.named_pipe_enabled &&
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+    CHECK(!config.tcp_enabled && config.named_pipe_enabled);
+#else
+    CHECK(config.tcp_enabled && !config.named_pipe_enabled);
+#endif
+    CHECK(!config.status_tcp_enabled && !config.af_unix_enabled &&
           config.named_pipe_max_clients == 16 && !strcmp(config.tcp_address, "127.0.0.1:7681"));
     write_config(path, "{\"schemaVersion\":1,\"pt\":{\"tcpAddress\":\"127.0.0.1:17777\",\"afUnix\":{\"enabled\":false}}}");
     CHECK(edge_runtime_config_load(&config, utf8));

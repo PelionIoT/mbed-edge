@@ -10,7 +10,11 @@
 void edge_runtime_config_defaults(edge_runtime_config *config)
 {
     memset(config, 0, sizeof(*config));
+#ifdef MBED_EDGE_WINDOWS_NAMED_PIPE
+    config->named_pipe_enabled = true;
+#else
     config->tcp_enabled = true;
+#endif
     strcpy_s(config->tcp_address, sizeof(config->tcp_address), "127.0.0.1:7681");
     strcpy_s(config->named_pipe_name, sizeof(config->named_pipe_name), "\\\\.\\pipe\\IzumaEdgeCorePT");
     config->named_pipe_max_clients = 16;
@@ -71,6 +75,7 @@ bool edge_runtime_config_load(edge_runtime_config *config, const char *filename)
         if (tcp_enabled) {
             if (!json_is_boolean(tcp_enabled)) goto done;
             parsed.tcp_enabled = json_is_true(tcp_enabled);
+            parsed.tcp_configured = true;
         }
         json_t *tcp = json_object_get(pt, "tcpAddress");
         if (tcp) {

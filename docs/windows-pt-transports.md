@@ -2,6 +2,13 @@
 
 Research date: October 3, 2026. Repository baseline: `9a0985a`.
 
+Update October 22, 2026: the Windows default is now the ACL-restricted PT named
+pipe when compiled in. TCP is opt-in; an explicit `pt.tcpEnabled` setting takes
+precedence over the CLI address. An explicit CLI address enables TCP when that
+setting is absent. AF_UNIX remains opt-in. The older research recommendations
+below describe the earlier TCP-default baseline. See [credential API](credential-api.md)
+for encrypted credential operations over all three transports.
+
 Keep the existing loopback TCP/WebSocket listener and add optional native
 AF_UNIX and named-pipe listeners. AF_UNIX is now implemented and passed Debug
 and Release PT-to-cloud counter reads on this Windows 10 host. Named pipes
@@ -267,7 +274,7 @@ inherit pipe handles into children, which could extend their lifetime.
 [WaitNamedPipe](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-waitnamedpipea)
 
 The Windows profile defaults `EDGE_WINDOWS_NAMED_PIPE=ON`; setting the flag OFF
-omits its server/client/test targets. Runtime activation defaults to disabled,
+omits its server/client/test targets. Runtime activation now defaults to enabled,
 following the AF_UNIX capability/configuration pattern. The existing Windows
 10 targets support the required APIs; it does not need AF_UNIX's 17134 build
 threshold. The strict runtime schema accepts a pipe name, `maxClients` and a

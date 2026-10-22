@@ -8,6 +8,7 @@
 typedef struct {
     bool status_tcp_enabled;
     bool tcp_enabled;
+    bool tcp_configured;
     char tcp_address[32];
     bool af_unix_enabled;
     char af_unix_path[108];

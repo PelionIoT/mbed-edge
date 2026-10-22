@@ -1,3 +1,5 @@
+#include "eventOS_scheduler.h"
+#include "edge-core/protocol_credential_api.h"
 /*
  * ----------------------------------------------------------------------------
  * Copyright 2018 ARM Ltd.
@@ -191,8 +193,11 @@ void edge_server_construct_and_send_response_safe(connection_id_t connection_id,
             tr_err("edge_server_construct_and_send_response_safe: couldn't send response back to client");
             json_decref(response);
             free(params);
-            free_func(customer_callback_ctx);
+            if (free_func) free_func(customer_callback_ctx);
         }
+    } else {
+        json_decref(response);
+        if (free_func) free_func(customer_callback_ctx);
     }
 }
 
@@ -789,6 +794,7 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
                                                                struct lws_protocols protocols[],
                                                                int *lock_fd)
 {
+    bool tcp = edge_pt_socket && !strncmp(edge_pt_socket, "127.0.0.1:", 10);
     void *foreign_loops[1];
 
     struct lws_context *lwsc = NULL;
@@ -797,12 +803,12 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
 #ifndef _WIN32
     // If the Protocol Translator socket lock file already exists, Edge Core should not start,
     // because there's probably another Edge Core already running.
-    if (!edge_io_acquire_lock_for_socket(edge_pt_socket, lock_fd)) {
+    if (!tcp && !edge_io_acquire_lock_for_socket(edge_pt_socket, lock_fd)) {
         return NULL;
     }
 
     // Remove the old Unix domain socket file if it exists.
-    if (edge_io_file_exists(edge_pt_socket)) {
+    if (!tcp && edge_io_file_exists(edge_pt_socket)) {
         int ret = edge_io_unlink(edge_pt_socket);
         if (ret != 0) {
             tr_err("Unable to remove the dangling %s file. Error code: %d (%s)",
@@ -816,6 +822,9 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
     memset(&info, 0, sizeof (struct lws_context_creation_info));
     int opts = 0;
 #ifdef _WIN32
+    if (edge_pt_socket && !tcp) return NULL;
+#endif
+    if (tcp || !edge_pt_socket) {
     /* Local RPC retains WebSocket/JSON framing on IPv4 loopback. */
     char *end;
     if (edge_pt_socket && strncmp(edge_pt_socket, "127.0.0.1:", 10) != 0) {
@@ -823,16 +832,16 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
         return NULL;
     }
     unsigned long port = edge_pt_socket ? strtoul(edge_pt_socket + 10, &end, 10) : 0;
-    if (edge_pt_socket && (*end || port == 0 || port > 65535)) {
+    if (edge_pt_socket && (!edge_pt_socket[10] || strspn(edge_pt_socket + 10, "0123456789") != strlen(edge_pt_socket + 10) || *end || port == 0 || port > 65535)) {
         tr_err("Invalid Protocol API port: %s", edge_pt_socket);
         return NULL;
     }
     info.port = edge_pt_socket ? (int)port : CONTEXT_PORT_NO_LISTEN;
     info.iface = "127.0.0.1";
-#else
+    } else {
     info.port = 7681;
     info.iface = edge_pt_socket;
-#endif
+    }
     info.protocols = protocols;
     info.extensions = NULL;
     info.ssl_cert_filepath = NULL;
@@ -842,7 +851,7 @@ EDGE_LOCAL struct lws_context *initialize_libwebsocket_context(struct event_base
     info.max_http_header_pool = 1;
     info.options = opts | LWS_SERVER_OPTION_LIBEVENT;
 #ifndef _WIN32
-    info.options |= LWS_SERVER_OPTION_UNIX_SOCK;
+    if (!tcp) info.options |= LWS_SERVER_OPTION_UNIX_SOCK;
 #endif
     foreign_loops[0] = ev_base;
     info.foreign_loops = foreign_loops;
@@ -911,6 +920,7 @@ int testable_main(int argc, char **argv)
     for (int i = 1; i < argc; ++i)
         if (!strcmp(argv[i], "--edge-pt-address") || !strncmp(argv[i], "--edge-pt-address=", 18) ||
             !strcmp(argv[i], "-p") || (!strncmp(argv[i], "-p", 2) && argv[i][2])) tcp_override = true;
+    if (tcp_override && !runtime_config.tcp_configured) runtime_config.tcp_enabled = true;
     if (args.runtime_config && !tcp_override) args.edge_pt_domain_socket = runtime_config.tcp_address;
 #ifdef MBED_EDGE_WINDOWS_AF_UNIX
     struct edge_pt_unix_listener *unix_listener = NULL;
@@ -935,7 +945,11 @@ int testable_main(int argc, char **argv)
         edgeclient_create_params.reset_storage = true;
     }
 
-    char* edge_pt_socket = args.edge_pt_domain_socket;
+    char* edge_pt_socket = args.edge_pt_address ? args.edge_pt_address : args.edge_pt_domain_socket;
+    if (args.edge_pt_address && (strncmp(edge_pt_socket, "127.0.0.1:", 10) || !edge_pt_socket[10] ||
+        strspn(edge_pt_socket + 10, "0123456789") != strlen(edge_pt_socket + 10))) {
+        fprintf(stderr, "PT TCP requires 127.0.0.1:<port>.\n"); return EXIT_FAILURE;
+    }
 #ifdef __APPLE__
     int http_port;
     if (!args.status_tcp) {
@@ -1009,11 +1023,15 @@ int testable_main(int argc, char **argv)
         }
         listeners.http = (edge_listener_entry){true, args.status_tcp, ctx_data->http_server != NULL, http_listener_address};
         listeners.status_unix = (edge_listener_entry){true, true, false, args.status_socket};
-        listeners.af_unix = (edge_listener_entry){true, true, false, edge_pt_socket};
+        bool pt_tcp = !strncmp(edge_pt_socket, "127.0.0.1:", 10);
+        listeners.af_unix = (edge_listener_entry){true, !pt_tcp, false, pt_tcp ? "" : edge_pt_socket};
+        listeners.tcp = (edge_listener_entry){true, pt_tcp, false, pt_tcp ? edge_pt_socket : ""};
 #else
         edge_listener_http_address(ctx_data->http_server->bound_socket, http_listener_address, sizeof(http_listener_address));
         listeners.http = (edge_listener_entry){true, true, true, http_listener_address};
-        listeners.af_unix = (edge_listener_entry){true, true, false, edge_pt_socket};
+        bool pt_tcp = !strncmp(edge_pt_socket, "127.0.0.1:", 10);
+        listeners.af_unix = (edge_listener_entry){true, !pt_tcp, false, pt_tcp ? "" : edge_pt_socket};
+        listeners.tcp = (edge_listener_entry){true, pt_tcp, false, pt_tcp ? edge_pt_socket : ""};
 #endif
 #endif
 
@@ -1078,6 +1096,12 @@ int testable_main(int argc, char **argv)
 #endif
 
         edgeclient_create(&edgeclient_create_params, byoc_data);
+        if (args.pt_credential_provision) {
+            eventOS_scheduler_mutex_wait();
+            bool provisioned = credential_api_provision(args.pt_credential_provision);
+            eventOS_scheduler_mutex_release();
+            if (!provisioned) { fprintf(stderr, "Credential namespace provisioning failed.\n"); rc = 1; break; }
+        }
 #if defined(_WIN32) && !defined(BUILD_TYPE_TEST)
         edge_windows_service_checkpoint();
 #endif
@@ -1109,7 +1133,8 @@ int testable_main(int argc, char **argv)
 #ifdef _WIN32
         listeners.tcp.listening = lwsc && runtime_config.tcp_enabled;
 #else
-        listeners.af_unix.listening = lwsc != NULL;
+        listeners.af_unix.listening = lwsc && listeners.af_unix.enabled;
+        listeners.tcp.listening = lwsc && listeners.tcp.enabled;
 #endif
 #endif
 #ifdef _WIN32
