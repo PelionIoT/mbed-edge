@@ -21,6 +21,7 @@
 #define TRACE_GROUP "edgecc"
 
 #include <stdlib.h>
+#include <errno.h>
 #include "common/constants.h"
 #include "edge-client/edge_client_format_values.h"
 #include "mbed-trace/mbed_trace.h"
@@ -282,9 +283,10 @@ static bool text_format_scan_integer_value(const uint8_t *text_buffer, const uin
                                            uint64_t *value) {
     uint8_t *endptr = NULL;
 
-    *value = strtol((const char*)text_buffer, (char**)&endptr, 10);
+    errno = 0;
+    *value = (uint64_t) strtoll((const char*)text_buffer, (char**)&endptr, 10);
 
-    if (endptr == text_buffer) {
+    if (endptr == text_buffer || errno == ERANGE) {
         // No valid integer number
         return false;
     }

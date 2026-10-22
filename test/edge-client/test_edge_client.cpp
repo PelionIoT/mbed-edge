@@ -2329,6 +2329,8 @@ TEST_GROUP(error_parser){void setup(){} void teardown(){}};
 TEST(error_parser, test_map_to_coap_error)
 {
     coap_response_code_e resp;
+    resp = map_to_coap_error(PT_API_ILLEGAL_VALUE);
+    CHECK_EQUAL(COAP_RESPONSE_BAD_REQUEST, resp);
     resp = map_to_coap_error(PT_API_REQUEST_TIMEOUT);
     CHECK_EQUAL(COAP_RESPONSE_GATEWAY_TIMEOUT, resp);
     resp = map_to_coap_error(PT_API_REMOTE_DISCONNECTED);
