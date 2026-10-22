@@ -38,11 +38,13 @@ typedef struct {
     int version;
     /* options with arguments */
     char *bind;
+    char *pt_credential_provision;
     char *cbor_conf;
 #ifdef MBED_EDGE_ENABLE_BYOC_JSON
     char *json_conf;
 #endif
     char *edge_pt_domain_socket;
+    char *edge_pt_address;
 #ifdef _WIN32
     char *runtime_config;
 #endif
@@ -67,12 +69,16 @@ const char help_message[] =
 "Options:\n"
 "  -h --help                            Show this screen.\n"
 "  -v --version                         Show the version number\n"
+"  --pt-credential-provision <path>     Locally enroll credential namespaces from a private file.\n"
 "  --color-log                          Use ANSI colors in log.\n"
 #ifdef _WIN32
-"  -p --edge-pt-address <string>        Protocol API loopback address [default: 127.0.0.1:7681].\n"
+"  -p --edge-pt-address <string>        Optional PT loopback address [default: 127.0.0.1:7681].\n"
 "  --config <path>                     JSON runtime settings (separate from cloud provisioning).\n"
 #else
 "  -p --edge-pt-domain-socket <string>  Protocol API domain socket [default: /tmp/edge.sock].\n"
+#endif
+#ifndef _WIN32
+"  --edge-pt-address <string>           Explicit Protocol API IPv4 loopback address.\n"
 #endif
 "  -b --bind <string>                   HTTP bind address [default: 127.0.0.1].\n"
 "  -o --http-port <int>                 HTTP port number [default: 8080].\n"
@@ -328,6 +334,8 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             args->reset_storage = option->value;
         } else if (!strcmp(option->olong, "--version")) {
             args->version = option->value;
+        } else if (!strcmp(option->olong, "--pt-credential-provision")) {
+            if (option->argument) args->pt_credential_provision = option->argument;
         } else if (!strcmp(option->olong, "--bind")) {
             if (option->argument)
                 args->bind = option->argument;
@@ -339,13 +347,10 @@ int elems_to_args(Elements *elements, DocoptArgs *args, bool help,
             if (option->argument)
                 args->json_conf = option->argument;
 #endif
-#ifdef _WIN32
         } else if (!strcmp(option->olong, "--edge-pt-address")) {
-#else
+            if (option->argument) args->edge_pt_address = option->argument;
         } else if (!strcmp(option->olong, "--edge-pt-domain-socket")) {
-#endif
-            if (option->argument)
-                args->edge_pt_domain_socket = option->argument;
+            if (option->argument) args->edge_pt_domain_socket = option->argument;
 #ifdef _WIN32
         } else if (!strcmp(option->olong, "--config")) {
             if (option->argument)
@@ -405,6 +410,7 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
 #endif
     };
     Option options[] = {
+        {NULL, "--pt-credential-provision", 1, 0, NULL},
         {NULL, "--color-log", 0, 0, NULL},
         {"-h", "--help", 0, 0, NULL},
         {"-r", "--reset-storage", 0, 0, NULL},
@@ -420,6 +426,7 @@ DocoptArgs docopt(int argc, char *argv[], bool help, const char *version) {
         {"-p", "--edge-pt-address", 1, 0, NULL},
         {NULL, "--config", 1, 0, NULL},
 #else
+        {NULL, "--edge-pt-address", 1, 0, NULL},
         {"-p", "--edge-pt-domain-socket", 1, 0, NULL},
 #endif
         {"-o", "--http-port", 1, 0, NULL},

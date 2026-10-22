@@ -40,6 +40,9 @@ add_executable(windows-runtime-config-tests windows_runtime_config_tests.c ../..
 target_include_directories(windows-runtime-config-tests PRIVATE ../../edge-core/windows)
 target_link_libraries(windows-runtime-config-tests jansson advapi32)
 target_compile_options(windows-runtime-config-tests PRIVATE /W4 /WX)
+if (EDGE_WINDOWS_NAMED_PIPE)
+  target_compile_definitions(windows-runtime-config-tests PRIVATE MBED_EDGE_WINDOWS_NAMED_PIPE=1)
+endif ()
 add_test(NAME windows-core-runtime-config COMMAND windows-runtime-config-tests "${CMAKE_CURRENT_BINARY_DIR}")
 set_tests_properties(windows-core-runtime-config PROPERTIES TIMEOUT 10)
 add_executable(windows-listener-status-tests windows_listener_status_tests.c

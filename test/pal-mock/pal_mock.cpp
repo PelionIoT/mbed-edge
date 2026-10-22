@@ -39,3 +39,21 @@ palStatus_t pal_osMutexRelease(palMutexID_t mutexID)
                 .withUnsignedLongIntParameter("mutexID", mutexID)
                 .returnIntValue();
 }
+
+
+palStatus_t pal_fsGetMountPoint(pal_fsStorageID_t dataID, size_t length, char *path)
+{
+    return (palStatus_t)mock().actualCall("pal_fsGetMountPoint")
+        .withIntParameter("dataID", dataID)
+        .withUnsignedLongIntParameter("length", length)
+        .withOutputParameter("path", path)
+        .returnIntValue();
+}
+
+extern "C" palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
+{
+    return (palStatus_t)mock().actualCall("pal_osRandomBuffer")
+        .withUnsignedLongIntParameter("bufSizeBytes", bufSizeBytes)
+        .withOutputParameter("randomBuf", randomBuf)
+        .returnIntValue();
+}

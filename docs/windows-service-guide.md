@@ -41,14 +41,14 @@ used during qualification are not signed production releases.
 | Process management | Native Windows Service Control Manager (SCM) service named `EdgeCore`. Console operation is also available for development. | Existing console operation or the service manager configured by your Linux deployment. This guide does not define a Linux service unit. |
 | Service identity | Restricted `NT AUTHORITY\LocalService` token with a dedicated, restricted service SID. | User and filesystem permissions selected by the Linux deployment. |
 | Local status | `\\.\pipe\IzumaEdgeCoreStatus` by default. TCP HTTP status is **off by default**. | Existing HTTP `GET /status` behavior remains unchanged: default bind `127.0.0.1`, default port `8080`. |
-| Default PT connection | Loopback TCP/WebSocket at `127.0.0.1:7681`; optional Windows AF_UNIX and PT named-pipe transports can be configured. | Existing Unix-domain PT socket, default `/tmp/edge.sock`. |
+| Default PT connection | ACL-restricted named pipe `\\.\pipe\IzumaEdgeCorePT` when compiled in; AF_UNIX and loopback TCP/WebSocket are opt-in alternatives. | Existing Unix-domain PT socket, default `/tmp/edge.sock`. |
 | Desktop monitoring | Optional native Windows monitor and tray icon. | No Linux GUI adapter is supplied by the current monitor repository. |
 | Headless control | `izuma-edge-ctl`, PowerShell service commands, or `sc.exe`. | Existing deployment-specific commands; the Windows CLI does not manage Linux services. |
 | Persistent data | Installer-managed private directories under `%ProgramData%\Izuma\EdgeCore`. | Existing PAL storage configuration; a normal console run uses its existing working-directory storage. |
 
 The Windows status pipe is separate from any named pipe used by protocol
-translators. Disabling **TCP status** does not disable the PT TCP listener on
-port `7681`. These Windows defaults do not change Linux's HTTP status endpoint,
+translators. TCP status and PT TCP are separate settings. PT TCP is off by default when
+named pipes are compiled in; explicitly enable it for TCP clients. These Windows defaults do not change Linux's HTTP status endpoint,
 Unix socket, or provisioning behavior. See [local status](local-status.md) and
 [Windows PT transports](windows-pt-transports.md) for the detailed contracts.
 

@@ -1,3 +1,4 @@
+#include "edge-core/protocol_credential_api.h"
 /*
  * ----------------------------------------------------------------------------
  * Copyright 2018 ARM Ltd.
@@ -140,6 +141,8 @@ int download_asset(json_t *request, json_t *json_params, json_t **result, void *
 #endif
 
 struct jsonrpc_method_entry_t method_table[] = {
+    { "credential_open", credential_api_open, "o" },
+    { "credential_request", credential_api_request, "o" },
     { "protocol_translator_register", protocol_translator_register, "o" },
     { "device_register", device_register, "o" },
     { "device_unregister", device_unregister, "o" },
