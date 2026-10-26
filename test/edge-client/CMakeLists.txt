@@ -9,6 +9,7 @@ add_executable (edge-client-test ${SOURCES} ../../edge-core/edge_network_policy.
 
 add_definitions(-DMBED_CONF_MBED_TRACE_ENABLE=1)
 include_directories (../cpputest-custom-types)
+target_include_directories (edge-client-test PRIVATE "${ROOT_HOME}/edge-core")
 target_include_directories (edge-client-test PUBLIC ${CPPUTEST_HOME}/include)
 target_include_directories (edge-client-test PUBLIC ${ROOT_HOME}/test/test-lib)
 target_include_directories (edge-client-test PUBLIC ${ROOT_HOME}/lib/mbed-cloud-client/unittests/stub)

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "CppUTest/TestHarness.h"
 #include "edge-client/network_recovery_error.h"
-#include "edge-core/edge_network_recovery.h"
+#include "edge_network_recovery.h"
 TEST_GROUP(NetworkRecovery) {};
 TEST(NetworkRecovery, RuntimeFailuresAllowDnsAndResumeRecovery)
 {
