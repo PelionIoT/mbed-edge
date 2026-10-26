@@ -6,6 +6,12 @@
 int main(void)
 {
     edge_network_policy p;
+    /* OS events can arrive before the first cloud registration. */
+    edge_network_policy_init(&p, 1000);
+    edge_network_policy_change(&p, 1001, EDGE_NETWORK_DNS | EDGE_NETWORK_RESUME);
+    CHECK(edge_network_policy_step(&p, 3001) == (EDGE_NETWORK_DNS | EDGE_NETWORK_RESUME));
+    edge_network_policy_cloud(&p, 3002, true, false);
+    CHECK(edge_network_policy_deadline(&p) == UINT64_MAX);
     edge_network_policy_init(&p, 1000);
     CHECK(edge_network_policy_deadline(&p) == 121000);
     CHECK(!edge_network_policy_step(&p, 120999));

@@ -753,10 +753,10 @@ void edgeclient_connect() {
 }
 
 #if defined(_WIN32) || defined(__APPLE__)
+#include "edge-client/network_recovery_error.h"
 bool edgeclient_transient_network_error(int code)
 {
-    return code == MbedCloudClient::ConnectTimeout || code == MbedCloudClient::ConnectNetworkError ||
-           code == MbedCloudClient::ConnectDnsResolvingFailed || code == MbedCloudClient::ConnectSecureConnectionFailed;
+    return edgeclient_cloud_error_is_recoverable(code);
 }
 bool edgeclient_reconnect_network(void)
 {

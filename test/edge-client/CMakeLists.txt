@@ -5,7 +5,7 @@ enable_language(CXX)
 if(FOTA_ENABLE)
     add_definitions(-DMBED_EDGE_SUBDEVICE_FOTA)
 endif()
-add_executable (edge-client-test ${SOURCES})
+add_executable (edge-client-test ${SOURCES} ../../edge-core/edge_network_policy.c)
 
 add_definitions(-DMBED_CONF_MBED_TRACE_ENABLE=1)
 include_directories (../cpputest-custom-types)

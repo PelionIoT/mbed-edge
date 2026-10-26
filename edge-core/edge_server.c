@@ -97,7 +97,9 @@ static void reconnect_cloud_network(unsigned reason, void *context)
 {
     (void)context;
     if (edgeclient_reconnect_network()) {
-        tr_info("Network recovery: refreshing cloud socket and DNS; reason mask=%u (route=1 address=2 config/DNS=4 resume=8 retry=16)", reason);
+        // Keep the recovery cause in service logs even when INFO trace is disabled.
+        fprintf(stderr, "Network recovery: refreshing cloud socket and DNS; reason mask=%u (route=1 address=2 config/DNS=4 resume=8 retry=16)\n", reason);
+        fflush(stderr);
         free_old_cloud_error(g_program_context->ctx_data);
         g_program_context->ctx_data->cloud_connection_status = EDGE_STATE_CONNECTING;
     }

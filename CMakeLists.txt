@@ -138,6 +138,22 @@ if (APPLE AND TARGET_GROUP STREQUAL production)
   endif ()
 endif ()
 
+# Exercise the real shared SDK on native builds. Linux production builds can
+# opt in; the historical Linux mock suite also exercises classification/policy.
+set(_edge_recovery_tests OFF)
+if(EDGE_WINDOWS_TESTS OR EDGE_MACOS_TESTS)
+  set(_edge_recovery_tests ON)
+endif()
+option(EDGE_REGISTRATION_RECOVERY_TESTS "Test the real SDK registration recovery" ${_edge_recovery_tests})
+if(EDGE_REGISTRATION_RECOVERY_TESTS AND TARGET mbedCloudClient)
+  enable_testing()
+  add_subdirectory(test/registration-recovery)
+endif()
+if(EDGE_REGISTRATION_RECOVERY_TESTS OR TARGET_GROUP STREQUAL test)
+  enable_testing()
+  add_subdirectory(test/network-recovery)
+endif()
+
 if (NOT WIN32 AND NOT (CMAKE_BUILD_TYPE STREQUAL Release) AND (NOT (_FORTIFY_SOURCE GREATER 0)))
     SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
     SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")

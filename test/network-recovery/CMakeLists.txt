@@ -12,3 +12,7 @@ else()
 endif()
 add_test(NAME shared-network-recovery-policy COMMAND edge-network-policy-tests)
 set_tests_properties(shared-network-recovery-policy PROPERTIES TIMEOUT 10)
+
+if(TARGET windows-core-tests)
+  add_dependencies(windows-core-tests edge-network-policy-tests)
+endif()
